@@ -18,6 +18,29 @@ gi.require_version("Gsk", "4.0")
 from gi.repository import Gtk, Gdk, Graphene, Gsk
 
 
+def hide_scrollbars(scroller):
+    """Hide a ScrolledWindow's scrollbars deterministically.
+
+    CSS-based scrollbar hiding (min-width/min-height: 0) is unreliable —
+    the theme controls the bar's size and wins on some properties (seen
+    in parallax_gallery: the horizontal bar still allocates ~9px even
+    with scoped ``.hide-scrollbar`` rules at APPLICATION priority). The
+    robust approach is to hide the Gtk.Scrollbar widgets themselves: the
+    scrolled window keeps scrolling (adjustments are independent of
+    scrollbar visibility), so only the visual bars disappear.
+    """
+    def _walk(widget):
+        if isinstance(widget, Gtk.Scrollbar):
+            widget.set_visible(False)
+            return
+        child = widget.get_first_child()
+        while child is not None:
+            _walk(child)
+            child = child.get_next_sibling()
+
+    _walk(scroller)
+
+
 _FOCUS_CSS = b"""\
 @define-color wc-focus-ring rgba(120,170,255,0.55);
 @define-color wc-focus-glow rgba(120,170,255,0.6);

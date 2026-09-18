@@ -22,6 +22,7 @@ from gi.repository import Gtk
 from .base import WallLayout
 from widgets.skewed_card import SkewedCard
 from widgets.thumbnail_loader import ThumbnailLoader
+from widgets.gsk_utils import hide_scrollbars
 
 CELL_SKEW_DEG = -6.0  # subtler than the carousel's skew; grid density matters more here
 
@@ -46,6 +47,25 @@ _CSS = b"""
     border-radius: 0;
     padding: 0;
 }
+
+.hide-scrollbar scrollbar,
+.hide-scrollbar scrollbar hover,
+.hide-scrollbar scrollbar:disabled,
+.hide-scrollbar scrollbar trough,
+.hide-scrollbar scrollbar trough:backdrop,
+.hide-scrollbar scrollbar slider,
+.hide-scrollbar scrollbar slider:hover,
+.hide-scrollbar scrollbar slider:disabled {
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    background: none;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+    outline: none;
+}
 """
 
 
@@ -58,6 +78,7 @@ class MasonryGridLayout(WallLayout):
         self._card_by_child: dict[Gtk.FlowBoxChild, SkewedCard] = {}
 
         scroller = Gtk.ScrolledWindow()
+        scroller.add_css_class("hide-scrollbar")
         scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroller.set_vexpand(True)
         scroller.set_hexpand(True)
@@ -84,6 +105,7 @@ class MasonryGridLayout(WallLayout):
     def _register_css(self, widget):
         display = widget.get_display()
         if display is not None:
+            hide_scrollbars(widget)
             provider = Gtk.CssProvider()
             provider.load_from_data(_CSS)
             Gtk.StyleContext.add_provider_for_display(

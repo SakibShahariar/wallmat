@@ -23,6 +23,7 @@ from gi.repository import Gtk, Gio, GObject, Gdk
 from .base import WallLayout
 from announce import say
 from widgets.thumbnail_loader import ThumbnailLoader
+from widgets.gsk_utils import hide_scrollbars
 
 _GLASS_STRIDE = 180 + 12  # per-item scroll increment (180 card + 6px margins each side)
 
@@ -45,6 +46,25 @@ _CSS_TEMPLATE = b"""
 }
 .glass-card picture {
     border-radius: 16px;
+}
+
+.hide-scrollbar scrollbar,
+.hide-scrollbar scrollbar hover,
+.hide-scrollbar scrollbar:disabled,
+.hide-scrollbar scrollbar trough,
+.hide-scrollbar scrollbar trough:backdrop,
+.hide-scrollbar scrollbar slider,
+.hide-scrollbar scrollbar slider:hover,
+.hide-scrollbar scrollbar slider:disabled {
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    background: none;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+    outline: none;
 }
 """
 
@@ -85,6 +105,7 @@ class GlassmorphismLayout(WallLayout):
         self.list_view.set_orientation(Gtk.Orientation.HORIZONTAL)
 
         self.scroller = Gtk.ScrolledWindow()
+        self.scroller.add_css_class("hide-scrollbar")
         self.scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
         self.scroller.set_vexpand(True)
         self.scroller.set_hexpand(True)
@@ -112,6 +133,7 @@ class GlassmorphismLayout(WallLayout):
             display = widget.get_display()
             if display is None:
                 return
+            hide_scrollbars(self.scroller)
             base = Gdk.RGBA()
             base.parse("#78aaff")
             result = widget.get_style_context().lookup_color("theme_selected_bg_color")
@@ -174,7 +196,6 @@ class GlassmorphismLayout(WallLayout):
         item: _GlassItem = list_item.get_item()
         picture: Gtk.Picture = list_item.get_child()
         self._live_widgets[item.path] = picture
-        picture.set_filename(item.path)
 
         # A recycled row must carry the same glow state the row it replaced
         # had, or the selection border flickers to the wrong card while the

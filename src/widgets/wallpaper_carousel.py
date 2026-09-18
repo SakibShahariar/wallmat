@@ -19,6 +19,7 @@ from gi.repository import Gtk, Gio, GObject, Gdk
 
 from .skewed_card import SkewedCard, natural_width
 from .thumbnail_loader import ThumbnailLoader
+from .gsk_utils import hide_scrollbars
 from announce import say
 
 _item_id_counter = itertools.count()
@@ -58,6 +59,29 @@ _CSS = b"""
     border-radius: 0;
     padding: 0;
     margin: 0;
+}
+
+/* Hide the horizontal scrollbar under the strip. Scrolling still works
+   (wheel/arrows/trackpad drive the adjustment); only the visual bar is
+   removed. Scoped to the .hide-scrollbar class so the display-global
+   provider does not affect other apps' scrollbars. */
+.hide-scrollbar scrollbar,
+.hide-scrollbar scrollbar hover,
+.hide-scrollbar scrollbar:disabled,
+.hide-scrollbar scrollbar trough,
+.hide-scrollbar scrollbar trough:backdrop,
+.hide-scrollbar scrollbar slider,
+.hide-scrollbar scrollbar slider:hover,
+.hide-scrollbar scrollbar slider:disabled {
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    background: none;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+    outline: none;
 }
 """
 
@@ -126,6 +150,7 @@ class WallpaperCarousel(Gtk.Box):
         self.list_view.add_css_class("wallpaper-carousel")
 
         self.scroller = Gtk.ScrolledWindow()
+        self.scroller.add_css_class("hide-scrollbar")
         self.scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
         self.scroller.set_hexpand(True)
         if self._fill_height:
@@ -144,6 +169,7 @@ class WallpaperCarousel(Gtk.Box):
     def _register_css(self, widget):
         display = widget.get_display()
         if display is not None:
+            hide_scrollbars(self.scroller)
             provider = Gtk.CssProvider()
             provider.load_from_data(_CSS)
             Gtk.StyleContext.add_provider_for_display(

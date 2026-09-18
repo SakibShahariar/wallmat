@@ -26,6 +26,7 @@ from gi.repository import Gtk, Gdk, GdkPixbuf, Gio, GObject, GLib
 from .base import WallLayout
 from announce import say
 from widgets.thumbnail_loader import ThumbnailLoader
+from widgets.gsk_utils import hide_scrollbars
 
 PARALLAX_RATIO = 0.3
 FG_ITEM_WIDTH = 180
@@ -38,6 +39,25 @@ _CSS_TEMPLATE = b"""
 }
 .parallax-fg.focused {
     box-shadow: 0 0 0 3px {ring};
+}
+
+.hide-scrollbar scrollbar,
+.hide-scrollbar scrollbar hover,
+.hide-scrollbar scrollbar:disabled,
+.hide-scrollbar scrollbar trough,
+.hide-scrollbar scrollbar trough:backdrop,
+.hide-scrollbar scrollbar slider,
+.hide-scrollbar scrollbar slider:hover,
+.hide-scrollbar scrollbar slider:disabled {
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    background: none;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+    outline: none;
 }
 """
 
@@ -115,6 +135,7 @@ class ParallaxGalleryLayout(WallLayout):
         self.fg_view = Gtk.ListView(model=self.selection, factory=fg_factory)
         self.fg_view.set_orientation(Gtk.Orientation.HORIZONTAL)
         self.fg_scroller = Gtk.ScrolledWindow()
+        self.fg_scroller.add_css_class("hide-scrollbar")
         self.fg_scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
         # Force both scrollers to actually overlap over the same full
         # area, rather than each sizing to its own content's natural
@@ -146,6 +167,7 @@ class ParallaxGalleryLayout(WallLayout):
             display = widget.get_display()
             if display is None:
                 return
+            hide_scrollbars(self.fg_scroller)
             base = Gdk.RGBA()
             base.parse("#78aaff")
             result = widget.get_style_context().lookup_color("theme_selected_bg_color")
