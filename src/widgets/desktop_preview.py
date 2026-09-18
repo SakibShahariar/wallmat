@@ -6,13 +6,23 @@ simulate real desktop chrome. Removed — it kept reading as an unwanted
 overlay/rendering artifact rather than helpful mock chrome, even after
 making it fully opaque instead of semi-transparent. A clean, unobstructed
 preview of the wallpaper itself is what's actually wanted here.
+
+Decoding happens on a background thread: set_wallpaper_path() fires right
+when the user commits a selection (Enter/click) — the one moment the app
+most needs to feel responsive — so a synchronous, main-thread GdkPixbuf
+decode here would put a stutter exactly where a user is most likely to
+notice one. A `_generation` counter guards against a slow decode from an
+earlier selection landing after a newer one, in case the user selects
+again before the first decode finishes.
 """
+
+import threading
 
 import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
-from gi.repository import Gtk, Gdk, GdkPixbuf
+from gi.repository import Gtk, Gdk, GdkPixbuf, GLib
 
 from .gsk_utils import draw_texture_cover
 
@@ -23,6 +33,7 @@ class DesktopPreview(Gtk.Widget):
     def __init__(self):
         super().__init__()
         self._texture: Gdk.Texture | None = None
+        self._generation = 0
         self.set_vexpand(True)
         self.set_hexpand(True)
 
@@ -32,12 +43,24 @@ class DesktopPreview(Gtk.Widget):
         return 200, 300, -1, -1
 
     def set_wallpaper_path(self, path: str):
-        try:
-            pixbuf = GdkPixbuf.Pixbuf.new_from_file(path)
-            self._texture = Gdk.Texture.new_for_pixbuf(pixbuf)
-        except Exception:
-            self._texture = None
+        self._generation += 1
+        my_generation = self._generation
+
+        def decode_worker():
+            try:
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file(path)
+            except Exception:
+                pixbuf = None
+            GLib.idle_add(self._deliver, my_generation, pixbuf)
+
+        threading.Thread(target=decode_worker, daemon=True).start()
+
+    def _deliver(self, generation: int, pixbuf):
+        if generation != self._generation:
+            return GLib.SOURCE_REMOVE  # a newer selection has since superseded this one
+        self._texture = Gdk.Texture.new_for_pixbuf(pixbuf) if pixbuf is not None else None
         self.queue_draw()
+        return GLib.SOURCE_REMOVE
 
     def do_snapshot(self, snapshot: Gtk.Snapshot):
         width = self.get_width()

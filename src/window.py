@@ -1,8 +1,11 @@
 """
-WallpaperChooserWindow: hosts a Gtk.Stack of lazily-built layouts, switched
-via a popover menu. The chosen layout is persisted to GSettings so it's
-remembered across launches (per spec section 7: "Mood/preference
-persisted in GSettings").
+WallpaperChooserWindow: hosts a Gtk.Stack of lazily-built layouts. There's
+no in-app UI for switching between them (no header bar, so no popover to
+put a switcher in) — the layout is picked via `--layout` at the command
+line. Whichever one is active is persisted to GSettings on every switch
+(currently: only the `--layout`-selected one, or the previous session's,
+since there's no in-app trigger) so it's remembered across launches (per
+spec section 7: "Mood/preference persisted in GSettings").
 
 NOTE on the GSettings schema: this uses a schema id
 (org.example.WallpaperChooserPrototype) that is NOT installed on the
@@ -173,7 +176,25 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         self.stack.set_vexpand(True)
         self.stack.set_hexpand(True)
-        toolbar_view.set_content(self.stack)
+
+        # Empty-state message: previously, a folder with no supported
+        # images only printed to the TERMINAL the app was launched from —
+        # the window itself just opened blank with no explanation, which
+        # only makes sense if you're the person who launched it and can
+        # see that terminal. Shown/hidden once, right after the initial
+        # scan (this prototype doesn't rescan directories at runtime).
+        content_overlay = Gtk.Overlay()
+        content_overlay.set_child(self.stack)
+        self._empty_state = Adw.StatusPage()
+        self._empty_state.set_icon_name("folder-open-symbolic")
+        self._empty_state.set_title("No wallpapers found")
+        self._empty_state.set_description(
+            "This folder has no .png, .jpg, or .webp files. "
+            "Launch again with a different directory."
+        )
+        self._empty_state.set_visible(False)
+        content_overlay.add_overlay(self._empty_state)
+        toolbar_view.set_content(content_overlay)
 
         self.set_content(toolbar_view)
 
@@ -190,40 +211,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 initial_id = DEFAULT_LAYOUT_ID
         self._switch_to(initial_id)
 
-    def _build_layout_popover(self) -> Gtk.Popover:
-        # Currently unused — the header bar (which was the only place
-        # this popover was attached to) was removed. Left in place in
-        # case in-app layout switching is wanted back later; nothing
-        # else in this file calls it anymore.
-        popover = Gtk.Popover()
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        box.set_margin_top(6)
-        box.set_margin_bottom(6)
-        box.set_margin_start(6)
-        box.set_margin_end(6)
-
-        tier_labels = {"fast": "Fast", "medium": "Medium", "slow": "Slow (heavier)"}
-
-        for layout_id, layout_cls in LAYOUT_REGISTRY.items():
-            row = Gtk.Button()
-            row.set_has_frame(False)
-            inner = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-            label = Gtk.Label(label=layout_cls.display_name, xalign=0)
-            label.set_hexpand(True)
-            tier = Gtk.Label(label=tier_labels.get(layout_cls.performance_tier, ""))
-            tier.add_css_class("dim-label")
-            inner.append(label)
-            inner.append(tier)
-            row.set_child(inner)
-            row.connect(
-                "clicked",
-                lambda btn, lid=layout_id, pop=popover: (self._switch_to(lid), pop.popdown()),
-            )
-            box.append(row)
-
-        popover.set_child(box)
-        return popover
-
     def _scan_and_load(self, directory: str):
         supported_exts = (".png", ".jpg", ".jpeg", ".webp")
         paths = []
@@ -233,9 +220,20 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                     if f.lower().endswith(supported_exts):
                         paths.append(os.path.join(root, f))
         self._paths = sorted(paths)
+
+        # The window itself has no title bar to display this in, but it's
+        # still what shows up in a taskbar, Alt-Tab switcher, or window
+        # list — previously the title never changed from a generic
+        # "Wallpaper Chooser (Prototype)", so there was no way to tell
+        # which folder (or how many wallpapers) a given window was even
+        # showing without checking the terminal it was launched from.
+        folder_label = os.path.basename(directory.rstrip(os.sep)) or directory
+        self.set_title(f"Wallpaper Chooser — {folder_label} ({len(self._paths)})")
+
         if not self._paths:
             print(f"No wallpapers found under {directory}; pass a directory "
                   f"with .png/.jpg/.webp files as argv[1].")
+        self._empty_state.set_visible(not self._paths)
 
     def _switch_to(self, layout_id: str):
         if layout_id == self._current_layout_id:

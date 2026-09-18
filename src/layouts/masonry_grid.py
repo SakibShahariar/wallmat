@@ -74,7 +74,15 @@ class MasonryGridLayout(WallLayout):
     performance_tier = "medium"
 
     def build(self) -> Gtk.Widget:
-        self.loader = ThumbnailLoader()
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        outer.set_vexpand(True)
+        outer.set_hexpand(True)
+
+        # Cells are small (140x180) and many can be realized at once in a
+        # flow grid, so a smaller per-instance thumb size than the shared
+        # 900px default keeps decode/cache/memory cost proportional to
+        # what's actually rendered here.
+        self.loader = ThumbnailLoader(thumb_size=360)
         self._card_by_child: dict[Gtk.FlowBoxChild, SkewedCard] = {}
 
         scroller = Gtk.ScrolledWindow()

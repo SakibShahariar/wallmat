@@ -19,7 +19,7 @@ from gi.repository import Gtk, Gio, GObject, Gdk
 
 from .skewed_card import SkewedCard, natural_width
 from .thumbnail_loader import ThumbnailLoader
-from .gsk_utils import hide_scrollbars
+from .gsk_utils import hide_scrollbars, get_animations_enabled, watch_animations_enabled
 from announce import say
 
 _item_id_counter = itertools.count()
@@ -125,7 +125,13 @@ class WallpaperCarousel(Gtk.Box):
         self._fill_height = fill_height
 
         self.store = Gio.ListStore(item_type=WallpaperItem)
-        self.loader = ThumbnailLoader()
+        # Infinite Ribbon's fill_height cards can stretch to most of the
+        # window's height; the compact strip layouts (Split-Screen) never
+        # exceed CARD_WIDTH~130px wide. One shared 900px constant used to
+        # cover both cases; sizing per-instance instead means the compact
+        # strip isn't paying decode/cache/memory cost for resolution it
+        # never displays.
+        self.loader = ThumbnailLoader(thumb_size=900 if fill_height else 420)
         self.animations_enabled = True
 
         # track which SkewedCard widget currently represents which item_id,
@@ -309,14 +315,23 @@ class WallpaperCarousel(Gtk.Box):
     # -- animation setting --
 
     def _watch_animation_setting(self):
-        interface_settings = Gio.Settings.new("org.gnome.desktop.interface")
-        self.animations_enabled = interface_settings.get_boolean("enable-animations")
+        # get_animations_enabled()/watch_animations_enabled() never raise —
+        # unlike a bare Gio.Settings.new("org.gnome.desktop.interface"),
+        # which throws GLib.Error and takes down carousel construction on
+        # any system missing that schema (non-GNOME desktops, minimal
+        # containers). This app's own custom GSettings schema already has
+        # a fallback for exactly this case (see window.py's
+        # _LayoutPreference); this brings the animation-setting read up to
+        # the same standard.
+        self.animations_enabled = get_animations_enabled()
 
-        def on_changed(settings, key):
-            self.animations_enabled = settings.get_boolean(key)
+        def on_changed(enabled):
+            self.animations_enabled = enabled
             for card in self._live_widgets.values():
-                card.animations_enabled = self.animations_enabled
+                card.animations_enabled = enabled
                 card.queue_draw()
 
-        interface_settings.connect("changed::enable-animations", on_changed)
-        self._interface_settings = interface_settings  # keep a ref alive
+        # None if the schema isn't available here — self.animations_enabled
+        # just keeps its one-shot default and won't live-update, which is a
+        # reasonable degradation rather than a crash.
+        self._interface_settings = watch_animations_enabled(on_changed)

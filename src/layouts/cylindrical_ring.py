@@ -37,7 +37,7 @@ from gi.repository import Gtk, Gdk, Graphene, Gsk, GLib
 from .base import WallLayout
 from announce import say
 from widgets.thumbnail_loader import ThumbnailLoader
-from widgets.gsk_utils import draw_card
+from widgets.gsk_utils import draw_card, get_animations_enabled
 
 CARD_WIDTH = 180
 CARD_HEIGHT = 240
@@ -70,11 +70,23 @@ class _RingWidget(Gtk.Widget):
 
         self._textures: dict[str, Gdk.Texture] = {}
         self._paths: list[str] = []
-        self._loader = ThumbnailLoader()
+        self._loader = ThumbnailLoader(thumb_size=480)  # cards render at 180x240
         self._center_unit = 0.0
         self._target_center: float | None = None
         self._anim_source = None
         self._selection = 0
+        # Initialized here (not just inside set_paths()) so it's never
+        # undefined between construction and the first set_paths() call —
+        # previously only set inside set_paths(), which happened to always
+        # run first in practice but was one refactor away from an
+        # AttributeError on any input event that landed before it.
+        self._focus = 0
+        # One-shot read of the reduced-motion preference; the center-snap
+        # ease below is skipped (jumps straight to the target) when the
+        # user has animations disabled at the system level. Not live-
+        # watched (a toggle mid-session just needs a relaunch here).
+        self._animations_enabled = get_animations_enabled()
+        self._hovered = False
 
         scroll = Gtk.EventControllerScroll.new(Gtk.EventControllerScrollFlags.HORIZONTAL)
         scroll.connect("scroll", self._on_scroll)
@@ -89,7 +101,23 @@ class _RingWidget(Gtk.Widget):
         click.connect("released", self._on_click)
         self.add_controller(click)
 
+        motion = Gtk.EventControllerMotion()
+        motion.connect("enter", lambda c, x, y: self._set_hovered(True))
+        motion.connect("leave", lambda c: self._set_hovered(False))
+        self.add_controller(motion)
+
+        # The whole ring is one clickable surface (click selects whichever
+        # card is nearest the click point) — a pointer cursor tells the
+        # user that before they click, since there's no hover feedback of
+        # any kind otherwise on a hand-drawn Gtk.Widget like this one.
+        self.set_cursor_from_name("pointer")
+
         self.connect("realize", lambda w: w.grab_focus())
+
+    def _set_hovered(self, value: bool):
+        if value != self._hovered:
+            self._hovered = value
+            self.queue_draw()
 
     # -- public API --
 
@@ -131,6 +159,17 @@ class _RingWidget(Gtk.Widget):
         self.on_select(self._paths[self._selection])
 
     def _start_anim(self):
+        if not self._animations_enabled:
+            # Reduced motion: snap straight to the target instead of
+            # easing — this layout previously ran its center-snap tween
+            # unconditionally, regardless of the system's enable-animations
+            # setting (unlike the SkewedCard-based carousel layouts, which
+            # already respected it).
+            if self._target_center is not None:
+                self._center_unit = self._target_center
+                self._target_center = None
+                self.queue_draw()
+            return
         if self._anim_source is not None:
             return
         start_center = self._center_unit
@@ -269,6 +308,16 @@ class _RingWidget(Gtk.Widget):
             draw_card(snapshot, -CARD_WIDTH / 2.0, -CARD_HEIGHT / 2.0,
                       CARD_WIDTH, CARD_HEIGHT, texture, selected, focused,
                       self.get_style_context())
+            # Approximate hover cue: brighten the front card while the
+            # mouse is anywhere over the widget. Precise per-card hit
+            # testing on mouse-move would need the same geometry math as
+            # _on_click; brightening the one card a click would actually
+            # act on is a reasonable stand-in without duplicating that.
+            if self._hovered and path_idx == self._front and not selected:
+                hover_rect = Graphene.Rect().init(-CARD_WIDTH / 2.0, -CARD_HEIGHT / 2.0, CARD_WIDTH, CARD_HEIGHT)
+                hover_overlay = Gdk.RGBA()
+                hover_overlay.parse("rgba(255,255,255,0.10)")
+                snapshot.append_color(hover_overlay, hover_rect)
             snapshot.restore()
 
         snapshot.restore()

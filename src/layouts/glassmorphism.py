@@ -44,6 +44,9 @@ _CSS_TEMPLATE = b"""
 .glass-card.active.focused {
     box-shadow: 0 0 24px 4px {glow}, 0 0 0 3px {ring};
 }
+.glass-card.hovered {
+    background-color: rgba(255,255,255,0.12);
+}
 .glass-card picture {
     border-radius: 16px;
 }
@@ -89,7 +92,11 @@ class GlassmorphismLayout(WallLayout):
         self._focus = None
 
     def build(self) -> Gtk.Widget:
-        self.loader = ThumbnailLoader()
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        outer.set_vexpand(True)
+        outer.set_hexpand(True)
+
+        self.loader = ThumbnailLoader(thumb_size=480)  # cards render at 180x240
         self._live_widgets: dict[str, Gtk.Picture] = {}  # path -> currently-bound picture
         self.store = Gio.ListStore(item_type=_GlassItem)
         self.selection = Gtk.SingleSelection(model=self.store)
@@ -152,7 +159,14 @@ class GlassmorphismLayout(WallLayout):
             )
 
         self.scroller.connect("realize", register_css)
-        return self.scroller
+        outer.append(self.scroller)
+
+        hint = Gtk.Label(label="← / → to browse, Enter or click to select")
+        hint.add_css_class("dim-label")
+        hint.set_margin_bottom(6)
+        outer.append(hint)
+
+        return outer
 
     def on_activate(self):
         self.list_view.grab_focus()
@@ -190,6 +204,15 @@ class GlassmorphismLayout(WallLayout):
         picture.set_margin_start(6)
         picture.set_margin_end(6)
         picture.add_css_class("glass-card")
+        picture.set_cursor_from_name("pointer")
+        # Hover feedback: the row's default GTK hover highlight is
+        # suppressed by _CSS above (it clashed with the glow/opacity
+        # visuals), so without this, cards give zero visual response to
+        # hovering before a click.
+        motion = Gtk.EventControllerMotion()
+        motion.connect("enter", lambda c, x, y, p=picture: p.add_css_class("hovered"))
+        motion.connect("leave", lambda c, p=picture: p.remove_css_class("hovered"))
+        picture.add_controller(motion)
         list_item.set_child(picture)
 
     def _on_bind(self, factory, list_item):

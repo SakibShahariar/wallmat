@@ -15,7 +15,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gsk", "4.0")
-from gi.repository import Gtk, Gdk, Graphene, Gsk
+from gi.repository import Gtk, Gdk, Graphene, Gsk, Gio, GLib
 
 
 def hide_scrollbars(scroller):
@@ -65,6 +65,38 @@ def register_focus_colors(display):
     )
 
 
+def get_animations_enabled() -> bool:
+    """One-shot read of org.gnome.desktop.interface's enable-animations,
+    defaulting to True (animations on) if the schema isn't installed in this
+    environment (non-GNOME desktops, minimal containers, etc). Safe to call
+    anywhere — never raises."""
+    try:
+        settings = Gio.Settings.new("org.gnome.desktop.interface")
+        return settings.get_boolean("enable-animations")
+    except GLib.Error:
+        return True
+
+
+def watch_animations_enabled(on_changed):
+    """Try to live-watch org.gnome.desktop.interface's enable-animations,
+    calling on_changed(bool) whenever it flips. Returns the Gio.Settings
+    object (the CALLER must keep a reference alive, e.g. as an attribute —
+    GLib drops the signal connection once the Settings object is GC'd) or
+    None if the schema isn't available here, in which case the caller
+    should just keep using get_animations_enabled()'s one-shot default.
+    Never raises, unlike a bare Gio.Settings.new() call."""
+    try:
+        settings = Gio.Settings.new("org.gnome.desktop.interface")
+    except GLib.Error:
+        return None
+
+    def _changed(s, key):
+        on_changed(s.get_boolean(key))
+
+    settings.connect("changed::enable-animations", _changed)
+    return settings
+
+
 def _lookup_named(style_context, name):
     """Return the resolved named color, or None if unavailable. Copies
     via parse(to_string()) to return a fresh Gdk.RGBA the caller (and its
@@ -112,6 +144,11 @@ def get_focus_ring_rgba(style_context=None):
         base = _lookup_named(style_context, "wc-focus-ring")
     if base is None:
         base = get_accent_rgba()
+    # get_accent_rgba()'s fallback path doesn't guarantee a fresh, owned
+    # RGBA the way _lookup_named's parse(to_string()) copy does — make a
+    # defensive copy before mutating .alpha so this can never leak into
+    # whatever else might be holding a reference to the same struct.
+    base = base.copy()
     base.alpha = 0.55
     return base
 
@@ -166,6 +203,29 @@ def get_accent_rgba() -> Gdk.RGBA:
         return fallback
 
 
+def draw_focus_ring(snapshot, rounded_rect, ring_color: Gdk.RGBA, ring_width: float = 2.0):
+    """Draw the keyboard-focus ring with a dark backing stroke behind the
+    themed color, so it stays legible over any wallpaper content instead of
+    a translucent color-only ring that can disappear against a similarly
+    toned image. The backing is a slightly wider, near-black, low-alpha
+    border drawn first; the themed ring is drawn on top at its normal
+    width, so this only ADDS contrast, it never changes the ring's color
+    or exact position."""
+    backing = Gdk.RGBA()
+    backing.parse("rgba(0,0,0,0.45)")
+    backing_width = ring_width + 1.5
+    snapshot.append_border(
+        rounded_rect,
+        [backing_width, backing_width, backing_width, backing_width],
+        [backing, backing, backing, backing],
+    )
+    snapshot.append_border(
+        rounded_rect,
+        [ring_width, ring_width, ring_width, ring_width],
+        [ring_color, ring_color, ring_color, ring_color],
+    )
+
+
 def draw_card(snapshot, x: float, y: float, width: float, height: float,
               texture, selected: bool = False, focused: bool = False,
               style_context=None):
@@ -208,11 +268,9 @@ def draw_card(snapshot, x: float, y: float, width: float, height: float,
         # Drawn on the exact same card edge the selection border uses
         # (NOT inset — an earlier version inset the ring 3px, which made
         # it float inside the image); focus is told apart from selection
-        # only by being thinner and semi-transparent.
+        # only by being thinner and semi-transparent. A dark backing
+        # stroke (draw_focus_ring) keeps it visible over busy/light
+        # wallpaper content instead of a color-only ring that can vanish
+        # against a similarly toned image.
         ring_color = get_focus_ring_rgba(style_context)
-        ring_width = 2.0
-        snapshot.append_border(
-            frame_rounded,
-            [ring_width, ring_width, ring_width, ring_width],
-            [ring_color, ring_color, ring_color, ring_color],
-        )
+        draw_focus_ring(snapshot, frame_rounded, ring_color, ring_width=2.0)

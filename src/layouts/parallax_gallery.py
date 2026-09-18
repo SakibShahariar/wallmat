@@ -40,6 +40,9 @@ _CSS_TEMPLATE = b"""
 .parallax-fg.focused {
     box-shadow: 0 0 0 3px {ring};
 }
+.parallax-fg.hovered {
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.35);
+}
 
 .hide-scrollbar scrollbar,
 .hide-scrollbar scrollbar hover,
@@ -89,8 +92,12 @@ class ParallaxGalleryLayout(WallLayout):
         # item_id. A single shared loader keyed by plain path would let a
         # foreground request silently cancel the background request for
         # that same image (or vice versa), leaving one layer stuck blank.
-        self.bg_loader = ThumbnailLoader()
-        self.fg_loader = ThumbnailLoader()
+        self.bg_loader = ThumbnailLoader(thumb_size=640)  # bg cards render at 320x400
+        self.fg_loader = ThumbnailLoader(thumb_size=480)  # fg cards render at 180x240
+
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        outer.set_vexpand(True)
+        outer.set_hexpand(True)
 
         overlay = Gtk.Overlay()
         overlay.set_vexpand(True)
@@ -183,7 +190,14 @@ class ParallaxGalleryLayout(WallLayout):
             )
 
         self.fg_scroller.connect("realize", register_css)
-        return overlay
+        outer.append(overlay)
+
+        hint = Gtk.Label(label="← / → to browse, Enter or click to select")
+        hint.add_css_class("dim-label")
+        hint.set_margin_bottom(6)
+        outer.append(hint)
+
+        return outer
 
     def on_activate(self):
         self.fg_view.grab_focus()
@@ -242,6 +256,15 @@ class ParallaxGalleryLayout(WallLayout):
         picture.set_margin_start(6)
         picture.set_margin_end(6)
         picture.add_css_class("parallax-fg")
+        picture.set_cursor_from_name("pointer")
+        # Hover feedback — the foreground row's own default GTK hover
+        # highlight isn't suppressed here the way the carousel's is, but
+        # ListView rows over a Picture leaf don't reliably show it either;
+        # this makes it explicit and visible.
+        motion = Gtk.EventControllerMotion()
+        motion.connect("enter", lambda c, x, y, p=picture: p.add_css_class("hovered"))
+        motion.connect("leave", lambda c, p=picture: p.remove_css_class("hovered"))
+        picture.add_controller(motion)
         list_item.set_child(picture)
 
     def _on_fg_bind(self, factory, list_item):

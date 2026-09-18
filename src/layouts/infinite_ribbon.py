@@ -78,7 +78,24 @@ class InfiniteRibbonLayout(WallLayout):
 
         self.carousel.list_view.connect("realize", lambda w: w.grab_focus())
 
-        return self.carousel
+        # Overlaid rather than stacked below the ribbon — this layout's
+        # whole point is no dead space above/below the cards (fill_height),
+        # so a hint label in normal flow would eat into that. A floating
+        # label at the bottom edge keeps the "no dead space" goal while
+        # still giving first-time users the same on-screen cue every other
+        # layout has.
+        overlay = Gtk.Overlay()
+        overlay.set_child(self.carousel)
+
+        hint = Gtk.Label(label="← / → to browse, Enter or click to select")
+        hint.add_css_class("dim-label")
+        hint.add_css_class("osd")
+        hint.set_valign(Gtk.Align.END)
+        hint.set_halign(Gtk.Align.CENTER)
+        hint.set_margin_bottom(8)
+        overlay.add_overlay(hint)
+
+        return overlay
 
     def on_activate(self):
         self.carousel.list_view.grab_focus()

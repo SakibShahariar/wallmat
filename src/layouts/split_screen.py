@@ -62,6 +62,12 @@ class SplitScreenLayout(WallLayout):
         controller.connect("key-pressed", self._on_key_pressed)
         self.carousel.list_view.add_controller(controller)
 
+        hint = Gtk.Label(label="← / → to browse, Enter or click to select")
+        hint.add_css_class("dim-label")
+        hint.set_margin_top(4)
+        hint.set_margin_bottom(6)
+        outer.append(hint)
+
         return outer
 
     def _apply_wallpapers(self, paths: list[str]):

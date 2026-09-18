@@ -16,8 +16,8 @@ pipeline re-themes your whole desktop from its colors (Material You).
 | `masonry_grid` | Masonry Grid | medium |
 | `glassmorphism` | Glassmorphism | medium |
 | `parallax_gallery` | Parallax Gallery | medium |
-| `radial_fan` | Radial Fan | heavy |
-| `cylindrical_ring` | Cylindrical Ring | heavy |
+| `radial_fan` | Radial Fan | slow |
+| `cylindrical_ring` | Cylindrical Ring | slow |
 
 ## Run
 
@@ -27,10 +27,14 @@ python3 src/main.py /path/to/wallpaper/folder --layout infinite_ribbon
 ```
 
 - Defaults to `/usr/share/backgrounds` if no folder is given.
-- The header bar layout switcher (grid icon) flips between all 8 layouts at
-  runtime; the last one is remembered via GSettings.
+- There's no header bar and no in-app UI for switching layouts —
+  `--layout` at the command line is the only way to pick one for a given
+  launch. The window still remembers the last layout you launched into
+  via GSettings, it's just not user-switchable at runtime without
+  relaunching.
 - `--layout` launches directly into that layout and sizes the window for it.
-- Press **Escape** to close.
+- Press **Escape** to close — there's no title bar, so this is the only
+  way to close the window from the keyboard (no minimize/maximize either).
 
 ### Keyboard contract
 

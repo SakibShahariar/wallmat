@@ -19,7 +19,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Gsk", "4.0")
 from gi.repository import Gtk, Gsk, Graphene, GObject, Gdk
 
-from .gsk_utils import get_accent_rgba, get_focus_ring_rgba, get_selection_border_rgba
+from .gsk_utils import get_accent_rgba, get_focus_ring_rgba, get_selection_border_rgba, draw_focus_ring
 
 
 def natural_width(base_width: float, base_height: float, skew_deg: float = -12.0) -> int:
@@ -65,8 +65,18 @@ class SkewedCard(Gtk.Widget):
         self._focused = False
         # Global toggle, wired up to org.gnome.desktop.interface.enable-animations
         self.animations_enabled = True
+        # Mouse hover, purely visual — a subtle brightening so cards read as
+        # clickable before the user commits to a click. Suppressed while
+        # selected/focused (those states already have their own borders).
+        self._hovered = False
 
         self.set_overflow(Gtk.Overflow.VISIBLE)
+        self.set_cursor_from_name("pointer")
+
+        motion = Gtk.EventControllerMotion()
+        motion.connect("enter", lambda c, x, y: self._set_hovered(True))
+        motion.connect("leave", lambda c: self._set_hovered(False))
+        self.add_controller(motion)
 
         # Redraw when the system accent color changes, so an already-open
         # window updates its selection border live instead of only
@@ -104,6 +114,11 @@ class SkewedCard(Gtk.Widget):
     def set_focused(self, value: bool):
         if value != self._focused:
             self._focused = value
+            self.queue_draw()
+
+    def _set_hovered(self, value: bool):
+        if value != self._hovered:
+            self._hovered = value
             self.queue_draw()
 
     # -- sizing --
@@ -217,6 +232,15 @@ class SkewedCard(Gtk.Widget):
             snapshot.append_texture(self._texture, tex_rect)
             snapshot.restore()
 
+        # Hover highlight: a faint white wash over the whole card, drawn
+        # inside the same clip as the texture so it respects the card's
+        # skewed shape. Only shown when not already selected/focused (those
+        # states have their own, stronger borders and don't need it).
+        if self._hovered and not self._selected and not self._focused:
+            hover_overlay = Gdk.RGBA()
+            hover_overlay.parse("rgba(255,255,255,0.10)")
+            snapshot.append_color(hover_overlay, frame_rect)
+
         snapshot.pop()  # end the frame_rect clip
 
         border_rect = Gsk.RoundedRect()
@@ -241,13 +265,10 @@ class SkewedCard(Gtk.Widget):
             # apart by a thinner, semi-transparent stroke. Color resolves
             # the themeable named color wc-focus-ring from the card's own
             # style context, so user gtk.css @define-color overrides win.
+            # draw_focus_ring adds a dark backing stroke so the ring stays
+            # visible over light/busy wallpaper content underneath it.
             ring_color = get_focus_ring_rgba(self.get_style_context())
-            ring_width = 2.0
-            snapshot.append_border(
-                border_rect,
-                [ring_width, ring_width, ring_width, ring_width],
-                [ring_color, ring_color, ring_color, ring_color],
-            )
+            draw_focus_ring(snapshot, border_rect, ring_color, ring_width=2.0)
 
         snapshot.restore()
 

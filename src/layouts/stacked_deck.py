@@ -24,18 +24,25 @@ rotation travels with the card rather than the position, the angle you
 see at "front" cycles 0 -> -4 -> +4 -> 0 -> ... as successive deals
 promote a different physical card, while content simultaneously
 progresses through the collection (a b c -> b c d -> c d e).
+
+Images route through ThumbnailLoader (async, downscaled, disk-cached,
+fixed worker pool) — an earlier version decoded synchronously on the
+main thread via GdkPixbuf on every card load AND every deal/swipe, the
+exact anti-pattern parallax_gallery.py's docstring documents fixing
+elsewhere in this app (uncached, main-thread-blocking decode). This was
+the one layout still doing that; it now matches the rest of the app.
 """
 
 import gi
 
 gi.require_version("Gtk", "4.0")
-gi.require_version("GdkPixbuf", "2.0")
 gi.require_version("Gsk", "4.0")
-from gi.repository import Gtk, Gdk, GdkPixbuf, Graphene, Gsk, GLib
+from gi.repository import Gtk, Gdk, Graphene, Gsk, GLib
 
 from .base import WallLayout
 from announce import say
-from widgets.gsk_utils import draw_texture_cover, get_focus_ring_rgba
+from widgets.gsk_utils import draw_texture_cover, get_focus_ring_rgba, draw_focus_ring, get_animations_enabled
+from widgets.thumbnail_loader import ThumbnailLoader
 
 CARD_ROTATIONS_DEG = [0.0, -4.0, 4.0]  # fixed per card, forever
 CARD_WIDTH = 560
@@ -57,6 +64,12 @@ class _DeckSlot:
     def __init__(self, rotation: float):
         self.rotation = rotation
         self.texture: Gdk.Texture | None = None
+        # The path this slot's texture request is FOR, set the moment a
+        # request is issued. An async decode's on_ready callback only
+        # applies its result if this still matches — guards against a
+        # slow-loading request from an earlier deal landing on a slot
+        # that's since moved on to a different image.
+        self.pending_path: str | None = None
         self.offset_x = 0.0
         self.offset_y = 0.0
         self.scale = 1.0
@@ -81,6 +94,21 @@ class _DeckWidget(Gtk.Widget):
         # would start as slot2 (+4°) instead.
         self.paint_order: list[_DeckSlot] = list(reversed(self.slots))
         self.set_size_request(CARD_WIDTH, CARD_HEIGHT)
+
+        # Purely visual hover cue (brightens the front/clickable card) —
+        # there's otherwise no affordance telling the user this hand-drawn
+        # widget is clickable before they click it.
+        self._hovered = False
+        motion = Gtk.EventControllerMotion()
+        motion.connect("enter", lambda c, x, y: self._set_hovered(True))
+        motion.connect("leave", lambda c: self._set_hovered(False))
+        self.add_controller(motion)
+        self.set_cursor_from_name("pointer")
+
+    def _set_hovered(self, value: bool):
+        if value != self._hovered:
+            self._hovered = value
+            self.queue_draw()
 
     def do_measure(self, orientation, for_size):
         if orientation == Gtk.Orientation.HORIZONTAL:
@@ -119,22 +147,27 @@ class _DeckWidget(Gtk.Widget):
             if slot.texture is not None:
                 draw_texture_cover(snapshot, slot.texture, 0, 0, width, height)
 
+            is_front = slot is self.paint_order[-1]
+
+            # Hover highlight on the front (clickable) card only.
+            if is_front and self._hovered:
+                hover_overlay = Gdk.RGBA()
+                hover_overlay.parse("rgba(255,255,255,0.10)")
+                snapshot.append_color(hover_overlay, rect)
+
             # Keyboard focus ring on the topmost card: on the card edge,
             # matching the selection-border placement (an earlier version
             # inset the ring into the image); focus is told apart from a
             # committed selection by a thinner, semi-transparent stroke.
-            if slot is self.paint_order[-1]:
+            # draw_focus_ring adds a dark backing stroke so the ring stays
+            # legible over light/busy wallpaper content.
+            if is_front:
                 ring_color = get_focus_ring_rgba(self.get_style_context())
-                ring_width = 2.0
                 ring_rect = Gsk.RoundedRect()
                 ring_rect.init_from_rect(
                     Graphene.Rect().init(0, 0, width, height), 0
                 )
-                snapshot.append_border(
-                    ring_rect,
-                    [ring_width, ring_width, ring_width, ring_width],
-                    [ring_color, ring_color, ring_color, ring_color],
-                )
+                draw_focus_ring(snapshot, ring_rect, ring_color, ring_width=2.0)
 
             if slot.opacity < 1.0:
                 snapshot.pop()
@@ -150,6 +183,13 @@ class StackedDeckLayout(WallLayout):
         super().__init__()
         self._deck_index = 0
         self._animating = False
+        self._loader = ThumbnailLoader(thumb_size=640)  # card renders at 560x340
+        # One-shot read of the reduced-motion preference — deal/rise
+        # animations are skipped (jump straight to the end state) when the
+        # user has animations disabled at the system level. Previously
+        # this layout ran its slide/rise tweens unconditionally, unlike
+        # the carousel-based layouts.
+        self._animations_enabled = get_animations_enabled()
 
     def build(self) -> Gtk.Widget:
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
@@ -197,15 +237,22 @@ class StackedDeckLayout(WallLayout):
         self._deck_index = 0
         self._load_all_cards()
 
-    def _decode_texture(self, path: str):
-        scale = self.deck.get_scale_factor() or 1
-        try:
-            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
-                path, CARD_WIDTH * scale, CARD_HEIGHT * scale, True
-            )
-            return Gdk.Texture.new_for_pixbuf(pixbuf)
-        except Exception:
-            return None
+    def _request_texture(self, slot: _DeckSlot, path: str):
+        """Async, cached decode via the shared ThumbnailLoader — replaces
+        the old synchronous, uncached GdkPixbuf.new_from_file_at_scale()
+        call that ran on the main thread for every card load and every
+        deal."""
+        slot.pending_path = path
+
+        def on_ready(item_id, texture, slot=slot, path=path):
+            # Guard against a slow decode from an earlier deal landing on
+            # a slot that's since been recycled to show something else.
+            if slot.pending_path != path:
+                return
+            slot.texture = texture
+            self.deck.queue_draw()
+
+        self._loader.request(path, path, on_ready)
 
     def _load_all_cards(self):
         if not self._paths:
@@ -213,11 +260,12 @@ class StackedDeckLayout(WallLayout):
         n = len(self._paths)
         # paint_order[-1] is front (deck_index+0), [-2] mid (+1), [0] back (+2).
         for i, slot in enumerate(reversed(self.deck.paint_order)):
-            slot.texture = self._decode_texture(self._paths[(self._deck_index + i) % n])
+            slot.texture = None  # clear any stale image while the new one decodes
             slot.offset_x = 0.0
             slot.offset_y = 0.0
             slot.scale = 1.0
             slot.opacity = 1.0
+            self._request_texture(slot, self._paths[(self._deck_index + i) % n])
         self.deck.queue_draw()
 
     def _on_swipe(self, gesture, vx, vy):
@@ -259,6 +307,11 @@ class StackedDeckLayout(WallLayout):
     def _deal_next(self):
         deck = self.deck
         front = deck.paint_order[-1]
+
+        if not self._animations_enabled:
+            self._finish_deal_next(front)
+            return
+
         start_time = GLib.get_monotonic_time()
         duration_us = DEAL_ANIMATION_MS * 1000
         target_offset = -DEAL_SLIDE_DISTANCE
@@ -273,46 +326,63 @@ class StackedDeckLayout(WallLayout):
             deck.queue_draw()
 
             if t >= 1.0:
-                n = len(self._paths)
-                self._deck_index = (self._deck_index + 1) % n
-                # Recycle: front becomes the new back, keeping its own
-                # rotation exactly as it was — never reassigned.
-                front.texture = self._decode_texture(self._paths[(self._deck_index + 2) % n])
-                front.offset_x = 0.0
-                front.offset_y = 0.0
-                front.scale = 1.0
-                front.opacity = 1.0
-
-                deck.paint_order.pop()             # remove front from the top
-                deck.paint_order.insert(0, front)  # place it at the bottom
-                deck.queue_draw()
-
-                self._print_focus()
-
-                # New front (previously mid) needs no animation — it was
-                # already at rest, at its own fixed rotation, the whole time.
-                self._animating = False
+                self._finish_deal_next(front)
                 return GLib.SOURCE_REMOVE
             return GLib.SOURCE_CONTINUE
 
         GLib.timeout_add(16, step_out)
+
+    def _finish_deal_next(self, front: _DeckSlot):
+        """Recycle: front becomes the new back, keeping its own rotation
+        exactly as it was — never reassigned. Shared by the animated and
+        reduced-motion (instant) paths."""
+        n = len(self._paths)
+        self._deck_index = (self._deck_index + 1) % n
+        front.texture = None
+        self._request_texture(front, self._paths[(self._deck_index + 2) % n])
+        front.offset_x = 0.0
+        front.offset_y = 0.0
+        front.scale = 1.0
+        front.opacity = 1.0
+
+        self.deck.paint_order.pop()             # remove front from the top
+        self.deck.paint_order.insert(0, front)  # place it at the bottom
+        self.deck.queue_draw()
+
+        self._print_focus()
+
+        # New front (previously mid) needs no animation — it was already
+        # at rest, at its own fixed rotation, the whole time.
+        self._animating = False
 
     def _deal_previous(self):
         deck = self.deck
         back = deck.paint_order[0]
         n = len(self._paths)
         self._deck_index = (self._deck_index - 1) % n
-        back.texture = self._decode_texture(self._paths[self._deck_index % n])
+        back.texture = None
+        self._request_texture(back, self._paths[self._deck_index % n])
 
         deck.paint_order.pop(0)      # remove back from the bottom
         deck.paint_order.append(back)  # place it at the top (front)
         deck.queue_draw()
 
+        if not self._animations_enabled:
+            back.offset_y = 0.0
+            back.scale = 1.0
+            back.opacity = 1.0
+            deck.queue_draw()
+            self._print_focus()
+            self._animating = False
+            return
+
         self._rise_in(back)
 
     def _rise_in(self, slot: _DeckSlot):
         """Position/scale/opacity only — rotation is this card's own
-        fixed value throughout, never touched."""
+        fixed value throughout, never touched. Only called when
+        animations are enabled; the reduced-motion path in
+        _deal_previous() sets the end state directly instead."""
         duration_us = RISE_ANIMATION_MS * 1000
         start_offset_y = CARD_HEIGHT * 0.35
         start_scale = 0.85

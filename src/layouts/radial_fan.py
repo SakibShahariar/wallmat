@@ -65,9 +65,10 @@ class _FanWidget(Gtk.Widget):
 
         self._paths: list[str] = []
         self._textures: dict[str, Gdk.Texture] = {}
-        self._loader = ThumbnailLoader()
+        self._loader = ThumbnailLoader(thumb_size=320)  # cards render at 120x160
         self._front = 0
         self._selection = 0  # path index last explicitly selected
+        self._hovered = False
 
         scroll = Gtk.EventControllerScroll.new(
             Gtk.EventControllerScrollFlags.VERTICAL | Gtk.EventControllerScrollFlags.HORIZONTAL
@@ -84,7 +85,22 @@ class _FanWidget(Gtk.Widget):
         click.connect("released", self._on_click)
         self.add_controller(click)
 
+        motion = Gtk.EventControllerMotion()
+        motion.connect("enter", lambda c, x, y: self._set_hovered(True))
+        motion.connect("leave", lambda c: self._set_hovered(False))
+        self.add_controller(motion)
+
+        # Click-anywhere-in-the-fan selects the nearest card — a pointer
+        # cursor signals that up front, since this hand-drawn widget has
+        # no other affordance telling the user the fan is clickable.
+        self.set_cursor_from_name("pointer")
+
         self.connect("realize", lambda w: w.grab_focus())
+
+    def _set_hovered(self, value: bool):
+        if value != self._hovered:
+            self._hovered = value
+            self.queue_draw()
 
     def set_paths(self, paths: list[str]):
         self._paths = list(paths)
@@ -160,11 +176,18 @@ class _FanWidget(Gtk.Widget):
             return
         pivot_x, pivot_y, radius, step, start_angle = self._geometry()
         # Find the card whose fanned rect contains the click. Most cards
-        # overlap; the topmost (smallest |rel|) match wins — walk the paint
-        # order (backmost first) and remember the last hit.
+        # overlap; the topmost (smallest |rel|) match wins — walk the SAME
+        # order do_snapshot paints in (outermost first, front/rel=0 last)
+        # and remember the last hit. Iterating in plain ascending `rel`
+        # order here (instead of this paint order) was a real bug: on a
+        # tie in |rel| (e.g. rel=-2 and rel=+2), "last one wins" picked
+        # whichever had the larger rel, not whichever was actually drawn
+        # on top — so a click in an overlap zone could select a card
+        # other than the one visibly under the cursor.
         hit = None
         n = len(self._paths)
-        for rel in range(-(n // 2), n - (n // 2)):
+        rels = sorted(range(-(n // 2), n - (n // 2)), key=lambda r: -abs(r))
+        for rel in rels:
             idx = (self._front + rel) % n
             bx, by, angle = self._card_rect(pivot_x, pivot_y, radius, start_angle, step, rel)
             # Point in unrotated card space (card drawn at -w/2..w/2, -h..0)
@@ -225,6 +248,16 @@ class _FanWidget(Gtk.Widget):
             draw_card(snapshot, -CARD_WIDTH / 2.0, -CARD_HEIGHT, CARD_WIDTH, CARD_HEIGHT,
                       self._textures.get(path), selected, focused,
                       self.get_style_context())
+            # Approximate hover cue on the front card, same reasoning as
+            # cylindrical_ring.py's equivalent: precise per-card hover
+            # would need the same hit-test math as _on_click on every
+            # mouse-move, so this brightens the one card a click would
+            # actually act on instead.
+            if self._hovered and idx == self._front and not selected:
+                hover_rect = Graphene.Rect().init(-CARD_WIDTH / 2.0, -CARD_HEIGHT, CARD_WIDTH, CARD_HEIGHT)
+                hover_overlay = Gdk.RGBA()
+                hover_overlay.parse("rgba(255,255,255,0.10)")
+                snapshot.append_color(hover_overlay, hover_rect)
             snapshot.restore()
 
 
