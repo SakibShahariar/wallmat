@@ -107,8 +107,14 @@ class MasonryGridLayout(WallLayout):
 
         scroller.set_child(self.flow_box)
         scroller.connect("realize", self._register_css)
+        outer.append(scroller)
 
-        return scroller
+        hint = Gtk.Label(label="Click a wallpaper to select it")
+        hint.add_css_class("dim-label")
+        hint.set_margin_bottom(6)
+        outer.append(hint)
+
+        return outer
 
     def _register_css(self, widget):
         display = widget.get_display()

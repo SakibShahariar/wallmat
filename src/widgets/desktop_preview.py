@@ -22,7 +22,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
-from gi.repository import Gtk, Gdk, GdkPixbuf, GLib
+from gi.repository import Gtk, Gdk, GdkPixbuf, GLib, Graphene
 
 from .gsk_utils import draw_texture_cover
 
@@ -67,8 +67,6 @@ class DesktopPreview(Gtk.Widget):
         height = self.get_height()
         if width <= 0 or height <= 0:
             return
-
-        from gi.repository import Graphene
 
         if self._texture is not None:
             # Cover fit: crop to fill the preview area without distorting

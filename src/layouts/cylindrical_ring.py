@@ -313,7 +313,7 @@ class _RingWidget(Gtk.Widget):
             # testing on mouse-move would need the same geometry math as
             # _on_click; brightening the one card a click would actually
             # act on is a reasonable stand-in without duplicating that.
-            if self._hovered and path_idx == self._front and not selected:
+            if self._hovered and path_idx == self._focus and not selected:
                 hover_rect = Graphene.Rect().init(-CARD_WIDTH / 2.0, -CARD_HEIGHT / 2.0, CARD_WIDTH, CARD_HEIGHT)
                 hover_overlay = Gdk.RGBA()
                 hover_overlay.parse("rgba(255,255,255,0.10)")

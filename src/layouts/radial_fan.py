@@ -142,7 +142,20 @@ class _FanWidget(Gtk.Widget):
         radius = min(width * 0.55, height - PIVOT_BOTTOM_MARGIN - 24)
         n = len(self._paths)
         step = math.radians(MAX_FAN_ANGLE_DEG / max(1, n - 1)) if n > 1 else 0.0
-        start_angle = math.radians(-MAX_FAN_ANGLE_DEG / 2)
+        # start_angle=0, NOT -MAX_FAN_ANGLE_DEG/2: `rel` (used everywhere
+        # this return value feeds into) is a SIGNED offset from the front
+        # card, already centered at 0 by construction (see the `rels`
+        # computation in do_snapshot/_on_click). A -30 deg start_angle
+        # here was left over from treating rel as an unsigned 0..n-1
+        # index — with the signed convention actually in use, it instead
+        # shifted the ENTIRE fan 30 deg off-center for every n, so the
+        # front card (rel=0) rendered at angle=-30 deg rather than the
+        # angle=0 "top, dead center" position this file's own docstring
+        # describes and that Enter/click logic assumes. For n=2 it was
+        # worse: both cards crammed into -90..-30 deg, nothing to the
+        # right of center at all. start_angle=0 makes rel=0 -> angle=0
+        # directly, and the fan is symmetric around the front card.
+        start_angle = 0.0
         return pivot_x, pivot_y, radius, step, start_angle
 
     def _card_rect(self, pivot_x, pivot_y, radius, start_angle, step, rel: int):

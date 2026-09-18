@@ -241,7 +241,19 @@ class StackedDeckLayout(WallLayout):
         """Async, cached decode via the shared ThumbnailLoader — replaces
         the old synchronous, uncached GdkPixbuf.new_from_file_at_scale()
         call that ran on the main thread for every card load and every
-        deal."""
+        deal.
+
+        Keyed by the SLOT's identity, not by `path` — with only 1 or 2
+        wallpapers in the folder, two different slots can legitimately
+        need to show the exact same image at the exact same time (e.g. 2
+        wallpapers: front and back both land on path[0]). ThumbnailLoader.
+        request() cancels any prior pending request sharing the same
+        item_id, so keying by path alone would let the second slot's
+        request silently cancel the first slot's — that card would then
+        never get its texture. Each slot's id() is stable for its whole
+        lifetime (slots are constructed once and never recreated), so it's
+        a safe per-slot key independent of what path it's currently showing.
+        """
         slot.pending_path = path
 
         def on_ready(item_id, texture, slot=slot, path=path):
@@ -252,7 +264,7 @@ class StackedDeckLayout(WallLayout):
             slot.texture = texture
             self.deck.queue_draw()
 
-        self._loader.request(path, path, on_ready)
+        self._loader.request(id(slot), path, on_ready)
 
     def _load_all_cards(self):
         if not self._paths:

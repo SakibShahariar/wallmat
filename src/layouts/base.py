@@ -23,7 +23,8 @@ class WallLayout(GObject.Object):
         "wallpaper-selected": (GObject.SignalFlags.RUN_FIRST, None, (str,)),
     }
 
-    # Human-readable name shown in the layout switcher popover
+    # Human-readable name shown for this layout (used in window sizing and
+    # --layout CLI help; there's no in-app switcher UI to show it in).
     display_name: str = "Unnamed Layout"
     # Rough perf tier from the spec, surfaced in the UI as a hint/warning
     performance_tier: str = "unknown"  # "fast" | "medium" | "slow"
