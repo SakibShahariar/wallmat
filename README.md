@@ -6,6 +6,10 @@ Enter/click commits the **selection**. Built to sit in front of
 [matugen](https://github.com/InioX/matugen) — pick a wallpaper, and the
 pipeline re-themes your whole desktop from its colors (Material You).
 
+## Contents
+
+[Layouts](#layouts) · [Run](#run) · [matugen integration](#matugen-integration---plain) · [Theming note](#theming-note) · [Requirements](#requirements)
+
 ## Layouts
 
 | Id | Display name | Tier |
@@ -74,10 +78,3 @@ sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1
 # optional WebP thumbnails:
 sudo apt install webp-pixbuf-loader
 ```
-
-## Keyboard-driven behavior
-
-See `src/layouts/*.py`: the deck/ring/fan/glass/parallax layouts intercept
-keys in CAPTURE phase on their own views so GTK's built-in list navigation
-never turns arrows into commits (see `src/layouts/split_screen.py` for the
-canonical comment).
