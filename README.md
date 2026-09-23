@@ -1,4 +1,4 @@
-# material-picker
+# wallmat
 
 A GTK4 / libadwaita wallpaper chooser with **8 card-based layouts**, each with
 a full keyboard interaction model: arrows move a visual **focus** ring,
