@@ -8,7 +8,7 @@ pipeline re-themes your whole desktop from its colors (Material You).
 
 ## Contents
 
-[Layouts](#layouts) · [Run](#run) · [matugen integration](#matugen-integration---plain) · [Theming note](#theming-note) · [Requirements](#requirements)
+[Layouts](#layouts) · [Screenshots](#screenshots) · [Run](#run) · [matugen integration](#matugen-integration---plain) · [Theming note](#theming-note) · [Requirements](#requirements)
 
 ## Layouts
 
@@ -22,6 +22,13 @@ pipeline re-themes your whole desktop from its colors (Material You).
 | `parallax_gallery` | Parallax Gallery | medium |
 | `radial_fan` | Radial Fan | slow |
 | `cylindrical_ring` | Cylindrical Ring | slow |
+
+## Screenshots
+
+| | | | |
+|---|---|---|---|
+| ![Split-Screen Preview](screenshots/split_screen.png) | ![Stacked Deck](screenshots/stacked_deck.png) | ![Infinite Ribbon](screenshots/infinite_ribbon.png) | ![Masonry Grid](screenshots/masonry_grid.png) |
+| ![Glassmorphism](screenshots/glassmorphism.png) | ![Parallax Gallery](screenshots/parallax_gallery.png) | ![Radial Fan](screenshots/radial_fan.png) | ![Cylindrical Ring](screenshots/cylindrical_ring.png) |
 
 ## Run
 
