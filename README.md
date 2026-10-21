@@ -46,6 +46,9 @@ python3 src/main.py /path/to/wallpaper/folder --layout infinite_ribbon
 - `--layout` launches directly into that layout and sizes the window for it.
 - Press **Escape** to close — there's no title bar, so this is the only
   way to close the window from the keyboard (no minimize/maximize either).
+- Press **Ctrl+F** to filter wallpapers by filename; press **Escape** to
+  clear and hide the filter (or close the window when the filter is hidden).
+  Filtering also works in `--plain` mode and does not write to stdout.
 
 ### Remembering the last layout
 
