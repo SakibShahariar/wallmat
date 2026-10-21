@@ -238,7 +238,9 @@ class ParallaxGalleryLayout(WallLayout):
         picture.set_paintable(None)  # clear stale content while loading
 
         def on_ready(item_id, texture, picture=picture):
-            picture.set_paintable(texture)
+            # Ignore a completion for a picture that has been recycled.
+            if self._live_fg.get(item_id) is picture:
+                picture.set_paintable(texture)
 
         # item_id doesn't need to be unique the way the carousel's
         # duplicated-path case required — bg_loader is a separate loader
@@ -294,6 +296,7 @@ class ParallaxGalleryLayout(WallLayout):
             self.fg_loader.cancel(item.path)
             self._live_fg.pop(item.path, None)
         picture: Gtk.Picture = list_item.get_child()
+        picture.set_paintable(None)
         picture.remove_css_class("focused")
 
     def _on_fg_scroll(self, adjustment):
