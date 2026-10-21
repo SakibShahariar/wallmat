@@ -139,7 +139,13 @@ class _FanWidget(Gtk.Widget):
         height = self.get_height()
         pivot_x = width / 2.0
         pivot_y = height - PIVOT_BOTTOM_MARGIN
-        radius = min(width * 0.55, height - PIVOT_BOTTOM_MARGIN - 24)
+        # Reserve room for the entire front card above the arc. Using
+        # only a small fixed margin lets the card's top edge fall outside
+        # the widget at ordinary window heights.
+        available_radius = max(
+            0, height - PIVOT_BOTTOM_MARGIN - CARD_HEIGHT - 16
+        )
+        radius = min(width * 0.55, available_radius)
         n = len(self._paths)
         step = math.radians(MAX_FAN_ANGLE_DEG / max(1, n - 1)) if n > 1 else 0.0
         # start_angle=0, NOT -MAX_FAN_ANGLE_DEG/2: `rel` (used everywhere
