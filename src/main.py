@@ -26,6 +26,7 @@ glassmorphism, parallax_gallery, radial_fan, cylindrical_ring.
 import sys
 import os
 import argparse
+import shlex
 
 import gi
 
@@ -38,15 +39,21 @@ from window import WallpaperChooserWindow, LAYOUT_REGISTRY
 
 
 class WallpaperChooserApp(Adw.Application):
-    def __init__(self, wallpaper_dir: str, initial_layout_id: str | None, plain: bool = False):
+    def __init__(
+        self, wallpaper_dir: str, initial_layout_id: str | None,
+        plain: bool = False, matugen_args: list[str] | None = None,
+    ):
         super().__init__(application_id="dev.sakib.Wallmat")
         self.wallpaper_dir = wallpaper_dir
         self.initial_layout_id = initial_layout_id
         self.plain = plain
+        self.matugen_args = matugen_args or ["--type", "scheme-smart", "--mode", "dark"]
 
     def do_activate(self):
-        win = WallpaperChooserWindow(self, self.wallpaper_dir, self.initial_layout_id,
-                                     plain=self.plain)
+        win = WallpaperChooserWindow(
+            self, self.wallpaper_dir, self.initial_layout_id,
+            plain=self.plain, matugen_args=self.matugen_args,
+        )
         win.present()
 
 
@@ -65,9 +72,17 @@ def main():
         help="Picker-only mode: silence all feedback prints, output the bare "
              "wallpaper path on selection and exit"
     )
+    parser.add_argument(
+        "--matugen-args", default="--type scheme-smart --mode dark",
+        help="Arguments passed to matugen after 'image PATH' (default: "
+             "'--type scheme-smart --mode dark'); parsed without a shell"
+    )
     args = parser.parse_args()
 
-    app = WallpaperChooserApp(args.wallpaper_dir, args.layout, plain=args.plain)
+    app = WallpaperChooserApp(
+        args.wallpaper_dir, args.layout, plain=args.plain,
+        matugen_args=shlex.split(args.matugen_args),
+    )
     app.run([])
 
 
