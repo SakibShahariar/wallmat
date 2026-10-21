@@ -47,6 +47,20 @@ python3 src/main.py /path/to/wallpaper/folder --layout infinite_ribbon
 - Press **Escape** to close — there's no title bar, so this is the only
   way to close the window from the keyboard (no minimize/maximize either).
 
+### Remembering the last layout
+
+Wallmat uses the GSettings schema in `data/dev.sakib.Wallmat.gschema.xml`.
+For a local checkout, compile and install it for your user before launching
+if you want the selected layout to persist across restarts:
+
+```sh
+mkdir -p ~/.local/share/glib-2.0/schemas
+cp data/dev.sakib.Wallmat.gschema.xml ~/.local/share/glib-2.0/schemas/
+glib-compile-schemas ~/.local/share/glib-2.0/schemas/
+```
+
+If the schema is not installed, Wallmat falls back to an in-memory preference.
+
 ### Keyboard and pointer behavior
 
 Most layouts use the shared contract below, but a few deliberately differ.
