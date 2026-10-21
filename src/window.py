@@ -297,7 +297,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # which folder (or how many wallpapers) a given window was even
         # showing without checking the terminal it was launched from.
         folder_label = os.path.basename(directory.rstrip(os.sep)) or directory
-        count_label = f"{len(self._paths)}+" if truncated else str(len(self._paths))
+        count_label = str(len(self._paths))
         cap_label = f" — showing first {MAX_WALLPAPERS}" if truncated else ""
         self.set_title(
             f"Wallpaper Chooser — {folder_label} ({count_label}){cap_label}"
@@ -305,7 +305,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if truncated:
             print(
                 f"Wallpaper scan limit reached ({MAX_WALLPAPERS}); "
-                f"showing the first {MAX_WALLPAPERS} supported images.",
+                f"additional supported images may have been omitted.",
                 file=sys.stderr,
             )
 
