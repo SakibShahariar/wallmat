@@ -88,7 +88,9 @@ class _RingWidget(Gtk.Widget):
         self._animations_enabled = get_animations_enabled()
         self._hovered = False
 
-        scroll = Gtk.EventControllerScroll.new(Gtk.EventControllerScrollFlags.HORIZONTAL)
+        # Accept both axes: many touchpads report vertical wheel gestures
+        # as dy even when the ring's interaction is rotational/horizontal.
+        scroll = Gtk.EventControllerScroll.new(Gtk.EventControllerScrollFlags.BOTH_AXES)
         scroll.connect("scroll", self._on_scroll)
         self.add_controller(scroll)
 
@@ -196,9 +198,12 @@ class _RingWidget(Gtk.Widget):
     # -- input --
 
     def _on_scroll(self, controller, dx, dy):
-        if dx == 0:
+        # Touchpads and some wheel devices send vertical-only deltas.
+        # Treat either axis as rotation input so those devices can browse too.
+        delta = dx if dx else dy
+        if delta == 0:
             return False
-        self._center_unit += dx / (CARD_WIDTH * CARD_GAP)
+        self._center_unit += delta / (CARD_WIDTH * CARD_GAP)
         self._target_center = None  # user takes control back from any snap anim
         if self._paths:
             # Silent focus tracking only — scrolling never selects or
