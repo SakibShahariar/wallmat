@@ -39,7 +39,7 @@ from window import WallpaperChooserWindow, LAYOUT_REGISTRY
 
 class WallpaperChooserApp(Adw.Application):
     def __init__(self, wallpaper_dir: str, initial_layout_id: str | None, plain: bool = False):
-        super().__init__(application_id="org.example.WallpaperChooserPrototype")
+        super().__init__(application_id="dev.sakib.Wallmat")
         self.wallpaper_dir = wallpaper_dir
         self.initial_layout_id = initial_layout_id
         self.plain = plain
