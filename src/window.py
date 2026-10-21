@@ -236,6 +236,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         action_row.set_margin_bottom(10)
 
         # Keep layout selection available without restoring a header bar.
+        layout_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        layout_row.set_halign(Gtk.Align.CENTER)
+        layout_row.set_margin_top(8)
         self._layout_ids = list(LAYOUT_REGISTRY)
         self._layout_labels = [
             "Split-Screen Preview",
@@ -252,7 +255,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.layout_selector.connect(
             "notify::selected", self._on_layout_selected
         )
-        action_row.append(self.layout_selector)
+        layout_row.append(self.layout_selector)
+        content.append(layout_row)
 
         self.set_wallpaper_button = Gtk.Button(label="Set as wallpaper")
         self.set_wallpaper_button.set_sensitive(False)
