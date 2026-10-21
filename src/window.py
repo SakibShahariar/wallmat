@@ -1,42 +1,19 @@
 """
-WallpaperChooserWindow: hosts a Gtk.Stack of lazily-built layouts. There's
-no in-app UI for switching between them (no header bar, so no popover to
-put a switcher in) — the layout is picked via `--layout` at the command
-line. Whichever one is active is persisted to GSettings on every switch
-(currently: only the `--layout`-selected one, or the previous session's,
-since there's no in-app trigger) so it's remembered across launches (per
-spec section 7: "Mood/preference persisted in GSettings").
+WallpaperChooserWindow: hosts a Gtk.Stack of lazily-built layouts. Layouts
+can be switched in-app with the compact selector below the wallpaper view,
+or selected at launch with --layout. The active layout is persisted through
+GSettings when the schema is installed; otherwise an in-memory fallback is
+used for the current run.
 
 NOTE on the GSettings schema: this uses a schema id
 (dev.sakib.Wallmat) that is NOT installed on the
 system by default. GSettings requires a compiled schema file to exist
-under a glib schema directory before Gio.Settings.new() will succeed —
-if you see a GLib.Error about an unknown schema when running this, that's
-why. A minimal schema XML + install command is included at the bottom of
-this file's module docstring for reference; for a quick local test
-without installing anything, `_LayoutPreference` below falls back to an
-in-memory Python variable if the schema isn't found, so the app still
-runs — you just won't get persistence across restarts until the schema
-is installed.
-
---- schema install reference (not run automatically) ---
-Save as dev.sakib.Wallmat.gschema.xml:
-
-    <?xml version="1.0" encoding="UTF-8"?>
-    <schemalist>
-      <schema id="dev.sakib.Wallmat" path="/dev/sakib/wallmat/">
-        <key name="selected-layout" type="s">
-          <default>'split_screen'</default>
-          <summary>Last-used layout id</summary>
-        </key>
-      </schema>
-    </schemalist>
-
-Then:
-    mkdir -p ~/.local/share/glib-2.0/schemas
-    cp dev.sakib.Wallmat.gschema.xml ~/.local/share/glib-2.0/schemas/
-    glib-compile-schemas ~/.local/share/glib-2.0/schemas/
-"""
+under a glib schema directory before Gio.Settings.new() will succeed — if
+you see a GLib.Error about an unknown schema when running this, that's why.
+The repository includes data/dev.sakib.Wallmat.gschema.xml and README install
+instructions. If the schema is not installed, _LayoutPreference falls back
+to an in-memory value, so the app still runs but the preference is not
+persisted across restarts.
 
 import os
 import sys
@@ -186,17 +163,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         toolbar_view = Adw.ToolbarView()
 
-        # No header bar at all, for any launch mode — per explicit
-        # request. This removes the layout-switcher popover UI entirely
-        # (it lived in the header bar's grid-icon button) and, since
-        # standard GTK4 CSD apps have no window chrome without a header
-        # bar, also removes the close/minimize/maximize buttons and drag
-        # area universally, not just for --layout launches. Going
-        # forward, --layout at the command line is the only way to pick
-        # a layout — there's no in-app UI for it anymore. Escape still
-        # closes the window (wired up above); there's no titlebar
-        # fallback for moving the window without a window manager
-        # shortcut for that.
+        # Keep the window chrome-free as requested. Layouts remain
+        # switchable through the compact selector below the wallpaper view;
+        # --layout can still choose the initial layout at launch. Escape
+        # closes the window. Without a title bar, window movement and
+        # minimize/maximize depend on the window manager's shortcuts.
         self.stack = Gtk.Stack()
         self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         self.stack.set_vexpand(True)
