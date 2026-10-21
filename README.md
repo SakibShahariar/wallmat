@@ -38,17 +38,17 @@ python3 src/main.py /path/to/wallpaper/folder --layout infinite_ribbon
 ```
 
 - Defaults to `/usr/share/backgrounds` if no folder is given.
-- There's no header bar and no in-app UI for switching layouts —
-  `--layout` at the command line is the only way to pick one for a given
-  launch. The window still remembers the last layout you launched into
-  via GSettings, it's just not user-switchable at runtime without
-  relaunching.
+- The compact layout selector at the bottom switches layouts without
+  relaunching; no header bar is required. The selected layout is remembered
+  via GSettings.
 - `--layout` launches directly into that layout and sizes the window for it.
 - Press **Escape** to close — there's no title bar, so this is the only
   way to close the window from the keyboard (no minimize/maximize either).
 - Press **Ctrl+F** to filter wallpapers by filename; press **Escape** to
   clear and hide the filter (or close the window when the filter is hidden).
   Filtering also works in `--plain` mode and does not write to stdout.
+- Use the layout selector in the bottom action row to switch layouts without
+  restarting the app.
 
 ### Remembering the last layout
 
