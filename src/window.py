@@ -8,7 +8,7 @@ since there's no in-app trigger) so it's remembered across launches (per
 spec section 7: "Mood/preference persisted in GSettings").
 
 NOTE on the GSettings schema: this uses a schema id
-(org.example.WallpaperChooserPrototype) that is NOT installed on the
+(dev.sakib.Wallmat) that is NOT installed on the
 system by default. GSettings requires a compiled schema file to exist
 under a glib schema directory before Gio.Settings.new() will succeed —
 if you see a GLib.Error about an unknown schema when running this, that's
@@ -20,11 +20,11 @@ runs — you just won't get persistence across restarts until the schema
 is installed.
 
 --- schema install reference (not run automatically) ---
-Save as org.example.WallpaperChooserPrototype.gschema.xml:
+Save as dev.sakib.Wallmat.gschema.xml:
 
     <?xml version="1.0" encoding="UTF-8"?>
     <schemalist>
-      <schema id="org.example.WallpaperChooserPrototype" path="/org/example/wallpaperchooserprototype/">
+      <schema id="dev.sakib.Wallmat" path="/dev/sakib/wallmat/">
         <key name="selected-layout" type="s">
           <default>'split_screen'</default>
           <summary>Last-used layout id</summary>
@@ -34,7 +34,7 @@ Save as org.example.WallpaperChooserPrototype.gschema.xml:
 
 Then:
     mkdir -p ~/.local/share/glib-2.0/schemas
-    cp org.example.WallpaperChooserPrototype.gschema.xml ~/.local/share/glib-2.0/schemas/
+    cp dev.sakib.Wallmat.gschema.xml ~/.local/share/glib-2.0/schemas/
     glib-compile-schemas ~/.local/share/glib-2.0/schemas/
 """
 
@@ -59,7 +59,7 @@ from layouts.radial_fan import RadialFanLayout
 from widgets.gsk_utils import register_focus_colors
 from announce import say, set_quiet
 
-SCHEMA_ID = "org.example.WallpaperChooserPrototype"
+SCHEMA_ID = "dev.sakib.Wallmat"
 SETTINGS_KEY = "selected-layout"
 DEFAULT_LAYOUT_ID = "split_screen"
 
