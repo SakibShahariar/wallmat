@@ -39,6 +39,7 @@ Then:
 """
 
 import os
+import sys
 
 import gi
 
@@ -231,8 +232,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.set_title(f"Wallpaper Chooser — {folder_label} ({len(self._paths)})")
 
         if not self._paths:
+            # --plain is a stdout pipeline contract: diagnostics must never
+            # be mistaken for the selected wallpaper path.
             print(f"No wallpapers found under {directory}; pass a directory "
-                  f"with .png/.jpg/.webp files as argv[1].")
+                  f"with .png/.jpg/.webp files as argv[1].", file=sys.stderr)
         self._empty_state.set_visible(not self._paths)
 
     def _switch_to(self, layout_id: str):
