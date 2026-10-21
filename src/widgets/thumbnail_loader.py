@@ -62,10 +62,12 @@ class ThumbnailLoader:
 
         # item_id -> GLib timeout source id, for pending debounced requests
         self._pending_timeouts: dict[str, int] = {}
-        # item_id -> True while queued or being decoded. cancel() removes
-        # the entry; a worker that dequeues a job whose item_id is no
-        # longer here drops the job instead of decoding/delivering it.
-        self._live: dict[str, bool] = {}
+        # item_id -> generation token for the current request. A boolean
+        # is not sufficient: cancel + re-request can make an old queued
+        # result look live again if the same item_id is reused.
+        self._generation: dict[str, int] = {}
+        # item_id -> generation token while queued/decoding/delivering.
+        self._live: dict[str, int] = {}
 
         self._job_queue: "queue.Queue" = queue.Queue()
         self._workers = []
@@ -81,12 +83,15 @@ class ThumbnailLoader:
         Schedule a debounced load. `on_ready(item_id, Gdk.Texture)` is
         called on the GLib main thread once decoding finishes.
         """
-        self.cancel(item_id)  # clear any prior pending timeout for this item
+        self.cancel(item_id)  # invalidate any prior timeout/job/delivery
+        generation = self._generation[item_id]
 
         def fire_after_debounce():
             self._pending_timeouts.pop(item_id, None)
-            self._live[item_id] = True
-            self._job_queue.put((item_id, source_path, on_ready))
+            if self._generation.get(item_id) != generation:
+                return GLib.SOURCE_REMOVE
+            self._live[item_id] = generation
+            self._job_queue.put((item_id, source_path, on_ready, generation))
             return GLib.SOURCE_REMOVE
 
         timeout_id = GLib.timeout_add(DEBOUNCE_MS, fire_after_debounce)
@@ -97,10 +102,10 @@ class ThumbnailLoader:
         timeout_id = self._pending_timeouts.pop(item_id, None)
         if timeout_id is not None:
             GLib.source_remove(timeout_id)
-        # A job already sitting in the queue or mid-decode is left to
-        # finish (cheap, bounded by the worker pool size) but the worker
-        # checks `_live` before doing any real work and before delivering,
-        # so a cancelled job's result is simply dropped.
+        # Invalidate queued work and idle callbacks too. The generation
+        # token prevents an old result from being accepted after the same
+        # item_id has already been requested again.
+        self._generation[item_id] = self._generation.get(item_id, 0) + 1
         self._live.pop(item_id, None)
 
     # -- internal --
@@ -122,15 +127,31 @@ class ThumbnailLoader:
         instance, so this is the whole story of the thread-count cap — no
         per-request thread spawning anywhere."""
         while True:
-            item_id, source_path, on_ready = self._job_queue.get()
+            item_id, source_path, on_ready, generation = self._job_queue.get()
             try:
-                if not self._live.get(item_id):
-                    continue  # cancelled before a worker got to it
+                if (self._live.get(item_id) != generation
+                        or self._generation.get(item_id) != generation):
+                    continue  # superseded before a worker got to it
 
                 cache_path = self._cache_path(source_path)
                 try:
                     if os.path.exists(cache_path):
-                        pixbuf = GdkPixbuf.Pixbuf.new_from_file(cache_path)
+                        try:
+                            pixbuf = GdkPixbuf.Pixbuf.new_from_file(cache_path)
+                        except GLib.Error:
+                            # A truncated/corrupt cache must not permanently
+                            # hide a valid source image on later launches.
+                            try:
+                                os.remove(cache_path)
+                            except OSError:
+                                pass
+                            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
+                                source_path, self._thumb_size, -1, True
+                            )
+                            try:
+                                pixbuf.savev(cache_path, self._cache_ext, [], [])
+                            except GLib.Error:
+                                pass  # cache write failure is non-fatal
                     else:
                         pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
                             source_path, self._thumb_size, -1, True
@@ -142,15 +163,20 @@ class ThumbnailLoader:
                 except GLib.Error:
                     continue
 
-                if not self._live.get(item_id):
-                    continue  # cancelled mid-decode; drop result
+                if (self._live.get(item_id) != generation
+                        or self._generation.get(item_id) != generation):
+                    continue  # cancelled/superseded mid-decode
 
-                # Hand off to the main thread for GTK/Gdk object creation
-                GLib.idle_add(self._deliver, item_id, pixbuf, on_ready)
+                # The main-thread delivery rechecks generation as cancel()
+                # can run after idle_add() but before this callback executes.
+                GLib.idle_add(self._deliver, item_id, generation, pixbuf, on_ready)
             finally:
                 self._job_queue.task_done()
 
-    def _deliver(self, item_id, pixbuf, on_ready):
+    def _deliver(self, item_id, generation, pixbuf, on_ready):
+        if (self._live.get(item_id) != generation
+                or self._generation.get(item_id) != generation):
+            return GLib.SOURCE_REMOVE
         self._live.pop(item_id, None)
         texture = Gdk.Texture.new_for_pixbuf(pixbuf)
         on_ready(item_id, texture)
