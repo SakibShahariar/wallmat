@@ -63,6 +63,10 @@ SCHEMA_ID = "org.example.WallpaperChooserPrototype"
 SETTINGS_KEY = "selected-layout"
 DEFAULT_LAYOUT_ID = "split_screen"
 
+# Keep very large wallpaper collections from monopolizing startup. The scan
+# stops after this many supported images and reports that the result is capped.
+MAX_WALLPAPERS = 10_000
+
 LAYOUT_REGISTRY = {
     "split_screen": SplitScreenLayout,
     "stacked_deck": StackedDeckLayout,
@@ -215,12 +219,23 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
     def _scan_and_load(self, directory: str):
         supported_exts = (".png", ".jpg", ".jpeg", ".webp")
         paths = []
+        truncated = False
         if os.path.isdir(directory):
-            for root, _, files in os.walk(directory):
+            for root, dirs, files in os.walk(directory):
+                # Make which files are included reproducible when the cap is
+                # reached, and avoid descending further once enough images
+                # have been collected.
+                dirs.sort()
+                files.sort()
                 for f in files:
                     if f.lower().endswith(supported_exts):
                         paths.append(os.path.join(root, f))
-        self._paths = sorted(paths)
+                        if len(paths) >= MAX_WALLPAPERS:
+                            truncated = True
+                            break
+                if truncated:
+                    break
+        self._paths = paths
 
         # The window itself has no title bar to display this in, but it's
         # still what shows up in a taskbar, Alt-Tab switcher, or window
@@ -229,7 +244,17 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # which folder (or how many wallpapers) a given window was even
         # showing without checking the terminal it was launched from.
         folder_label = os.path.basename(directory.rstrip(os.sep)) or directory
-        self.set_title(f"Wallpaper Chooser — {folder_label} ({len(self._paths)})")
+        count_label = f"{len(self._paths)}+" if truncated else str(len(self._paths))
+        cap_label = f" — showing first {MAX_WALLPAPERS}" if truncated else ""
+        self.set_title(
+            f"Wallpaper Chooser — {folder_label} ({count_label}){cap_label}"
+        )
+        if truncated:
+            print(
+                f"Wallpaper scan limit reached ({MAX_WALLPAPERS}); "
+                f"showing the first {MAX_WALLPAPERS} supported images.",
+                file=sys.stderr,
+            )
 
         if not self._paths:
             # --plain is a stdout pipeline contract: diagnostics must never
