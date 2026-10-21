@@ -234,6 +234,26 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         action_row.set_halign(Gtk.Align.CENTER)
         action_row.set_margin_top(8)
         action_row.set_margin_bottom(10)
+
+        # Keep layout selection available without restoring a header bar.
+        self._layout_ids = list(LAYOUT_REGISTRY)
+        self._layout_labels = [
+            "Split-Screen Preview",
+            "Stacked Deck",
+            "Infinite Ribbon",
+            "Masonry Grid",
+            "Glassmorphism",
+            "Parallax Gallery",
+            "Radial Fan",
+            "Cylindrical Ring",
+        ]
+        self.layout_selector = Gtk.DropDown.new_from_strings(self._layout_labels)
+        self.layout_selector.set_tooltip_text("Switch wallpaper layout")
+        self.layout_selector.connect(
+            "notify::selected", self._on_layout_selected
+        )
+        action_row.append(self.layout_selector)
+
         self.set_wallpaper_button = Gtk.Button(label="Set as wallpaper")
         self.set_wallpaper_button.set_sensitive(False)
         self.set_wallpaper_button.connect("clicked", self._on_apply_wallpaper)
@@ -267,6 +287,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             if initial_id not in LAYOUT_REGISTRY:
                 initial_id = DEFAULT_LAYOUT_ID
         self._switch_to(initial_id)
+        self.layout_selector.set_selected(self._layout_ids.index(initial_id))
+
+    def _on_layout_selected(self, dropdown, _pspec):
+        selected = dropdown.get_selected()
+        if selected < len(self._layout_ids):
+            self._switch_to(self._layout_ids[selected])
 
     def _scan_and_load(self, directory: str):
         supported_exts = (".png", ".jpg", ".jpeg", ".webp")
