@@ -161,6 +161,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         self._preference = _LayoutPreference()
         self._paths: list[str] = []
+        self._all_paths: list[str] = []
         self._layouts: dict[str, object] = {}
         self._current_layout_id: str | None = None
 
@@ -182,24 +183,34 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.stack.set_vexpand(True)
         self.stack.set_hexpand(True)
 
-        # Empty-state message: previously, a folder with no supported
-        # images only printed to the TERMINAL the app was launched from —
-        # the window itself just opened blank with no explanation, which
-        # only makes sense if you're the person who launched it and can
-        # see that terminal. Shown/hidden once, right after the initial
-        # scan (this prototype doesn't rescan directories at runtime).
+        # Ctrl+F reveals a lightweight filename filter without permanently
+        # taking space away from the wallpaper layouts.
+        self.search_entry = Gtk.SearchEntry()
+        self.search_entry.set_placeholder_text("Filter wallpapers by filename…")
+        self.search_entry.set_margin_start(12)
+        self.search_entry.set_margin_end(12)
+        self.search_entry.set_margin_top(8)
+        self.search_entry.set_margin_bottom(8)
+        self.search_entry.set_visible(False)
+        self.search_entry.connect("search-changed", self._on_search_changed)
+
+        # Empty-state message covers both an empty directory and a filter
+        # with no matching filenames.
         content_overlay = Gtk.Overlay()
         content_overlay.set_child(self.stack)
         self._empty_state = Adw.StatusPage()
         self._empty_state.set_icon_name("folder-open-symbolic")
         self._empty_state.set_title("No wallpapers found")
         self._empty_state.set_description(
-            "This folder has no .png, .jpg, or .webp files. "
-            "Launch again with a different directory."
+            "This folder has no supported wallpaper images."
         )
         self._empty_state.set_visible(False)
         content_overlay.add_overlay(self._empty_state)
-        toolbar_view.set_content(content_overlay)
+
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        content.append(self.search_entry)
+        content.append(content_overlay)
+        toolbar_view.set_content(content)
 
         self.set_content(toolbar_view)
 
@@ -235,7 +246,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                             break
                 if truncated:
                     break
-        self._paths = paths
+        self._all_paths = paths
+        self._paths = list(paths)
 
         # The window itself has no title bar to display this in, but it's
         # still what shows up in a taskbar, Alt-Tab switcher, or window
@@ -262,6 +274,38 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             print(f"No wallpapers found under {directory}; pass a directory "
                   f"with .png/.jpg/.webp files as argv[1].", file=sys.stderr)
         self._empty_state.set_visible(not self._paths)
+        self._empty_state.set_title(
+            "No matching wallpapers" if self.search_entry.get_text().strip()
+            else "No wallpapers found"
+        )
+        self._empty_state.set_description(
+            "Try a different filename filter."
+            if self.search_entry.get_text().strip()
+            else "This folder has no supported wallpaper images."
+        )
+
+    def _on_search_changed(self, entry):
+        query = entry.get_text().strip().casefold()
+        if query:
+            self._paths = [
+                path for path in self._all_paths
+                if query in os.path.basename(path).casefold()
+            ]
+        else:
+            self._paths = list(self._all_paths)
+
+        for layout in self._layouts.values():
+            layout.load_wallpapers(self._paths)
+
+        self._empty_state.set_visible(not self._paths)
+        has_query = bool(query)
+        self._empty_state.set_title(
+            "No matching wallpapers" if has_query else "No wallpapers found"
+        )
+        self._empty_state.set_description(
+            "Try a different filename filter."
+            if has_query else "This folder has no supported wallpaper images."
+        )
 
     def _switch_to(self, layout_id: str):
         if layout_id == self._current_layout_id:
@@ -301,7 +345,16 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         say(f"Selected: {path}")
 
     def _on_key_pressed(self, controller, keyval, keycode, state):
+        if keyval == Gdk.KEY_f and state & Gdk.ModifierType.CONTROL_MASK:
+            self.search_entry.set_visible(True)
+            self.search_entry.grab_focus()
+            return True
         if keyval == Gdk.KEY_Escape:
-            self.close()
+            if self.search_entry.get_visible():
+                self.search_entry.set_text("")
+                self.search_entry.set_visible(False)
+                self.stack.grab_focus()
+            else:
+                self.close()
             return True
         return False
