@@ -47,8 +47,6 @@ python3 src/main.py /path/to/wallpaper/folder --layout infinite_ribbon
 - Press **Ctrl+F** to filter wallpapers by filename; press **Escape** to
   clear and hide the filter (or close the window when the filter is hidden).
   Filtering also works in `--plain` mode and does not write to stdout.
-- Use the layout selector in the bottom action row to switch layouts without
-  restarting the app.
 
 ### Remembering the last layout
 
