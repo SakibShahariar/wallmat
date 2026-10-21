@@ -40,6 +40,7 @@ Then:
 
 import os
 import sys
+import json
 import subprocess
 
 import gi
@@ -138,6 +139,19 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             matugen_args or ["--type", "scheme-smart", "--mode", "dark"]
         )
         self._selected_path: str | None = None
+        config_dir = os.path.expanduser("~/.config/wallmat")
+        self._favorites_file = os.path.join(config_dir, "favorites.json")
+        self._favorites_export_file = os.path.join(config_dir, "favorites.txt")
+        self._favorites: set[str] = set()
+        try:
+            with open(self._favorites_file, "r", encoding="utf-8") as handle:
+                saved_favorites = json.load(handle)
+            if isinstance(saved_favorites, list):
+                self._favorites = {
+                    path for path in saved_favorites if isinstance(path, str)
+                }
+        except (OSError, json.JSONDecodeError):
+            pass
         if plain:
             # stdout must carry ONLY the final selected path (the
             # matugen.fish pipeline captures it via fish command
@@ -227,8 +241,16 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.apply_matugen_button.add_css_class("suggested-action")
         self.apply_matugen_button.set_sensitive(False)
         self.apply_matugen_button.connect("clicked", self._on_apply_matugen)
+        self.favorite_button = Gtk.Button(label="Add to favorites")
+        self.favorite_button.set_sensitive(False)
+        self.favorite_button.connect("clicked", self._on_toggle_favorite)
+        self.export_favorites_button = Gtk.Button(label="Export favorites")
+        self.export_favorites_button.set_sensitive(False)
+        self.export_favorites_button.connect("clicked", self._on_export_favorites)
         action_row.append(self.set_wallpaper_button)
         action_row.append(self.apply_matugen_button)
+        action_row.append(self.favorite_button)
+        action_row.append(self.export_favorites_button)
         content.append(action_row)
         toolbar_view.set_content(content)
 
@@ -365,7 +387,58 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._selected_path = path
         self.set_wallpaper_button.set_sensitive(True)
         self.apply_matugen_button.set_sensitive(True)
+        self.favorite_button.set_sensitive(True)
+        self.export_favorites_button.set_sensitive(True)
+        self._update_favorite_button()
         say(f"Selected: {path}")
+
+    def _update_favorite_button(self):
+        if self._selected_path in self._favorites:
+            self.favorite_button.set_label("Remove favorite")
+        else:
+            self.favorite_button.set_label("Add to favorites")
+
+    def _save_favorites(self):
+        directory = os.path.dirname(self._favorites_file)
+        os.makedirs(directory, exist_ok=True)
+        temporary_path = self._favorites_file + ".tmp"
+        try:
+            with open(temporary_path, "w", encoding="utf-8") as handle:
+                json.dump(sorted(self._favorites), handle, indent=2)
+                handle.write("\n")
+            os.replace(temporary_path, self._favorites_file)
+        except OSError:
+            try:
+                os.unlink(temporary_path)
+            except OSError:
+                pass
+            raise
+
+    def _on_toggle_favorite(self, button):
+        path = self._selected_path
+        if not path:
+            return
+        if path in self._favorites:
+            self._favorites.remove(path)
+        else:
+            self._favorites.add(path)
+        try:
+            self._save_favorites()
+            self._update_favorite_button()
+            say(f"Favorites saved: {len(self._favorites)}")
+        except OSError as error:
+            say(f"Could not save favorites: {error}")
+
+    def _on_export_favorites(self, button):
+        try:
+            directory = os.path.dirname(self._favorites_export_file)
+            os.makedirs(directory, exist_ok=True)
+            with open(self._favorites_export_file, "w", encoding="utf-8") as handle:
+                for path in sorted(self._favorites):
+                    handle.write(path + "\n")
+            say(f"Exported {len(self._favorites)} favorites to {self._favorites_export_file}")
+        except OSError as error:
+            say(f"Could not export favorites: {error}")
 
     def _on_apply_wallpaper(self, button):
         path = self._selected_path
