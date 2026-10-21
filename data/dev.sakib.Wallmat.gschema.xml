@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="dev.sakib.Wallmat" path="/dev/sakib/wallmat/">
+    <key name="selected-layout" type="s">
+      <default>'split_screen'</default>
+      <summary>Last-used layout ID</summary>
+      <description>The layout to open when Wallmat starts without an explicit --layout argument.</description>
+    </key>
+  </schema>
+</schemalist>
