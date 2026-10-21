@@ -107,6 +107,39 @@ Selection/focus ring colors resolve the active theme's
 follows your installed GNOME theme + matugen output instead of a hardcoded
 accent.
 
+## Applying a wallpaper and Matugen
+
+In normal UI mode, select a wallpaper and choose **Set as wallpaper** or
+**Apply wallpaper + Matugen**. The first action updates GNOME's
+`picture-uri` and `picture-uri-dark` settings when those keys are available.
+The second also starts `matugen image PATH` with the configured arguments.
+The default Matugen arguments are `--type scheme-smart --mode dark`; override
+them with `--matugen-args`, for example:
+
+```sh
+python3 src/main.py ~/Pictures/Wallpapers --matugen-args="--type scheme-tonal-spot --mode light"
+```
+
+Arguments are parsed into an argument list and passed without a shell.
+Matugen must be installed for the Matugen action to work. The `--plain`
+pipeline contract is unchanged: selecting a wallpaper prints only its path
+to stdout and exits.
+
+### Material GNOME suite color files
+
+The shared CSS palette consumed by Material Panel, Material Dock, and Material
+Screensaver is `~/.config/matugen/matugen-colors.css`. It is a CSS file with
+Matugen custom properties such as `--surface_container`, `--on_surface`,
+and `--primary`. Configure Matugen to write this output file if you want
+those extensions to follow the same palette; Wallmat does not invent or
+rewrite Matugen templates.
+
+Material-Gnome's GTK theme uses its own generated theme files:
+`gtk-3.0/colors.css`, `gtk-4.0/colors.css`, and the GNOME Shell theme
+stylesheet/template. Those are outputs of the Material-Gnome Matugen setup,
+not replacements for the shared extension palette. Keep the Matugen template
+configuration aligned so all outputs are generated from the same wallpaper.
+
 ## Requirements
 
 ```bash
