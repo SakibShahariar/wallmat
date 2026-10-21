@@ -47,14 +47,26 @@ python3 src/main.py /path/to/wallpaper/folder --layout infinite_ribbon
 - Press **Escape** to close — there's no title bar, so this is the only
   way to close the window from the keyboard (no minimize/maximize either).
 
-### Keyboard contract
+### Keyboard and pointer behavior
 
-Every layout follows the same rules (verify with any wallpaper folder):
+Most layouts use the shared contract below, but a few deliberately differ.
+These exceptions are listed explicitly so the on-screen hints and actual
+interaction are predictable.
 
-- **← / →** — move focus only, draws the focus ring, prints nothing
-  visible in normal usage; commit stays with the next step
-- **Enter** — commit the focused card (the selection border)
-- **click** — also selects (the card that's currently focused committed)
+For layouts using the shared contract:
+
+- **← / →** — move focus only and show the focus ring; they do not commit
+  a wallpaper selection
+- **Enter** — commit the focused wallpaper
+- **click** — select the clicked wallpaper
+
+| Layout | Browse / focus | Select / activate | Exception |
+| --- | --- | --- | --- |
+| Stacked Deck | ← / → deals the deck; swipe also deals | Enter or the Select button chooses the front card | Click/swipe advances the deck instead of selecting |
+| Masonry Grid | Scroll the grid | Click a wallpaper | Keyboard arrows and Enter are not supported |
+| Radial Fan | ← / → or mouse wheel / touchpad scroll cycles the front card | Enter selects the front card; click selects the hit card | Scrolling changes the front card directly |
+| Cylindrical Ring | ← / → or scroll rotates the ring | Enter commits the front card; click selects the card under the pointer | Scroll changes focus, not selection |
+| Infinite Ribbon | ← / → moves keyboard focus; scrolling moves the ribbon | Enter or click selects | Scroll position and keyboard focus are separate |
 
 ## matugen integration (`--plain`)
 
