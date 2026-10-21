@@ -13,12 +13,11 @@ wallpaper path to stdout (the ONLY stdout line) and exits — a drop-in
 replacement for wallpicker.py.
 
 Layouts are built lazily — each one only gets constructed the first
-time you switch to it. There's no in-app UI for switching between them
-(no header bar, since none exists in this window) — --layout is the
-only way to pick one for a given launch, and it also sizes the window
-for that layout up front (see LAYOUT_WINDOW_SIZES in window.py) —
-useful since GTK/Wayland generally won't let the app resize its own
-window after it's first shown.
+time you switch to it. You can choose a layout with the compact in-app
+selector or use --layout to launch directly into one. The CLI option
+also sizes the window for that layout up front (see LAYOUT_WINDOW_SIZES
+in window.py), since GTK/Wayland generally won't let an app resize its
+own window after it's first shown.
 Valid ids: split_screen, stacked_deck, infinite_ribbon, masonry_grid,
 glassmorphism, parallax_gallery, radial_fan, cylindrical_ring.
 """
