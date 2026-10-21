@@ -212,8 +212,26 @@ class InfiniteRibbonLayout(WallLayout):
         # wallpaper-selected.
         if value < set_span * 0.5:
             adjustment.set_value(value + set_span)
+            value = adjustment.get_value()
         elif value > set_span * 1.5:
             adjustment.set_value(value - set_span)
+            value = adjustment.get_value()
+
+        # Keep the keyboard focus ring aligned with the card nearest the
+        # viewport center after mouse/trackpad scrolling. This deliberately
+        # updates only visual focus: selection remains an explicit click or
+        # Enter action. Use the adjusted value after loop snapping so the
+        # computed index belongs to the middle copy, not the copy we left.
+        viewport_width = self.carousel.scroller.get_width()
+        if viewport_width <= 0:
+            return
+        center = value + viewport_width / 2.0
+        position = int(center / CARD_STRIDE)
+        position = max(0, min(position, self.carousel.store.get_n_items() - 1))
+        if position != self._focus:
+            self._focus = position
+            item = self.carousel.store.get_item(position)
+            self.carousel.set_focus(item.item_id)
 
     def _on_selected(self, carousel, path):
         self.emit("wallpaper-selected", path)
