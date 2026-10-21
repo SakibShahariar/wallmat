@@ -156,3 +156,6 @@ sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1
 # optional WebP thumbnails:
 sudo apt install webp-pixbuf-loader
 ```
+## License
+
+Wallmat is distributed under the GNU General Public License v3.0 only. See [LICENSE](LICENSE) for the full license text.
