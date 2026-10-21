@@ -227,7 +227,10 @@ class GlassmorphismLayout(WallLayout):
         picture.add_css_class("active") if selected_item is item else picture.remove_css_class("active")
 
         def on_ready(item_id, texture, picture=picture):
-            picture.set_paintable(texture)
+            # ListView rows are recycled; never paint into a row that has
+            # since been rebound or unbound.
+            if self._live_widgets.get(item_id) is picture:
+                picture.set_paintable(texture)
 
         self.loader.request(item.path, item.path, on_ready)
 
@@ -237,6 +240,7 @@ class GlassmorphismLayout(WallLayout):
             self.loader.cancel(item.path)
             self._live_widgets.pop(item.path, None)
         picture: Gtk.Picture = list_item.get_child()
+        picture.set_paintable(None)
         picture.remove_css_class("active")
         picture.remove_css_class("focused")
 
