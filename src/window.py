@@ -40,6 +40,7 @@ Then:
 
 import os
 import sys
+import subprocess
 
 import gi
 
@@ -130,9 +131,13 @@ class _LayoutPreference:
 
 class WallpaperChooserWindow(Adw.ApplicationWindow):
     def __init__(self, app, wallpaper_dir: str, initial_layout_id: str | None = None,
-                 plain: bool = False):
-        super().__init__(application=app, title="Wallpaper Chooser (Prototype)")
+                 plain: bool = False, matugen_args: list[str] | None = None):
+        super().__init__(application=app, title="Wallpaper Chooser")
         self._plain = plain
+        self._matugen_args = list(
+            matugen_args or ["--type", "scheme-smart", "--mode", "dark"]
+        )
+        self._selected_path: str | None = None
         if plain:
             # stdout must carry ONLY the final selected path (the
             # matugen.fish pipeline captures it via fish command
@@ -210,6 +215,21 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         content.append(self.search_entry)
         content.append(content_overlay)
+
+        action_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        action_row.set_halign(Gtk.Align.CENTER)
+        action_row.set_margin_top(8)
+        action_row.set_margin_bottom(10)
+        self.set_wallpaper_button = Gtk.Button(label="Set as wallpaper")
+        self.set_wallpaper_button.set_sensitive(False)
+        self.set_wallpaper_button.connect("clicked", self._on_apply_wallpaper)
+        self.apply_matugen_button = Gtk.Button(label="Apply wallpaper + Matugen")
+        self.apply_matugen_button.add_css_class("suggested-action")
+        self.apply_matugen_button.set_sensitive(False)
+        self.apply_matugen_button.connect("clicked", self._on_apply_matugen)
+        action_row.append(self.set_wallpaper_button)
+        action_row.append(self.apply_matugen_button)
+        content.append(action_row)
         toolbar_view.set_content(content)
 
         self.set_content(toolbar_view)
@@ -342,7 +362,38 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             print(path)
             self.close()
             return
+        self._selected_path = path
+        self.set_wallpaper_button.set_sensitive(True)
+        self.apply_matugen_button.set_sensitive(True)
         say(f"Selected: {path}")
+
+    def _on_apply_wallpaper(self, button):
+        path = self._selected_path
+        if not path:
+            return
+        try:
+            settings = Gio.Settings.new("org.gnome.desktop.background")
+            uri = GLib.filename_to_uri(path)
+            keys = settings.list_keys()
+            if "picture-uri" in keys:
+                settings.set_string("picture-uri", uri)
+            if "picture-uri-dark" in keys:
+                settings.set_string("picture-uri-dark", uri)
+            say(f"Wallpaper applied: {path}")
+        except (GLib.Error, OSError, TypeError) as error:
+            say(f"Could not set GNOME wallpaper: {error}")
+
+    def _on_apply_matugen(self, button):
+        path = self._selected_path
+        if not path:
+            return
+        self._on_apply_wallpaper(button)
+        command = ["matugen", "image", path, *self._matugen_args]
+        try:
+            subprocess.Popen(command)
+            say("Matugen started.")
+        except OSError as error:
+            say(f"Could not start Matugen: {error}")
 
     def _on_key_pressed(self, controller, keyval, keycode, state):
         if keyval == Gdk.KEY_f and state & Gdk.ModifierType.CONTROL_MASK:
