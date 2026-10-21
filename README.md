@@ -125,6 +125,15 @@ Matugen must be installed for the Matugen action to work. The `--plain`
 pipeline contract is unchanged: selecting a wallpaper prints only its path
 to stdout and exits.
 
+### Favorites export
+
+Use **Add to favorites** after selecting a wallpaper. Favorites persist in
+`~/.config/wallmat/favorites.json`. **Export favorites** writes a newline-
+delimited list of absolute wallpaper paths to
+`~/.config/wallmat/favorites.txt`, suitable for a panel integration to read
+without embedding the full chooser. Export the list again after changing
+favorites so consumers receive the latest paths.
+
 ### Material GNOME suite color files
 
 The shared CSS palette consumed by Material Panel, Material Dock, and Material
