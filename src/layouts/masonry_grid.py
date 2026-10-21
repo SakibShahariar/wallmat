@@ -142,11 +142,31 @@ class MasonryGridLayout(WallLayout):
             card_holder.wallpaper_path = path  # stash for lookup on activation
             self.flow_box.append(card_holder)
             self._card_by_child[card_holder] = card
+            # Defer thumbnail work until GTK maps the child. Unmapped cards
+            # with no texture can cancel their pending debounced request.
+            card_holder.connect("map", self._on_child_mapped)
+            card_holder.connect("unmap", self._on_child_unmapped)
 
-            def on_ready(item_id, texture, card=card):
+    def _on_child_mapped(self, child):
+        card = self._card_by_child.get(child)
+        path = getattr(child, "wallpaper_path", None)
+        if card is None or path is None or card.texture is not None:
+            return
+
+        def on_ready(item_id, texture, card=card, child=child, path=path):
+            # A child may have been removed/rebound while decoding.
+            if (self._card_by_child.get(child) is card
+                    and getattr(child, "wallpaper_path", None) == path
+                    and child.get_mapped()):
                 card.texture = texture
 
-            self.loader.request(path, path, on_ready)
+        self.loader.request(path, path, on_ready)
+
+    def _on_child_unmapped(self, child):
+        card = self._card_by_child.get(child)
+        path = getattr(child, "wallpaper_path", None)
+        if card is not None and card.texture is None and path is not None:
+            self.loader.cancel(path)
 
     def _on_child_activated(self, flow_box, child):
         path = getattr(child, "wallpaper_path", None)
