@@ -245,7 +245,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.favorite_button.set_sensitive(False)
         self.favorite_button.connect("clicked", self._on_toggle_favorite)
         self.export_favorites_button = Gtk.Button(label="Export favorites")
-        self.export_favorites_button.set_sensitive(False)
         self.export_favorites_button.connect("clicked", self._on_export_favorites)
         action_row.append(self.set_wallpaper_button)
         action_row.append(self.apply_matugen_button)
