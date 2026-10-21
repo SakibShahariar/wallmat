@@ -66,7 +66,7 @@ python3 src/main.py ~/Pictures/Wallpapers --layout infinite_ribbon
 - **Ctrl + F** — filter by filename.
 - **Escape** — clear the filter, or close the window when the filter is hidden.
 
-Use the layout selector at the bottom of the window to switch layouts without restarting. The chosen layout is remembered when Wallmat's GSettings schema is installed. See [layout interaction details](docs/layouts.md) for layout-specific behavior.
+Use the layout selector at the bottom of the window to switch layouts without restarting. The chosen layout is remembered when Wallmat's GSettings schema is installed. Exact controls vary by layout.
 
 ## Matugen integration
 
