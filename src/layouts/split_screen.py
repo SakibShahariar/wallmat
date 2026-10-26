@@ -83,6 +83,7 @@ class SplitScreenLayout(WallLayout):
         except ValueError:
             return False
         self._set_focus(position, announce=False)
+        self.preview.set_wallpaper_path(path)
         return True
 
     def _set_focus(self, position: int, announce: bool = True):
