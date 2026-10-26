@@ -26,5 +26,10 @@
       <summary>Last selected wallpaper path</summary>
       <description>Absolute path of the last selected wallpaper, restored only when the file remains available in the current filtered results.</description>
     </key>
+    <key name="recent-wallpapers" type="as">
+      <default>[]</default>
+      <summary>Recently selected wallpaper paths</summary>
+      <description>Up to eight recently selected existing wallpaper paths, shown when they belong to the currently opened folder.</description>
+    </key>
   </schema>
 </schemalist>
