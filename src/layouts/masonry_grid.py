@@ -106,7 +106,9 @@ class MasonryGridLayout(WallLayout):
         self.grid_view.set_max_columns(6)
         # Gtk.GridView has no row/column spacing setters. Keep the gutters
         # on each recycled cell instead of calling Gtk.Grid-only methods.
-        self.grid_view.set_single_click_activate(False)
+        # The window treats activation as selecting a wallpaper; keep that
+        # action consistent with the layout's single-click selection hint.
+        self.grid_view.set_single_click_activate(True)
         self.grid_view.connect("activate", self._on_item_activated)
 
         scroller = Gtk.ScrolledWindow()
