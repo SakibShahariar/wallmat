@@ -256,12 +256,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self._preference.get_string(SORT_KEY, "name")
             if not plain else "name"
         )
-        if saved_sort_mode not in ("name", "newest", "oldest", "random"):
+        if saved_sort_mode not in ("name", "newest", "oldest", "random", "folder"):
             saved_sort_mode = "name"
         self._sort_mode = saved_sort_mode
         self._random_order: list[str] = []
         self.sort_selector = Gtk.DropDown.new_from_strings([
-            "Name (A–Z)", "Newest first", "Oldest first", "Random order"
+            "Name (A–Z)", "Newest first", "Oldest first", "Random order", "Folder groups"
         ])
         self.sort_selector.set_selected(
             ("name", "newest", "oldest", "random").index(self._sort_mode)
@@ -670,7 +670,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             return 0.0
 
     def _on_sort_selected(self, dropdown, _pspec):
-        modes = ("name", "newest", "oldest", "random")
+        modes = ("name", "newest", "oldest", "random", "folder")
         selected = dropdown.get_selected()
         if selected >= len(modes):
             return
@@ -711,6 +711,13 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             )
         elif self._sort_mode == "random":
             paths = self._random_order
+        elif self._sort_mode == "folder":
+            def folder_key(path):
+                relative = os.path.relpath(path, self._wallpaper_dir)
+                parts = relative.split(os.sep)
+                folder = parts[0] if len(parts) > 1 else ""
+                return (folder.casefold(), path.casefold())
+            paths = sorted(self._all_paths, key=folder_key)
         else:
             paths = sorted(self._all_paths, key=lambda path: path.casefold())
         if self._favorites_only:
