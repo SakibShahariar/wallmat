@@ -732,19 +732,29 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         path = self._selected_path
         if not path:
             return
+        original_favorites = self._favorites.copy()
         if path in self._favorites:
             self._favorites.remove(path)
         else:
             self._favorites.add(path)
         try:
             self._save_favorites()
+        except OSError as error:
+            # Keep the in-memory state and visible filter consistent with
+            # disk when saving fails; the next action must not assume success.
+            self._favorites = original_favorites
             self._update_favorite_button()
             self._update_missing_favorites_action()
             if self._favorites_only:
                 self._refresh_filtered_paths()
-            say(f"Favorites saved: {len(self._favorites)}")
-        except OSError as error:
             say(f"Could not save favorites: {error}")
+            return
+
+        self._update_favorite_button()
+        self._update_missing_favorites_action()
+        if self._favorites_only:
+            self._refresh_filtered_paths()
+        say(f"Favorites saved: {len(self._favorites)}")
 
     def _on_export_favorites(self, button):
         try:
