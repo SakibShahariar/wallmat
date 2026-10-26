@@ -162,12 +162,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.connect("realize", self._register_focus_colors)
 
         self._preference = _LayoutPreference()
-        if not self._preference.persistent and not plain:
-            say(
-                "Layout preference will not persist because the Wallmat "
-                "GSettings schema is unavailable. See the schema installation "
-                "instructions in README.md."
-            )
         self._paths: list[str] = []
         self._all_paths: list[str] = []
         self._layouts: dict[str, object] = {}
@@ -212,6 +206,22 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         content.append(self.search_entry)
+
+        self._settings_notice = Gtk.Label(
+            label=(
+                "Layout preference will not persist because the Wallmat "
+                "GSettings schema is unavailable. See schema installation "
+                "instructions in README.md."
+            )
+        )
+        self._settings_notice.set_wrap(True)
+        self._settings_notice.set_xalign(0.5)
+        self._settings_notice.set_margin_start(16)
+        self._settings_notice.set_margin_end(16)
+        self._settings_notice.set_margin_bottom(8)
+        self._settings_notice.add_css_class("dim-label")
+        self._settings_notice.set_visible(not self._preference.persistent and not plain)
+        content.append(self._settings_notice)
 
         self._scan_limit_notice = Gtk.Label(
             label=(
