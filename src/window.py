@@ -551,7 +551,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                     f"{width} × {height} px · {ratio:.3f}:1 · {size_text} · "
                     f"Modified {modified}\n{path}"
                 )
-            except (OSError, TypeError, ValueError) as error:
+            except (GLib.Error, OSError, TypeError, ValueError) as error:
                 details = f"Could not read wallpaper metadata: {error}\n{path}"
 
             def update_label():
