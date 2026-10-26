@@ -287,6 +287,20 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # wallpaper manager; keep unrelated apply/favorites actions hidden.
         action_row.set_visible(not self._plain)
         content.append(action_row)
+
+        cleanup_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        cleanup_row.set_halign(Gtk.Align.CENTER)
+        cleanup_row.set_margin_bottom(8)
+        self.remove_missing_favorites_button = Gtk.Button(
+            label="Remove missing favorites"
+        )
+        self.remove_missing_favorites_button.connect(
+            "clicked", self._on_remove_missing_favorites
+        )
+        cleanup_row.append(self.remove_missing_favorites_button)
+        cleanup_row.set_visible(not self._plain)
+        content.append(cleanup_row)
+        self._update_missing_favorites_action()
         toolbar_view.set_content(content)
 
         self.set_content(toolbar_view)
@@ -453,6 +467,41 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         else:
             self.favorite_button.set_label("Add to favorites")
 
+    def _update_missing_favorites_action(self):
+        missing_count = sum(
+            not os.path.isfile(path) for path in self._favorites
+        )
+        self.remove_missing_favorites_button.set_label(
+            f"Remove {missing_count} missing favorite(s)"
+        )
+        self.remove_missing_favorites_button.set_visible(
+            bool(missing_count) and not self._plain
+        )
+
+    def _on_remove_missing_favorites(self, button):
+        original_favorites = self._favorites.copy()
+        existing_favorites = {
+            path for path in self._favorites if os.path.isfile(path)
+        }
+        removed_count = len(self._favorites) - len(existing_favorites)
+        if not removed_count:
+            self._update_missing_favorites_action()
+            say("No missing favorites to remove.")
+            return
+
+        self._favorites = existing_favorites
+        try:
+            self._save_favorites()
+        except OSError as error:
+            self._favorites = original_favorites
+            self._update_missing_favorites_action()
+            say(f"Could not save cleaned favorites: {error}")
+            return
+
+        self._update_missing_favorites_action()
+        self._update_favorite_button()
+        say(f"Removed {removed_count} missing favorite(s).")
+
     def _save_favorites(self):
         directory = os.path.dirname(self._favorites_file)
         os.makedirs(directory, exist_ok=True)
@@ -480,6 +529,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         try:
             self._save_favorites()
             self._update_favorite_button()
+            self._update_missing_favorites_action()
             say(f"Favorites saved: {len(self._favorites)}")
         except OSError as error:
             say(f"Could not save favorites: {error}")
