@@ -764,12 +764,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
     def _show_shortcuts(self, *_args):
         body = (
-            "Global shortcuts\\n"
-            "Ctrl + F — show and focus the wallpaper filter\\n"
-            "Escape — clear and hide the filter; press again to close\\n"
-            "Enter — select the focused wallpaper where the active layout supports it\\n"
-            "← / → — move focus in layouts that support keyboard navigation\\n\\n"
-            "Layout differences\\n"
+            "Global shortcuts\n"
+            "Ctrl + F — show and focus the wallpaper filter\n"
+            "Escape — clear and hide the filter; press again to close\n"
+            "Enter — select the focused wallpaper where the active layout supports it\n"
+            "← / → — move focus in layouts that support keyboard navigation\n\n"
+            "Layout differences\n"
             "Stacked Deck and interactive layouts can handle clicks and selection "
             "differently. Arrow and Enter behavior depends on the active layout; "
             "not every layout exposes the same keyboard navigation."
