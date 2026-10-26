@@ -149,6 +149,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             matugen_args or ["--type", "scheme-smart", "--mode", "dark"]
         )
         self._selected_path: str | None = None
+        self._rotation_source_id: int | None = None
+        self._rotation_history: list[str] = []
+        self._rotation_history_index = -1
+        self._history_navigation = False
+        self._rotation_interval_seconds = 300
+        self.connect("close-request", self._on_window_close_request)
         config_dir = os.path.expanduser("~/.config/wallmat")
         self._favorites_file = os.path.join(config_dir, "favorites.json")
         self._favorites_export_file = os.path.join(config_dir, "favorites.txt")
@@ -390,6 +396,43 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # wallpaper manager; keep unrelated apply/favorites actions hidden.
         action_row.set_visible(not self._plain)
         content.append(action_row)
+
+        rotation_row = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL, spacing=8
+        )
+        rotation_row.set_halign(Gtk.Align.CENTER)
+        rotation_row.set_margin_bottom(8)
+        self.auto_rotate_toggle = Gtk.CheckButton(label="Auto-rotate")
+        self.auto_rotate_toggle.set_tooltip_text(
+            "Apply a random wallpaper from the current filtered results at an interval"
+        )
+        self.auto_rotate_toggle.connect("toggled", self._on_auto_rotate_toggled)
+        rotation_row.append(self.auto_rotate_toggle)
+        self.rotation_interval = Gtk.DropDown.new_from_strings(
+            ["1 minute", "5 minutes", "10 minutes", "30 minutes"]
+        )
+        self.rotation_interval.set_selected(1)
+        self.rotation_interval.set_tooltip_text("Auto-rotation interval")
+        self.rotation_interval.connect(
+            "notify::selected", self._on_rotation_interval_changed
+        )
+        rotation_row.append(self.rotation_interval)
+        self.rotation_previous_button = Gtk.Button(label="Previous")
+        self.rotation_previous_button.set_tooltip_text(
+            "Reapply the previous wallpaper selected in this session"
+        )
+        self.rotation_previous_button.connect(
+            "clicked", self._on_rotation_previous
+        )
+        rotation_row.append(self.rotation_previous_button)
+        self.rotation_next_button = Gtk.Button(label="Next")
+        self.rotation_next_button.set_tooltip_text(
+            "Apply another random wallpaper from the current filtered results"
+        )
+        self.rotation_next_button.connect("clicked", self._on_rotation_next)
+        rotation_row.append(self.rotation_next_button)
+        rotation_row.set_visible(not self._plain)
+        content.append(rotation_row)
 
         cleanup_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         cleanup_row.set_halign(Gtk.Align.CENTER)
@@ -699,6 +742,19 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self.close()
             return
         self._selected_path = path
+        if not self._history_navigation:
+            if (
+                self._rotation_history_index >= 0
+                and self._rotation_history_index < len(self._rotation_history) - 1
+            ):
+                self._rotation_history = self._rotation_history[
+                    :self._rotation_history_index + 1
+                ]
+            if not self._rotation_history or self._rotation_history[-1] != path:
+                self._rotation_history.append(path)
+                if len(self._rotation_history) > 50:
+                    self._rotation_history.pop(0)
+            self._rotation_history_index = len(self._rotation_history) - 1
         self._load_selected_metadata(path)
         self.preview_button.set_sensitive(os.path.isfile(path))
         self.set_wallpaper_button.set_sensitive(True)
@@ -850,6 +906,80 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             say(message)
         except OSError as error:
             say(f"Could not export favorites: {error}")
+
+    def _on_window_close_request(self, *_args):
+        """Stop session-only rotation when the main window is closed."""
+        if self._rotation_source_id is not None:
+            GLib.source_remove(self._rotation_source_id)
+            self._rotation_source_id = None
+        return False
+
+    def _on_auto_rotate_toggled(self, button):
+        if button.get_active():
+            if self._rotation_source_id is None:
+                self._rotation_source_id = GLib.timeout_add_seconds(
+                    self._rotation_interval_seconds,
+                    self._on_auto_rotate_tick,
+                )
+            say("Auto-rotation enabled for this session.")
+        else:
+            if self._rotation_source_id is not None:
+                GLib.source_remove(self._rotation_source_id)
+                self._rotation_source_id = None
+            say("Auto-rotation disabled.")
+
+    def _on_rotation_interval_changed(self, dropdown, _pspec):
+        intervals = (60, 300, 600, 1800)
+        selected = dropdown.get_selected()
+        if selected >= len(intervals):
+            return
+        self._rotation_interval_seconds = intervals[selected]
+        if self.auto_rotate_toggle.get_active():
+            if self._rotation_source_id is not None:
+                GLib.source_remove(self._rotation_source_id)
+            self._rotation_source_id = GLib.timeout_add_seconds(
+                self._rotation_interval_seconds,
+                self._on_auto_rotate_tick,
+            )
+
+    def _on_auto_rotate_tick(self):
+        if not self.auto_rotate_toggle.get_active():
+            self._rotation_source_id = None
+            return GLib.SOURCE_REMOVE
+        self._on_rotation_next(None)
+        return GLib.SOURCE_CONTINUE
+
+    def _on_rotation_next(self, _button):
+        if self._plain:
+            return
+        candidates = [
+            path for path in self._paths
+            if os.path.isfile(path)
+        ]
+        if not candidates:
+            say("No available wallpapers match the current filters.")
+            return
+        previous = self._selected_path
+        alternatives = [path for path in candidates if path != previous]
+        path = random.choice(alternatives or candidates)
+        self._on_wallpaper_selected(None, path)
+        self._on_apply_wallpaper(None)
+
+    def _on_rotation_previous(self, _button):
+        if self._plain:
+            return
+        for index in range(self._rotation_history_index - 1, -1, -1):
+            path = self._rotation_history[index]
+            if os.path.isfile(path):
+                self._rotation_history_index = index
+                self._history_navigation = True
+                try:
+                    self._on_wallpaper_selected(None, path)
+                finally:
+                    self._history_navigation = False
+                self._on_apply_wallpaper(None)
+                return
+        say("There is no previous wallpaper in this session.")
 
     def _on_surprise_me(self, button):
         """Choose and apply a random wallpaper from the currently filtered set."""
