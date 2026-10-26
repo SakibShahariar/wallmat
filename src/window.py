@@ -44,6 +44,9 @@ from announce import say, set_quiet
 
 SCHEMA_ID = "dev.sakib.Wallmat"
 SETTINGS_KEY = "selected-layout"
+FILTER_KEY = "last-filter"
+SORT_KEY = "sort-mode"
+FAVORITES_ONLY_KEY = "favorites-only"
 DEFAULT_LAYOUT_ID = "split_screen"
 
 # Keep very large wallpaper collections from monopolizing startup. The scan
@@ -91,7 +94,12 @@ class _LayoutPreference:
 
     def __init__(self):
         self._settings = None
-        self._memory_value = DEFAULT_LAYOUT_ID
+        self._memory_values = {
+            SETTINGS_KEY: DEFAULT_LAYOUT_ID,
+            FILTER_KEY: "",
+            SORT_KEY: "name",
+            FAVORITES_ONLY_KEY: False,
+        }
         try:
             schema_source = Gio.SettingsSchemaSource.get_default()
             if schema_source and schema_source.lookup(SCHEMA_ID, True):
@@ -99,20 +107,37 @@ class _LayoutPreference:
         except GLib.Error:
             self._settings = None
 
-    def get(self) -> str:
+    def get_string(self, key: str, default: str) -> str:
         if self._settings is not None:
-            return self._settings.get_string(SETTINGS_KEY)
-        return self._memory_value
+            return self._settings.get_string(key)
+        return self._memory_values.get(key, default)
+
+    def set_string(self, key: str, value: str):
+        if self._settings is not None:
+            self._settings.set_string(key, value)
+        else:
+            self._memory_values[key] = value
+
+    def get_boolean(self, key: str, default: bool = False) -> bool:
+        if self._settings is not None:
+            return self._settings.get_boolean(key)
+        return self._memory_values.get(key, default)
+
+    def set_boolean(self, key: str, value: bool):
+        if self._settings is not None:
+            self._settings.set_boolean(key, value)
+        else:
+            self._memory_values[key] = value
+
+    def get(self) -> str:
+        return self.get_string(SETTINGS_KEY, DEFAULT_LAYOUT_ID)
 
     @property
     def persistent(self) -> bool:
         return self._settings is not None
 
     def set(self, layout_id: str):
-        if self._settings is not None:
-            self._settings.set_string(SETTINGS_KEY, layout_id)
-        else:
-            self._memory_value = layout_id
+        self.set_string(SETTINGS_KEY, layout_id)
 
 
 class WallpaperChooserWindow(Adw.ApplicationWindow):
@@ -193,15 +218,25 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.search_entry.set_visible(False)
         self.search_entry.connect("search-changed", self._on_search_changed)
 
-        # Favorites-only filtering composes with the text filter and is
-        # intentionally session-only; the favorites themselves remain saved.
-        self._favorites_only = False
-        self._sort_mode = "name"
+        # Restore the user's browsing filters when GSettings is available.
+        self._favorites_only = (
+            self._preference.get_boolean(FAVORITES_ONLY_KEY)
+            if not plain else False
+        )
+        saved_sort_mode = (
+            self._preference.get_string(SORT_KEY, "name")
+            if not plain else "name"
+        )
+        if saved_sort_mode not in ("name", "newest", "oldest", "random"):
+            saved_sort_mode = "name"
+        self._sort_mode = saved_sort_mode
         self._random_order: list[str] = []
         self.sort_selector = Gtk.DropDown.new_from_strings([
             "Name (A–Z)", "Newest first", "Oldest first", "Random order"
         ])
-        self.sort_selector.set_selected(0)
+        self.sort_selector.set_selected(
+            ("name", "newest", "oldest", "random").index(self._sort_mode)
+        )
         self.sort_selector.set_tooltip_text("Sort wallpapers")
         self.sort_selector.set_margin_start(12)
         self.sort_selector.set_margin_end(12)
@@ -210,6 +245,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.sort_selector.connect("notify::selected", self._on_sort_selected)
 
         self.favorites_filter = Gtk.CheckButton(label="Favorites only")
+        self.favorites_filter.set_active(self._favorites_only)
         self.favorites_filter.set_margin_start(12)
         self.favorites_filter.set_margin_end(12)
         self.favorites_filter.set_margin_bottom(6)
@@ -247,9 +283,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         self._settings_notice = Gtk.Label(
             label=(
-                "Layout preference will not persist because the Wallmat "
-                "GSettings schema is unavailable. See schema installation "
-                "instructions in README.md."
+                "Wallmat preferences will not persist because its GSettings "
+                "schema is unavailable. See schema installation instructions "
+                "in README.md."
             )
         )
         self._settings_notice.set_wrap(True)
@@ -361,6 +397,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         self._wallpaper_dir = wallpaper_dir
         self._scan_and_load(wallpaper_dir)
+        if not self._plain:
+            saved_filter = self._preference.get_string(FILTER_KEY, "")
+            if saved_filter:
+                self.search_entry.set_text(saved_filter)
+                self.search_entry.set_visible(True)
 
         # An explicit --layout argument always wins over the stored
         # preference — that's the whole point of being able to specify it.
@@ -467,13 +508,21 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self._random_order = list(self._all_paths)
             random.shuffle(self._random_order)
         self._sort_mode = new_mode
+        if not self._plain:
+            self._preference.set_string(SORT_KEY, new_mode)
         self._refresh_filtered_paths()
 
     def _on_search_changed(self, entry):
+        if not self._plain:
+            self._preference.set_string(FILTER_KEY, entry.get_text())
         self._refresh_filtered_paths()
 
     def _on_favorites_filter_toggled(self, button):
         self._favorites_only = button.get_active()
+        if not self._plain:
+            self._preference.set_boolean(
+                FAVORITES_ONLY_KEY, self._favorites_only
+            )
         self._refresh_filtered_paths()
 
     def _refresh_filtered_paths(self):
