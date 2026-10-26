@@ -408,6 +408,15 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         self.set_content(toolbar_view)
 
+        # GTK 4.6+ exposes local file drags through Gdk.FileList. Guard the
+        # optional type so older GTK 4 builds can still launch Wallmat.
+        if hasattr(Gdk, "FileList"):
+            folder_drop = Gtk.DropTarget.new(
+                Gdk.FileList.__gtype__, Gdk.DragAction.COPY
+            )
+            folder_drop.connect("drop", self._on_folder_drop)
+            self.add_controller(folder_drop)
+
         self._wallpaper_dir = wallpaper_dir
         self._scan_and_load(wallpaper_dir)
         if self._sort_mode == "random":
@@ -435,6 +444,52 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 initial_id = DEFAULT_LAYOUT_ID
         self._switch_to(initial_id)
         self.layout_selector.set_selected(self._layout_ids.index(initial_id))
+
+    def _on_folder_drop(self, _target, value, _x, _y):
+        """Ask before replacing the active wallpaper directory via a file drop."""
+        try:
+            files = value.get_files()
+        except (AttributeError, TypeError):
+            say("Drop one wallpaper folder to switch directories.")
+            return False
+
+        if len(files) != 1:
+            say("Drop exactly one folder to switch wallpaper directories.")
+            return False
+
+        path = files[0].get_path()
+        if not path or not os.path.isdir(path):
+            say("That drop is not a local folder. The wallpaper directory is unchanged.")
+            return False
+
+        dialog = Adw.MessageDialog.new(
+            self,
+            "Switch wallpaper folder?",
+            f"Rescan this folder and replace the current wallpaper list?\n\n{path}",
+        )
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("switch", "Switch folder")
+        dialog.set_default_response("cancel")
+        dialog.set_close_response("cancel")
+        dialog.set_response_appearance(
+            "switch", Adw.ResponseAppearance.SUGGESTED
+        )
+        dialog.connect("response", self._on_folder_drop_response, path)
+        dialog.present()
+        return True
+
+    def _on_folder_drop_response(self, dialog, response, path):
+        if response != "switch":
+            return
+
+        # Replace the root only after explicit confirmation. Clear root-specific
+        # filters so a new folder does not appear empty because of old criteria.
+        self._wallpaper_dir = path
+        self._scan_and_load(path)
+        self.search_entry.set_text("")
+        self.favorites_filter.set_active(False)
+        self._refresh_filtered_paths()
+        say(f"Wallpaper folder changed: {path}")
 
     def _on_layout_selected(self, dropdown, _pspec):
         selected = dropdown.get_selected()
