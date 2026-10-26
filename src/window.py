@@ -397,6 +397,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         self._wallpaper_dir = wallpaper_dir
         self._scan_and_load(wallpaper_dir)
+        if self._sort_mode == "random":
+            # The sort preference survives restarts, but the previous
+            # process's shuffled list does not. Create a fresh order before
+            # filtering so a restored Random order is never empty.
+            self._random_order = list(self._all_paths)
+            random.shuffle(self._random_order)
         if not self._plain:
             # Apply the restored sort and favorites-only state even when the
             # saved text filter is empty.
