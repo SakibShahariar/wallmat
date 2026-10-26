@@ -853,6 +853,14 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
 
+        def remove_preview_css(*_args):
+            Gtk.StyleContext.remove_provider_for_display(
+                self.get_display(), preview_css
+            )
+            return False
+
+        window.connect("close-request", remove_preview_css)
+
         scroller = Gtk.ScrolledWindow()
         scroller.set_hexpand(True)
         scroller.set_vexpand(True)
