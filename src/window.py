@@ -357,6 +357,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.set_wallpaper_button = Gtk.Button(label="Set as wallpaper")
         self.set_wallpaper_button.set_sensitive(False)
         self.set_wallpaper_button.connect("clicked", self._on_apply_wallpaper)
+        self.preview_button = Gtk.Button(label="Preview")
+        self.preview_button.set_tooltip_text(
+            "Open a large preview; use the zoom control and scroll to inspect details"
+        )
+        self.preview_button.set_sensitive(False)
+        self.preview_button.connect("clicked", self._on_open_preview)
         self.apply_matugen_button = Gtk.Button(label="Apply wallpaper + Matugen")
         self.apply_matugen_button.add_css_class("suggested-action")
         self.apply_matugen_button.set_sensitive(False)
@@ -372,6 +378,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         )
         self.surprise_button.connect("clicked", self._on_surprise_me)
         for action_button in (
+            self.preview_button,
             self.set_wallpaper_button,
             self.apply_matugen_button,
             self.favorite_button,
@@ -638,6 +645,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             return
         self._selected_path = path
         self._load_selected_metadata(path)
+        self.preview_button.set_sensitive(os.path.isfile(path))
         self.set_wallpaper_button.set_sensitive(True)
         self.apply_matugen_button.set_sensitive(True)
         self.favorite_button.set_sensitive(True)
@@ -805,6 +813,117 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._last_random_path = path
         self._on_wallpaper_selected(None, path)
         self._on_apply_wallpaper(button)
+
+    def _on_open_preview(self, _button):
+        """Show the selected image in a fullscreen, pannable preview."""
+        path = self._selected_path
+        if self._plain or not path:
+            return
+        if not os.path.isfile(path):
+            say("That wallpaper is no longer available.")
+            self.preview_button.set_sensitive(False)
+            return
+
+        window = Gtk.Window(
+            title=os.path.basename(path),
+            transient_for=self,
+            modal=True,
+        )
+        window.set_default_size(1100, 750)
+        window.set_hide_on_close(True)
+
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        outer.set_margin_top(12)
+        outer.set_margin_bottom(12)
+        outer.set_margin_start(12)
+        outer.set_margin_end(12)
+
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_hexpand(True)
+        scroller.set_vexpand(True)
+        scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        picture = Gtk.Picture()
+        picture.set_can_shrink(False)
+        picture.set_content_fit(Gtk.ContentFit.CONTAIN)
+        picture.set_halign(Gtk.Align.START)
+        picture.set_valign(Gtk.Align.START)
+        scroller.set_child(picture)
+
+        status = Gtk.Label(label="Loading full-resolution image…")
+        status.add_css_class("dim-label")
+        status.set_wrap(True)
+        outer.append(status)
+        outer.append(scroller)
+
+        controls = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        controls.set_halign(Gtk.Align.CENTER)
+        zoom_label = Gtk.Label(label="Zoom")
+        zoom = Gtk.Scale.new_with_range(
+            Gtk.Orientation.HORIZONTAL, 0.25, 2.0, 0.25
+        )
+        zoom.set_value(0.5)
+        zoom.set_digits(2)
+        zoom.set_draw_value(True)
+        zoom.set_size_request(240, -1)
+        zoom.set_sensitive(False)
+        controls.append(zoom_label)
+        controls.append(zoom)
+        close_button = Gtk.Button(label="Close")
+        close_button.connect("clicked", lambda *_: window.close())
+        controls.append(close_button)
+
+        apply_button = Gtk.Button(label="Set as wallpaper")
+        apply_button.add_css_class("suggested-action")
+        apply_button.connect(
+            "clicked",
+            lambda *_: (self._on_apply_wallpaper(None), window.close()),
+        )
+        controls.append(apply_button)
+        outer.append(controls)
+        window.set_child(outer)
+
+        image_state = {"pixbuf": None}
+
+        def update_zoom(scale):
+            pixbuf = image_state["pixbuf"]
+            if pixbuf is None:
+                return
+            factor = scale.get_value()
+            picture.set_size_request(
+                max(1, round(pixbuf.get_width() * factor)),
+                max(1, round(pixbuf.get_height() * factor)),
+            )
+
+        zoom.connect("value-changed", update_zoom)
+
+        def load_image():
+            try:
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file(path)
+                error_message = None
+            except (GLib.Error, OSError) as error:
+                pixbuf = None
+                error_message = str(error)
+
+            def show_image():
+                if pixbuf is None:
+                    status.set_text(f"Could not load preview: {error_message}")
+                    apply_button.set_sensitive(False)
+                    return GLib.SOURCE_REMOVE
+                image_state["pixbuf"] = pixbuf
+                picture.set_pixbuf(pixbuf)
+                update_zoom(zoom)
+                zoom.set_sensitive(True)
+                status.set_text(
+                    f"{pixbuf.get_width()} × {pixbuf.get_height()} px · "
+                    "Scroll to pan at higher zoom"
+                )
+                return GLib.SOURCE_REMOVE
+
+            GLib.idle_add(show_image)
+
+        threading.Thread(target=load_image, daemon=True).start()
+        window.present()
+        window.fullscreen()
 
     def _on_apply_wallpaper(self, button):
         path = self._selected_path
