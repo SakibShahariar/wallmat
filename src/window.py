@@ -240,7 +240,15 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         content.append(self._scan_limit_notice)
         content.append(content_overlay)
 
-        action_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        # FlowBox wraps the action controls when the window is narrow or
+        # text scaling increases, instead of clipping a fixed horizontal row.
+        action_row = Gtk.FlowBox()
+        action_row.set_selection_mode(Gtk.SelectionMode.NONE)
+        action_row.set_homogeneous(False)
+        action_row.set_max_children_per_line(4)
+        action_row.set_min_children_per_line(1)
+        action_row.set_row_spacing(8)
+        action_row.set_column_spacing(8)
         action_row.set_halign(Gtk.Align.CENTER)
         action_row.set_margin_top(8)
         action_row.set_margin_bottom(10)
@@ -280,10 +288,13 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.favorite_button.connect("clicked", self._on_toggle_favorite)
         self.export_favorites_button = Gtk.Button(label="Export favorites")
         self.export_favorites_button.connect("clicked", self._on_export_favorites)
-        action_row.append(self.set_wallpaper_button)
-        action_row.append(self.apply_matugen_button)
-        action_row.append(self.favorite_button)
-        action_row.append(self.export_favorites_button)
+        for action_button in (
+            self.set_wallpaper_button,
+            self.apply_matugen_button,
+            self.favorite_button,
+            self.export_favorites_button,
+        ):
+            action_row.insert(action_button, -1)
         # Plain mode is a path picker for shell pipelines, not a desktop
         # wallpaper manager; keep unrelated apply/favorites actions hidden.
         action_row.set_visible(not self._plain)
