@@ -830,7 +830,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             modal=True,
         )
         window.set_default_size(1100, 750)
-        window.set_hide_on_close(True)
 
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         outer.set_margin_top(12)
@@ -844,7 +843,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         picture = Gtk.Picture()
         picture.set_can_shrink(False)
-        picture.set_content_fit(Gtk.ContentFit.CONTAIN)
         picture.set_halign(Gtk.Align.START)
         picture.set_valign(Gtk.Align.START)
         scroller.set_child(picture)
