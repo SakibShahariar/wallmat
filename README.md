@@ -71,6 +71,7 @@ Wallmat scans PNG and JPEG images when their GdkPixbuf loaders are enabled. WebP
 - **Favorites only** — combine a favorites-only filter with the text filter (normal UI mode).
 - **Sort** — order wallpapers by name, modification date, or a stable session shuffle; search and favorites filtering preserve the chosen order.
 - **Surprise me** — immediately apply a random wallpaper from the current filtered results, avoiding the previous random choice when alternatives exist.
+- **Auto-rotate** — enable session-only rotation every 1, 5, 10, or 30 minutes; it uses the current filtered results (turn on Favorites only to restrict it to favorites). Previous and Next let you navigate this session’s selection history or apply another random wallpaper. Rotation stops when Wallmat closes.
 - **Drag-and-drop folders** — drop one local folder onto the window and confirm before rescanning; invalid drops leave the active folder unchanged.
 - **Preview** — open the selected wallpaper full-screen, load the original image off the UI thread, zoom in or out, and scroll to pan; apply it directly from the preview.
 - **Light/dark preview context** — switch the preview dialog between light and dark surfaces to compare contrast without changing GNOME’s actual theme or wallpaper settings.
