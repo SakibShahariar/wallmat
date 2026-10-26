@@ -14,7 +14,7 @@
     <key name="sort-mode" type="s">
       <default>'name'</default>
       <summary>Wallpaper sort mode</summary>
-      <description>The sort mode restored when Wallmat starts in normal UI mode.</description>
+      <description>The sort mode restored when Wallmat starts in normal UI mode: name, newest, oldest, random, or folder grouping.</description>
     </key>
     <key name="favorites-only" type="b">
       <default>false</default>
