@@ -42,7 +42,12 @@ POOL_SIZE = 3
 
 def webp_supported() -> bool:
     formats = GdkPixbuf.Pixbuf.get_formats()
-    return any(fmt.get_name() == "webp" for fmt in formats)
+    return any(
+        fmt.get_name() == "webp"
+        and not fmt.is_disabled()
+        and fmt.is_writable()
+        for fmt in formats
+    )
 
 
 class ThumbnailLoader:
