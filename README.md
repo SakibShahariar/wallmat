@@ -69,6 +69,7 @@ Wallmat scans PNG and JPEG images when their GdkPixbuf loaders are enabled. WebP
 - **Click** — select a wallpaper; behavior differs in Stacked Deck and some interactive layouts. In normal UI mode, selected wallpapers show dimensions, aspect ratio, file size, modification time, and path.
 - **Ctrl + F** — filter by filename or folder path.
 - **Favorites only** — combine a favorites-only filter with the text filter (normal UI mode).
+- **Sort** — order wallpapers by name, modification date, or a stable session shuffle; search and favorites filtering preserve the chosen order.
 - **Escape** — clear the filter, or close the window when the filter is hidden.
 
 Use the layout selector at the bottom of the window to switch layouts without restarting. The chosen layout is remembered when Wallmat's GSettings schema is installed. Exact controls vary by layout. Wallpaper actions wrap onto additional rows when the window is too narrow to show them side by side.
