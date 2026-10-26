@@ -109,24 +109,30 @@ class _LayoutPreference:
         except GLib.Error:
             self._settings = None
 
+    def _has_key(self, key: str) -> bool:
+        return (
+            self._settings is not None
+            and self._settings.get_settings_schema().has_key(key)
+        )
+
     def get_string(self, key: str, default: str) -> str:
-        if self._settings is not None:
+        if self._has_key(key):
             return self._settings.get_string(key)
         return self._memory_values.get(key, default)
 
     def set_string(self, key: str, value: str):
-        if self._settings is not None:
+        if self._has_key(key):
             self._settings.set_string(key, value)
         else:
             self._memory_values[key] = value
 
     def get_boolean(self, key: str, default: bool = False) -> bool:
-        if self._settings is not None:
+        if self._has_key(key):
             return self._settings.get_boolean(key)
         return self._memory_values.get(key, default)
 
     def set_boolean(self, key: str, value: bool):
-        if self._settings is not None:
+        if self._has_key(key):
             self._settings.set_boolean(key, value)
         else:
             self._memory_values[key] = value
