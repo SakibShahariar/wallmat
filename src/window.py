@@ -836,6 +836,22 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         outer.set_margin_bottom(12)
         outer.set_margin_start(12)
         outer.set_margin_end(12)
+        outer.add_css_class("wallmat-preview-dark")
+
+        # Scope preview colors to this dialog's uniquely tagged container.
+        # The CSS provider never changes GNOME's global color-scheme setting.
+        preview_css = Gtk.CssProvider()
+        preview_css.load_from_data(
+            b".wallmat-preview-light { background-color: #f6f5f4; color: #241f31; }"
+            b".wallmat-preview-dark { background-color: #242424; color: #f6f5f4; }"
+            b".wallmat-preview-light label { color: #241f31; }"
+            b".wallmat-preview-dark label { color: #f6f5f4; }"
+        )
+        Gtk.StyleContext.add_provider_for_display(
+            self.get_display(),
+            preview_css,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+        )
 
         scroller = Gtk.ScrolledWindow()
         scroller.set_hexpand(True)
@@ -855,6 +871,22 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         controls = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         controls.set_halign(Gtk.Align.CENTER)
+        light_button = Gtk.ToggleButton(label="Light")
+        dark_button = Gtk.ToggleButton(label="Dark")
+        dark_button.set_group(light_button)
+        dark_button.set_active(True)
+
+        def set_preview_scheme(button, scheme):
+            if not button.get_active():
+                return
+            outer.remove_css_class("wallmat-preview-light")
+            outer.remove_css_class("wallmat-preview-dark")
+            outer.add_css_class(f"wallmat-preview-{scheme}")
+
+        light_button.connect("toggled", set_preview_scheme, "light")
+        dark_button.connect("toggled", set_preview_scheme, "dark")
+        controls.append(light_button)
+        controls.append(dark_button)
         zoom_label = Gtk.Label(label="Zoom")
         zoom = Gtk.Scale.new_with_range(
             Gtk.Orientation.HORIZONTAL, 0.25, 2.0, 0.25
