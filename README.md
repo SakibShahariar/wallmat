@@ -92,7 +92,7 @@ Restart Wallmat after installing or updating the schema. If `glib-compile-schema
 Use Wallmat as a wallpaper-path provider in a shell pipeline:
 
 ```sh
-WP=$(python3 src/main.py ~/Pictures/Wallpapers --plain 2>/dev/null | string trim)
+WP="$(python3 src/main.py ~/Pictures/Wallpapers --plain 2>/dev/null)"
 matugen image "$WP" --type scheme-smart --mode dark
 gsettings set org.gnome.desktop.background picture-uri "file://$WP"
 ```
