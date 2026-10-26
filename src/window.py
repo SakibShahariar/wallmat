@@ -583,6 +583,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.search_entry.set_text("")
         self.favorites_filter.set_active(False)
         self._refresh_filtered_paths()
+        self._refresh_recent_selector()
         say(f"Wallpaper folder changed: {path}")
 
     def _on_layout_selected(self, dropdown, _pspec):
