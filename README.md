@@ -78,7 +78,7 @@ Wallmat scans PNG and JPEG images when their GdkPixbuf loaders are enabled. WebP
 - **Escape** — clear the filter, or close the window when the filter is hidden.
 - **? / Shortcuts** — open the keyboard shortcut cheatsheet, including layout-specific caveats.
 
-Use the layout selector at the bottom of the window to switch layouts without restarting. When Wallmat's GSettings schema is installed, it remembers the chosen layout, text filter, sort mode, Favorites only setting, and last selected wallpaper between launches. The saved selection is restored only when that file still exists in the current folder and matches the restored filters. Per-layout visual focus and scroll position are not yet restored. Without the schema, preferences fall back to in-memory values for the current process. Exact controls vary by layout. Wallpaper actions wrap onto additional rows when the window is too narrow to show them side by side.
+Use the layout selector at the bottom of the window to switch layouts without restarting. When Wallmat's GSettings schema is installed, it remembers the chosen layout, text filter, sort mode, Favorites only setting, and last selected wallpaper between launches. The saved selection is restored only when that file still exists in the current folder and matches the restored filters. Visual focus restoration is supported in Split-Screen Preview and selection restoration in Masonry Grid; other layouts and scroll position are not yet restored. Without the schema, preferences fall back to in-memory values for the current process. Exact controls vary by layout. Wallpaper actions wrap onto additional rows when the window is too narrow to show them side by side.
 
 ### Persisting preferences
 
