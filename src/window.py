@@ -449,6 +449,14 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             else "This folder has no supported wallpaper images."
         )
 
+    @staticmethod
+    def _modified_timestamp(path: str) -> float:
+        try:
+            return os.path.getmtime(path)
+        except OSError:
+            # A file can disappear between scanning and sorting.
+            return 0.0
+
     def _on_sort_selected(self, dropdown, _pspec):
         modes = ("name", "newest", "oldest", "random")
         selected = dropdown.get_selected()
@@ -473,13 +481,13 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if self._sort_mode == "newest":
             paths = sorted(
                 self._all_paths,
-                key=lambda path: (os.path.getmtime(path) if os.path.exists(path) else 0, path.casefold()),
+                key=lambda path: (self._modified_timestamp(path), path.casefold()),
                 reverse=True,
             )
         elif self._sort_mode == "oldest":
             paths = sorted(
                 self._all_paths,
-                key=lambda path: (os.path.getmtime(path) if os.path.exists(path) else 0, path.casefold()),
+                key=lambda path: (self._modified_timestamp(path), path.casefold()),
             )
         elif self._sort_mode == "random":
             paths = self._random_order
