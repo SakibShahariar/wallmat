@@ -178,7 +178,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # Ctrl+F reveals a lightweight filename filter without permanently
         # taking space away from the wallpaper layouts.
         self.search_entry = Gtk.SearchEntry()
-        self.search_entry.set_placeholder_text("Filter wallpapers by filename…")
+        self.search_entry.set_placeholder_text("Filter wallpapers by filename or folder…")
         self.search_entry.set_margin_start(12)
         self.search_entry.set_margin_end(12)
         self.search_entry.set_margin_top(8)
@@ -326,7 +326,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             else "No wallpapers found"
         )
         self._empty_state.set_description(
-            "Try a different filename filter."
+            "Try a different filename or folder name."
             if self.search_entry.get_text().strip()
             else "This folder has no supported wallpaper images."
         )
