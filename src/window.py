@@ -451,7 +451,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 dirs.sort()
                 files.sort()
                 for f in files:
-                    if f.lower().endswith(supported_exts):
+                    if f.lower().endswith(tuple(supported_exts)):
                         paths.append(os.path.join(root, f))
                         if len(paths) >= MAX_WALLPAPERS:
                             truncated = True
