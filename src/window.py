@@ -212,6 +212,21 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         content.append(self.search_entry)
+
+        self._scan_limit_notice = Gtk.Label(
+            label=(
+                f"Showing the first {MAX_WALLPAPERS:,} wallpapers. "
+                "Some images were omitted; choose a narrower folder to browse them."
+            )
+        )
+        self._scan_limit_notice.set_wrap(True)
+        self._scan_limit_notice.set_xalign(0.5)
+        self._scan_limit_notice.set_margin_start(16)
+        self._scan_limit_notice.set_margin_end(16)
+        self._scan_limit_notice.set_margin_bottom(8)
+        self._scan_limit_notice.add_css_class("info")
+        self._scan_limit_notice.set_visible(False)
+        content.append(self._scan_limit_notice)
         content.append(content_overlay)
 
         action_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -319,6 +334,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.set_title(
             f"Wallpaper Chooser — {folder_label} ({count_label}){cap_label}"
         )
+        self._scan_limit_notice.set_visible(truncated)
         if truncated:
             print(
                 f"Wallpaper scan limit reached ({MAX_WALLPAPERS}); "
