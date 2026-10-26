@@ -48,6 +48,8 @@ FILTER_KEY = "last-filter"
 SORT_KEY = "sort-mode"
 FAVORITES_ONLY_KEY = "favorites-only"
 SELECTED_PATH_KEY = "selected-wallpaper"
+RECENT_PATHS_KEY = "recent-wallpapers"
+MAX_RECENT_WALLPAPERS = 8
 DEFAULT_LAYOUT_ID = "split_screen"
 
 # Keep very large wallpaper collections from monopolizing startup. The scan
@@ -101,6 +103,7 @@ class _LayoutPreference:
             SORT_KEY: "name",
             FAVORITES_ONLY_KEY: False,
             SELECTED_PATH_KEY: "",
+            RECENT_PATHS_KEY: [],
         }
         try:
             schema_source = Gio.SettingsSchemaSource.get_default()
@@ -125,6 +128,18 @@ class _LayoutPreference:
             self._settings.set_string(key, value)
         else:
             self._memory_values[key] = value
+
+    def get_strv(self, key: str) -> list[str]:
+        if self._has_key(key):
+            return list(self._settings.get_strv(key))
+        value = self._memory_values.get(key, [])
+        return list(value) if isinstance(value, list) else []
+
+    def set_strv(self, key: str, value: list[str]):
+        if self._has_key(key):
+            self._settings.set_strv(key, value)
+        else:
+            self._memory_values[key] = list(value)
 
     def get_boolean(self, key: str, default: bool = False) -> bool:
         if self._has_key(key):
@@ -283,6 +298,22 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         content.append(self.search_entry)
         content.append(self.sort_selector)
         content.append(self.favorites_filter)
+
+        recent_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        recent_row.set_halign(Gtk.Align.CENTER)
+        recent_row.set_margin_start(12)
+        recent_row.set_margin_end(12)
+        recent_row.set_margin_bottom(6)
+        recent_label = Gtk.Label(label="Recent")
+        recent_row.append(recent_label)
+        self._recent_paths: list[str] = []
+        self._recent_selector = Gtk.DropDown.new_from_strings(["No recent wallpapers"])
+        self._recent_selector.set_sensitive(False)
+        self._recent_selector.set_tooltip_text("Reopen a recently selected wallpaper")
+        self._recent_selector.connect("notify::selected", self._on_recent_selected)
+        recent_row.append(self._recent_selector)
+        recent_row.set_visible(not plain)
+        content.append(recent_row)
 
         self._metadata_label = Gtk.Label()
         self._metadata_label.set_wrap(True)
@@ -500,6 +531,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # visible under the restored folder and filters. Never let stale
         # settings select a missing or currently filtered-out wallpaper.
         if not self._plain:
+            self._refresh_recent_selector()
             saved_path = self._preference.get_string(SELECTED_PATH_KEY, "")
             if saved_path and saved_path in self._paths and os.path.isfile(saved_path):
                 active_layout = self._layouts.get(self._current_layout_id)
@@ -762,6 +794,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             return
         self._selected_path = path
         self._preference.set_string(SELECTED_PATH_KEY, path)
+        self._remember_recent_path(path)
         if not self._history_navigation:
             if (
                 self._rotation_history_index >= 0
