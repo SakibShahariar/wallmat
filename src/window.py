@@ -19,6 +19,7 @@ import os
 import sys
 import json
 import subprocess
+import threading
 
 import gi
 
@@ -477,13 +478,34 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         path = self._selected_path
         if not path:
             return
+
+        # Apply the wallpaper independently: a missing or failing Matugen
+        # executable must not undo or prevent the GNOME background change.
         self._on_apply_wallpaper(button)
         command = ["matugen", "image", path, *self._matugen_args]
-        try:
-            subprocess.Popen(command)
-            say("Matugen started.")
-        except OSError as error:
-            say(f"Could not start Matugen: {error}")
+
+        def run_matugen():
+            try:
+                result = subprocess.run(
+                    command, capture_output=True, text=True, check=False
+                )
+                if result.returncode == 0:
+                    message = "Matugen completed successfully."
+                else:
+                    detail = (result.stderr or result.stdout).strip()
+                    if not detail:
+                        detail = f"exit status {result.returncode}"
+                    # Keep the notification concise; full logs remain outside
+                    # the UI rather than flooding the announcement channel.
+                    detail = detail.splitlines()[-1][:240]
+                    message = f"Matugen failed: {detail}"
+            except OSError as error:
+                message = f"Could not run Matugen: {error}"
+            GLib.idle_add(say, message)
+
+        # Capture output off the GTK thread so neither Matugen execution nor
+        # a verbose stderr pipe can freeze the window.
+        threading.Thread(target=run_matugen, daemon=True).start()
 
     def _on_key_pressed(self, controller, keyval, keycode, state):
         if keyval == Gdk.KEY_f and state & Gdk.ModifierType.CONTROL_MASK:
