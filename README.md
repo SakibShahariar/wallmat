@@ -67,7 +67,8 @@ Wallmat scans PNG and JPEG images when their GdkPixbuf loaders are enabled. WebP
 - **← / →** — move focus in layouts that support keyboard navigation.
 - **Enter** — select the focused wallpaper where supported.
 - **Click** — select a wallpaper; behavior differs in Stacked Deck and some interactive layouts.
-- **Ctrl + F** — filter by filename.
+- **Ctrl + F** — filter by filename or folder path.
+- **Favorites only** — combine a favorites-only filter with the text filter (normal UI mode).
 - **Escape** — clear the filter, or close the window when the filter is hidden.
 
 Use the layout selector at the bottom of the window to switch layouts without restarting. The chosen layout is remembered when Wallmat's GSettings schema is installed. Exact controls vary by layout. Wallpaper actions wrap onto additional rows when the window is too narrow to show them side by side.
