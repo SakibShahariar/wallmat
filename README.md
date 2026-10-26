@@ -70,7 +70,7 @@ Wallmat scans PNG and JPEG images when their GdkPixbuf loaders are enabled. WebP
 - **Ctrl + F** — filter by filename.
 - **Escape** — clear the filter, or close the window when the filter is hidden.
 
-Use the layout selector at the bottom of the window to switch layouts without restarting. The chosen layout is remembered when Wallmat's GSettings schema is installed. Exact controls vary by layout.
+Use the layout selector at the bottom of the window to switch layouts without restarting. The chosen layout is remembered when Wallmat's GSettings schema is installed. Exact controls vary by layout. Wallpaper actions wrap onto additional rows when the window is too narrow to show them side by side.
 
 ## Matugen integration
 
