@@ -264,7 +264,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             "Name (A–Z)", "Newest first", "Oldest first", "Random order", "Folder groups"
         ])
         self.sort_selector.set_selected(
-            ("name", "newest", "oldest", "random").index(self._sort_mode)
+            ("name", "newest", "oldest", "random", "folder").index(self._sort_mode)
         )
         self.sort_selector.set_tooltip_text("Sort wallpapers")
         self.sort_selector.set_margin_start(12)
