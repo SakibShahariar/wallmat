@@ -97,6 +97,8 @@ Add selected wallpapers to favorites and export their absolute paths for other t
 - Data: `~/.config/wallmat/favorites.json`
 - Export: `~/.config/wallmat/favorites.txt`
 
+Wallmat skips missing files when exporting favorites and reports how many were omitted. When saved favorites point to files that no longer exist, the **Remove missing favorites** action appears in the normal UI; it removes those stale entries from the saved favorites list while preserving existing files.
+
 ## License
 
 Wallmat is licensed under **GPL-3.0-only**. See [LICENSE](LICENSE).
