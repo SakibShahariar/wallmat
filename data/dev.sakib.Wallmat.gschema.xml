@@ -6,5 +6,20 @@
       <summary>Last-used layout ID</summary>
       <description>The layout to open when Wallmat starts without an explicit --layout argument.</description>
     </key>
+    <key name="last-filter" type="s">
+      <default>''</default>
+      <summary>Last-used wallpaper filter</summary>
+      <description>The text filter restored when Wallmat starts in normal UI mode.</description>
+    </key>
+    <key name="sort-mode" type="s">
+      <default>'name'</default>
+      <summary>Wallpaper sort mode</summary>
+      <description>The sort mode restored when Wallmat starts in normal UI mode.</description>
+    </key>
+    <key name="favorites-only" type="b">
+      <default>false</default>
+      <summary>Favorites-only filter state</summary>
+      <description>Whether to restore the favorites-only filter in normal UI mode.</description>
+    </key>
   </schema>
 </schemalist>
