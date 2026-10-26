@@ -817,6 +817,59 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._update_favorite_button()
         say(f"Selected: {path}")
 
+    def _refresh_recent_selector(self):
+        """Show existing recent wallpapers available in the scanned folder."""
+        saved = self._preference.get_strv(RECENT_PATHS_KEY)
+        self._recent_paths = [
+            path for path in saved
+            if isinstance(path, str) and os.path.isfile(path)
+            and path in self._all_paths
+        ][:MAX_RECENT_WALLPAPERS]
+        labels = []
+        for path in self._recent_paths:
+            parent = os.path.basename(os.path.dirname(path))
+            name = os.path.basename(path)
+            labels.append(f"{name} — {parent}" if parent else name)
+        self._recent_selector.set_model(
+            Gtk.StringList.new(labels or ["No recent wallpapers"])
+        )
+        self._recent_selector.set_selected(Gtk.INVALID_LIST_POSITION)
+        self._recent_selector.set_sensitive(bool(labels))
+
+    def _remember_recent_path(self, path: str):
+        if not os.path.isfile(path):
+            return
+        saved = self._preference.get_strv(RECENT_PATHS_KEY)
+        recent = [path] + [item for item in saved if item != path and isinstance(item, str)]
+        recent = [item for item in recent if os.path.isfile(item)][:MAX_RECENT_WALLPAPERS]
+        self._preference.set_strv(RECENT_PATHS_KEY, recent)
+        self._refresh_recent_selector()
+
+    def _on_recent_selected(self, dropdown, _pspec):
+        if self._plain:
+            return
+        position = dropdown.get_selected()
+        if position == Gtk.INVALID_LIST_POSITION or position >= len(self._recent_paths):
+            return
+        path = self._recent_paths[position]
+        if not os.path.isfile(path):
+            self._refresh_recent_selector()
+            say("That recent wallpaper is no longer available.")
+            return
+        if path not in self._all_paths:
+            say("That wallpaper is outside the currently opened folder.")
+            return
+        if path not in self._paths:
+            # A recent item may be hidden by the current text or favorites
+            # filter. Clear both filters so the selected item becomes visible.
+            self.search_entry.set_text("")
+            self.favorites_filter.set_active(False)
+            self._refresh_filtered_paths()
+        layout = self._layouts.get(self._current_layout_id)
+        if layout is not None:
+            layout.select_path(path)
+        self._on_wallpaper_selected(layout, path)
+
     def _load_selected_metadata(self, path: str):
         """Read image metadata off the GTK thread and ignore stale results."""
         if self._plain:
