@@ -22,6 +22,12 @@ CELL_SKEW_DEG = -6.0
 _item_id_counter = itertools.count()
 
 _CSS = b"""
+.masonry-grid > child,
+.masonry-grid > child:hover,
+.masonry-grid > child:selected,
+.masonry-grid > child:focus,
+.masonry-grid > child:active,
+.masonry-grid > child.selected,
 .masonry-grid listitem,
 .masonry-grid listitem:hover,
 .masonry-grid listitem:selected,
