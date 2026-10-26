@@ -329,9 +329,14 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
     def _on_search_changed(self, entry):
         query = entry.get_text().strip().casefold()
         if query:
+            # Match both the basename and its path within the selected root.
+            # The basename keeps the common filename-search behavior while
+            # relative paths make nested wallpaper folders discoverable.
+            root = self._wallpaper_dir
             self._paths = [
                 path for path in self._all_paths
                 if query in os.path.basename(path).casefold()
+                or query in os.path.relpath(path, root).casefold()
             ]
         else:
             self._paths = list(self._all_paths)
