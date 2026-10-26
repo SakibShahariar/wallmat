@@ -618,7 +618,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.stack.set_visible_child_name(layout_id)
         layout.on_activate()
         self._current_layout_id = layout_id
-        self._preference.set(layout_id)
+        if not self._plain:
+            self._preference.set(layout_id)
 
     def _register_focus_colors(self, window):
         register_focus_colors(self.get_display())
