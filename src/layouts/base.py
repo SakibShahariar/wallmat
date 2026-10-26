@@ -59,6 +59,14 @@ class WallLayout(GObject.Object):
         """Populate the already-built widget with the given image paths."""
         raise NotImplementedError
 
+    def select_path(self, path: str) -> bool:
+        """Focus a path when this layout can restore focus; return success.
+
+        Layouts with no programmatic focus support keep the default no-op so
+        restoring a saved selection never disrupts their normal interaction.
+        """
+        return False
+
     def on_activate(self):
         """Called each time the user switches TO this layout. Optional override."""
         pass
