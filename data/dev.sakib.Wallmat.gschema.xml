@@ -21,5 +21,10 @@
       <summary>Favorites-only filter state</summary>
       <description>Whether to restore the favorites-only filter in normal UI mode.</description>
     </key>
+    <key name="selected-wallpaper" type="s">
+      <default>''</default>
+      <summary>Last selected wallpaper path</summary>
+      <description>Absolute path of the last selected wallpaper, restored only when the file remains available in the current filtered results.</description>
+    </key>
   </schema>
 </schemalist>
