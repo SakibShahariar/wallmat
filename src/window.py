@@ -398,6 +398,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._wallpaper_dir = wallpaper_dir
         self._scan_and_load(wallpaper_dir)
         if not self._plain:
+            # Apply the restored sort and favorites-only state even when the
+            # saved text filter is empty.
+            self._refresh_filtered_paths()
             saved_filter = self._preference.get_string(FILTER_KEY, "")
             if saved_filter:
                 self.search_entry.set_text(saved_filter)
