@@ -30,7 +30,7 @@ A keyboard-friendly wallpaper chooser for **GTK 4 and libadwaita**, with eight e
 - **Split-Screen Preview** — compare a wallpaper with a large preview.
 - **Stacked Deck** — browse a layered stack of wallpapers.
 - **Infinite Ribbon** — move through a continuous horizontal strip.
-- **Masonry Grid** — explore a varied grid of thumbnails.
+- **Masonry Grid** — explore a varied grid of thumbnails, with GTK virtualizing cells outside the viewport.
 - **Glassmorphism** — browse through translucent layered cards.
 - **Parallax Gallery** — move through a depth-inspired gallery.
 - **Radial Fan** — fan wallpapers around the focused card.
