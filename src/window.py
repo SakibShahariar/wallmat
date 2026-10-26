@@ -312,6 +312,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             "notify::selected", self._on_layout_selected
         )
         layout_row.append(self.layout_selector)
+        self.shortcuts_button = Gtk.Button(label="Shortcuts")
+        self.shortcuts_button.set_tooltip_text("Show keyboard shortcuts")
+        self.shortcuts_button.connect("clicked", self._show_shortcuts)
+        layout_row.append(self.shortcuts_button)
         content.append(layout_row)
 
         self.set_wallpaper_button = Gtk.Button(label="Set as wallpaper")
@@ -750,7 +754,28 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # a verbose stderr pipe can freeze the window.
         threading.Thread(target=run_matugen, daemon=True).start()
 
+    def _show_shortcuts(self, *_args):
+        body = (
+            "Global shortcuts\\n"
+            "Ctrl + F — show and focus the wallpaper filter\\n"
+            "Escape — clear and hide the filter; press again to close\\n"
+            "Enter — select the focused wallpaper where the active layout supports it\\n"
+            "← / → — move focus in layouts that support keyboard navigation\\n\\n"
+            "Layout differences\\n"
+            "Stacked Deck and interactive layouts can handle clicks and selection "
+            "differently. Arrow and Enter behavior depends on the active layout; "
+            "not every layout exposes the same keyboard navigation."
+        )
+        dialog = Adw.MessageDialog.new(self, "Keyboard shortcuts", body)
+        dialog.add_response("close", "Close")
+        dialog.set_close_response("close")
+        dialog.set_default_response("close")
+        dialog.present()
+
     def _on_key_pressed(self, controller, keyval, keycode, state):
+        if keyval == Gdk.KEY_question:
+            self._show_shortcuts()
+            return True
         if keyval == Gdk.KEY_f and state & Gdk.ModifierType.CONTROL_MASK:
             self.search_entry.set_visible(True)
             self.search_entry.grab_focus()
