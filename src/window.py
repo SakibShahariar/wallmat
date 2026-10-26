@@ -47,6 +47,7 @@ SETTINGS_KEY = "selected-layout"
 FILTER_KEY = "last-filter"
 SORT_KEY = "sort-mode"
 FAVORITES_ONLY_KEY = "favorites-only"
+SELECTED_PATH_KEY = "selected-wallpaper"
 DEFAULT_LAYOUT_ID = "split_screen"
 
 # Keep very large wallpaper collections from monopolizing startup. The scan
@@ -99,6 +100,7 @@ class _LayoutPreference:
             FILTER_KEY: "",
             SORT_KEY: "name",
             FAVORITES_ONLY_KEY: False,
+            SELECTED_PATH_KEY: "",
         }
         try:
             schema_source = Gio.SettingsSchemaSource.get_default()
@@ -488,6 +490,14 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._switch_to(initial_id)
         self.layout_selector.set_selected(self._layout_ids.index(initial_id))
 
+        # Restore selection only when the saved file still exists and is
+        # visible under the restored folder and filters. Never let stale
+        # settings select a missing or currently filtered-out wallpaper.
+        if not self._plain:
+            saved_path = self._preference.get_string(SELECTED_PATH_KEY, "")
+            if saved_path and saved_path in self._paths and os.path.isfile(saved_path):
+                self._on_wallpaper_selected(None, saved_path)
+
     def _on_folder_drop(self, _target, value, _x, _y):
         """Ask before replacing the active wallpaper directory via a file drop."""
         try:
@@ -742,6 +752,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self.close()
             return
         self._selected_path = path
+        self._preference.set_string(SELECTED_PATH_KEY, path)
         if not self._history_navigation:
             if (
                 self._rotation_history_index >= 0
