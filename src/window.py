@@ -249,7 +249,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         action_row.set_min_children_per_line(1)
         action_row.set_row_spacing(8)
         action_row.set_column_spacing(8)
-        action_row.set_halign(Gtk.Align.CENTER)
+        action_row.set_hexpand(True)
+        action_row.set_halign(Gtk.Align.FILL)
         action_row.set_margin_top(8)
         action_row.set_margin_bottom(10)
 
