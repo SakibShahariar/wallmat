@@ -192,6 +192,16 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.search_entry.set_visible(False)
         self.search_entry.connect("search-changed", self._on_search_changed)
 
+        # Favorites-only filtering composes with the text filter and is
+        # intentionally session-only; the favorites themselves remain saved.
+        self._favorites_only = False
+        self.favorites_filter = Gtk.CheckButton(label="Favorites only")
+        self.favorites_filter.set_margin_start(12)
+        self.favorites_filter.set_margin_end(12)
+        self.favorites_filter.set_margin_bottom(6)
+        self.favorites_filter.set_visible(not self._plain)
+        self.favorites_filter.connect("toggled", self._on_favorites_filter_toggled)
+
         # Empty-state message covers both an empty directory and a filter
         # with no matching filenames.
         content_overlay = Gtk.Overlay()
@@ -207,6 +217,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         content.append(self.search_entry)
+        content.append(self.favorites_filter)
 
         self._settings_notice = Gtk.Label(
             label=(
@@ -407,19 +418,28 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         )
 
     def _on_search_changed(self, entry):
-        query = entry.get_text().strip().casefold()
+        self._refresh_filtered_paths()
+
+    def _on_favorites_filter_toggled(self, button):
+        self._favorites_only = button.get_active()
+        self._refresh_filtered_paths()
+
+    def _refresh_filtered_paths(self):
+        query = self.search_entry.get_text().strip().casefold()
+        paths = self._all_paths
+        if self._favorites_only:
+            paths = [path for path in paths if path in self._favorites]
         if query:
             # Match both the basename and its path within the selected root.
             # The basename keeps the common filename-search behavior while
             # relative paths make nested wallpaper folders discoverable.
             root = self._wallpaper_dir
-            self._paths = [
-                path for path in self._all_paths
+            paths = [
+                path for path in paths
                 if query in os.path.basename(path).casefold()
                 or query in os.path.relpath(path, root).casefold()
             ]
-        else:
-            self._paths = list(self._all_paths)
+        self._paths = list(paths)
 
         for layout_id, layout in self._layouts.items():
             if layout_id == self._current_layout_id:
@@ -431,13 +451,21 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         self._empty_state.set_visible(not self._paths)
         has_query = bool(query)
-        self._empty_state.set_title(
-            "No matching wallpapers" if has_query else "No wallpapers found"
+        no_results_title = (
+            "No matching wallpapers" if has_query
+            else "No favorite wallpapers" if self._favorites_only
+            else "No wallpapers found"
         )
-        self._empty_state.set_description(
-            "Try a different filename filter."
-            if has_query else "This folder has no supported wallpaper images."
-        )
+        self._empty_state.set_title(no_results_title)
+        if self._favorites_only and not self._paths:
+            self._empty_state.set_description(
+                "Try adding favorites or turn off the Favorites only filter."
+            )
+        else:
+            self._empty_state.set_description(
+                "Try a different filename or folder filter."
+                if has_query else "This folder has no supported wallpaper images."
+            )
 
     def _switch_to(self, layout_id: str):
         if layout_id == self._current_layout_id:
@@ -554,6 +582,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self._save_favorites()
             self._update_favorite_button()
             self._update_missing_favorites_action()
+            if self._favorites_only:
+                self._refresh_filtered_paths()
             say(f"Favorites saved: {len(self._favorites)}")
         except OSError as error:
             say(f"Could not save favorites: {error}")
