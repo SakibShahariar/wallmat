@@ -75,6 +75,18 @@ Wallmat scans PNG and JPEG images when their GdkPixbuf loaders are enabled. WebP
 
 Use the layout selector at the bottom of the window to switch layouts without restarting. When Wallmat's GSettings schema is installed, it remembers the chosen layout, text filter, sort mode, and Favorites only setting between launches. The selected wallpaper and layout scroll/focus position are not yet restored. Without the schema, preferences fall back to in-memory values for the current process. Exact controls vary by layout. Wallpaper actions wrap onto additional rows when the window is too narrow to show them side by side.
 
+### Persisting preferences
+
+Wallmat can run without installing its GSettings schema, but preferences then last only for the current process. To enable persistence for your user account from a source checkout:
+
+```sh
+mkdir -p ~/.local/share/glib-2.0/schemas
+cp data/dev.sakib.Wallmat.gschema.xml ~/.local/share/glib-2.0/schemas/
+glib-compile-schemas ~/.local/share/glib-2.0/schemas/
+```
+
+Restart Wallmat after installing or updating the schema. If `glib-compile-schemas` is unavailable, install the GLib development utilities provided by your distribution.
+
 ## Matugen integration
 
 Use Wallmat as a wallpaper-path provider in a shell pipeline:
