@@ -69,6 +69,7 @@ Wallmat scans PNG and JPEG images when their GdkPixbuf loaders are enabled. WebP
 - **Click** — select a wallpaper; behavior differs in Stacked Deck and some interactive layouts. In normal UI mode, selected wallpapers show dimensions, aspect ratio, file size, modification time, and path.
 - **Ctrl + F** — filter by filename or folder path.
 - **Favorites only** — combine a favorites-only filter with the text filter (normal UI mode).
+- **Recent wallpapers** — reopen one of up to eight recently selected wallpapers from the current folder; missing files and items outside the active folder are handled without changing the selection.
 - **Sort** — order wallpapers by name, modification date, or a stable session shuffle; search and favorites filtering preserve the chosen order.
 - **Surprise me** — immediately apply a random wallpaper from the current filtered results, avoiding the previous random choice when alternatives exist.
 - **Auto-rotate** — enable session-only rotation every 1, 5, 10, or 30 minutes; it uses the current filtered results (turn on Favorites only to restrict it to favorites). Previous and Next let you navigate this session’s selection history or apply another random wallpaper. Rotation stops when Wallmat closes.
@@ -78,7 +79,7 @@ Wallmat scans PNG and JPEG images when their GdkPixbuf loaders are enabled. WebP
 - **Escape** — clear the filter, or close the window when the filter is hidden.
 - **? / Shortcuts** — open the keyboard shortcut cheatsheet, including layout-specific caveats.
 
-Use the layout selector at the bottom of the window to switch layouts without restarting. When Wallmat's GSettings schema is installed, it remembers the chosen layout, text filter, sort mode, Favorites only setting, and last selected wallpaper between launches. The saved selection is restored only when that file still exists in the current folder and matches the restored filters. Visual focus restoration is supported in Split-Screen Preview and selection restoration in Masonry Grid; other layouts and scroll position are not yet restored. Without the schema, preferences fall back to in-memory values for the current process. Exact controls vary by layout. Wallpaper actions wrap onto additional rows when the window is too narrow to show them side by side.
+Use the layout selector at the bottom of the window to switch layouts without restarting. When Wallmat's GSettings schema is installed, it remembers the chosen layout, text filter, sort mode, Favorites only setting, last selected wallpaper, and up to eight recent wallpaper paths between launches. The saved selection is restored only when that file still exists in the current folder and matches the restored filters. Visual focus restoration is supported in Split-Screen Preview and selection restoration in Masonry Grid; other layouts and scroll position are not yet restored. Without the schema, preferences fall back to in-memory values for the current process. Exact controls vary by layout. Wallpaper actions wrap onto additional rows when the window is too narrow to show them side by side.
 
 ### Persisting preferences
 
