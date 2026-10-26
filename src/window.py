@@ -159,6 +159,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._paths: list[str] = []
         self._all_paths: list[str] = []
         self._layouts: dict[str, object] = {}
+        self._stale_layouts: set[str] = set()
         self._current_layout_id: str | None = None
 
         toolbar_view = Adw.ToolbarView()
@@ -344,8 +345,13 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         else:
             self._paths = list(self._all_paths)
 
-        for layout in self._layouts.values():
-            layout.load_wallpapers(self._paths)
+        for layout_id, layout in self._layouts.items():
+            if layout_id == self._current_layout_id:
+                layout.load_wallpapers(self._paths)
+            else:
+                # Refresh inactive layouts only when the user switches to
+                # them, keeping rapid search edits from doing hidden work.
+                self._stale_layouts.add(layout_id)
 
         self._empty_state.set_visible(not self._paths)
         has_query = bool(query)
@@ -377,6 +383,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self._layouts[layout_id] = layout
         else:
             layout = self._layouts[layout_id]
+            if layout_id in self._stale_layouts:
+                layout.load_wallpapers(self._paths)
+                self._stale_layouts.discard(layout_id)
 
         self.stack.set_visible_child_name(layout_id)
         layout.on_activate()
