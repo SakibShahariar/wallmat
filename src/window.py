@@ -219,6 +219,17 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         content.append(self.search_entry)
         content.append(self.favorites_filter)
 
+        self._metadata_label = Gtk.Label()
+        self._metadata_label.set_wrap(True)
+        self._metadata_label.set_xalign(0.0)
+        self._metadata_label.set_margin_start(16)
+        self._metadata_label.set_margin_end(16)
+        self._metadata_label.set_margin_bottom(8)
+        self._metadata_label.add_css_class("dim-label")
+        self._metadata_label.set_selectable(True)
+        self._metadata_label.set_visible(False)
+        content.append(self._metadata_label)
+
         self._settings_notice = Gtk.Label(
             label=(
                 "Layout preference will not persist because the Wallmat "
@@ -506,12 +517,52 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self.close()
             return
         self._selected_path = path
+        self._load_selected_metadata(path)
         self.set_wallpaper_button.set_sensitive(True)
         self.apply_matugen_button.set_sensitive(True)
         self.favorite_button.set_sensitive(True)
         self.export_favorites_button.set_sensitive(True)
         self._update_favorite_button()
         say(f"Selected: {path}")
+
+    def _load_selected_metadata(self, path: str):
+        """Read image metadata off the GTK thread and ignore stale results."""
+        if self._plain:
+            return
+        self._metadata_label.set_text("Loading wallpaper details…")
+        self._metadata_label.set_visible(True)
+
+        def inspect_file():
+            try:
+                stat = os.stat(path)
+                image_format, width, height = GdkPixbuf.Pixbuf.get_file_info(path)
+                if width <= 0 or height <= 0:
+                    raise OSError("Image dimensions are unavailable")
+                size = stat.st_size
+                if size < 1024 * 1024:
+                    size_text = f"{size / 1024:.1f} KiB"
+                else:
+                    size_text = f"{size / (1024 * 1024):.2f} MiB"
+                modified = __import__("datetime").datetime.fromtimestamp(
+                    stat.st_mtime
+                ).astimezone().strftime("%Y-%m-%d %H:%M")
+                ratio = width / height
+                details = (
+                    f"{width} × {height} px · {ratio:.3f}:1 · {size_text} · "
+                    f"Modified {modified}\n{path}"
+                )
+            except (OSError, TypeError, ValueError) as error:
+                details = f"Could not read wallpaper metadata: {error}\n{path}"
+
+            def update_label():
+                if self._selected_path == path:
+                    self._metadata_label.set_text(details)
+                    self._metadata_label.set_visible(True)
+                return GLib.SOURCE_REMOVE
+
+            GLib.idle_add(update_label)
+
+        threading.Thread(target=inspect_file, daemon=True).start()
 
     def _update_favorite_button(self):
         if self._selected_path in self._favorites:
