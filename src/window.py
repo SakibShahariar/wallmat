@@ -14,6 +14,7 @@ The repository includes data/dev.sakib.Wallmat.gschema.xml and README install
 instructions. If the schema is not installed, _LayoutPreference falls back
 to an in-memory value, so the app still runs but the preference is not
 persisted across restarts.
+"""
 
 import os
 import sys
