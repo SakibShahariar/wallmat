@@ -21,6 +21,7 @@ import sys
 import json
 import subprocess
 import threading
+import random
 
 import gi
 
@@ -195,6 +196,19 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # Favorites-only filtering composes with the text filter and is
         # intentionally session-only; the favorites themselves remain saved.
         self._favorites_only = False
+        self._sort_mode = "name"
+        self._random_order: list[str] = []
+        self.sort_selector = Gtk.DropDown.new_from_strings([
+            "Name (A–Z)", "Newest first", "Oldest first", "Random order"
+        ])
+        self.sort_selector.set_selected(0)
+        self.sort_selector.set_tooltip_text("Sort wallpapers")
+        self.sort_selector.set_margin_start(12)
+        self.sort_selector.set_margin_end(12)
+        self.sort_selector.set_margin_bottom(6)
+        self.sort_selector.set_visible(not self._plain)
+        self.sort_selector.connect("notify::selected", self._on_sort_selected)
+
         self.favorites_filter = Gtk.CheckButton(label="Favorites only")
         self.favorites_filter.set_margin_start(12)
         self.favorites_filter.set_margin_end(12)
@@ -217,6 +231,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         content.append(self.search_entry)
+        content.append(self.sort_selector)
         content.append(self.favorites_filter)
 
         self._metadata_label = Gtk.Label()
@@ -390,6 +405,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 if truncated:
                     break
         self._all_paths = paths
+        self._random_order = list(paths)
+        random.shuffle(self._random_order)
         self._paths = list(paths)
 
         # The window itself has no title bar to display this in, but it's
@@ -428,6 +445,18 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             else "This folder has no supported wallpaper images."
         )
 
+    def _on_sort_selected(self, dropdown, _pspec):
+        modes = ("name", "newest", "oldest", "random")
+        selected = dropdown.get_selected()
+        if selected >= len(modes):
+            return
+        new_mode = modes[selected]
+        if new_mode == "random" and self._sort_mode != "random":
+            self._random_order = list(self._all_paths)
+            random.shuffle(self._random_order)
+        self._sort_mode = new_mode
+        self._refresh_filtered_paths()
+
     def _on_search_changed(self, entry):
         self._refresh_filtered_paths()
 
@@ -437,7 +466,21 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
     def _refresh_filtered_paths(self):
         query = self.search_entry.get_text().strip().casefold()
-        paths = self._all_paths
+        if self._sort_mode == "newest":
+            paths = sorted(
+                self._all_paths,
+                key=lambda path: (os.path.getmtime(path) if os.path.exists(path) else 0, path.casefold()),
+                reverse=True,
+            )
+        elif self._sort_mode == "oldest":
+            paths = sorted(
+                self._all_paths,
+                key=lambda path: (os.path.getmtime(path) if os.path.exists(path) else 0, path.casefold()),
+            )
+        elif self._sort_mode == "random":
+            paths = self._random_order
+        else:
+            paths = sorted(self._all_paths, key=lambda path: path.casefold())
         if self._favorites_only:
             paths = [path for path in paths if path in self._favorites]
         if query:
