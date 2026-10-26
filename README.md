@@ -70,7 +70,7 @@ Wallmat scans PNG and JPEG images when their GdkPixbuf loaders are enabled. WebP
 - **Ctrl + F** — filter by filename or folder path.
 - **Favorites only** — combine a favorites-only filter with the text filter (normal UI mode).
 - **Recent wallpapers** — reopen one of up to eight recently selected wallpapers from the current folder; missing files and items outside the active folder are handled without changing the selection.
-- **Sort** — order wallpapers by name, modification date, or a stable session shuffle; search and favorites filtering preserve the chosen order.
+- **Sort** — order wallpapers by name, modification date, or a stable session shuffle, or group them by immediate subfolder; search and favorites filtering preserve the chosen order. Folder grouping sorts files within each folder by path and keeps top-level files first.
 - **Surprise me** — immediately apply a random wallpaper from the current filtered results, avoiding the previous random choice when alternatives exist.
 - **Auto-rotate** — enable session-only rotation every 1, 5, 10, or 30 minutes; it uses the current filtered results (turn on Favorites only to restrict it to favorites). Previous and Next let you navigate this session’s selection history or apply another random wallpaper. Rotation stops when Wallmat closes.
 - **Drag-and-drop folders** — drop one local folder onto the window and confirm before rescanning; invalid drops leave the active folder unchanged.
