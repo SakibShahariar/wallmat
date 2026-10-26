@@ -42,7 +42,7 @@ Install the runtime dependencies on Debian or Ubuntu:
 
 ```sh
 sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1
-# Optional: WebP thumbnail support
+# Optional: WebP wallpaper and thumbnail support (when available)
 sudo apt install webp-pixbuf-loader
 ```
 
@@ -57,6 +57,10 @@ Without a folder argument, Wallmat uses `/usr/share/backgrounds`. Start in a spe
 ```sh
 python3 src/main.py ~/Pictures/Wallpapers --layout infinite_ribbon
 ```
+
+## Supported wallpaper formats
+
+Wallmat scans PNG and JPEG images when their GdkPixbuf loaders are enabled. WebP is included only when the current session has an enabled WebP loader (for example, the optional `webp-pixbuf-loader` package on Debian/Ubuntu). Other formats are intentionally excluded because loader availability alone does not guarantee consistent GNOME desktop-background support.
 
 ## Controls
 
