@@ -102,6 +102,10 @@ class _LayoutPreference:
             return self._settings.get_string(SETTINGS_KEY)
         return self._memory_value
 
+    @property
+    def persistent(self) -> bool:
+        return self._settings is not None
+
     def set(self, layout_id: str):
         if self._settings is not None:
             self._settings.set_string(SETTINGS_KEY, layout_id)
@@ -158,6 +162,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.connect("realize", self._register_focus_colors)
 
         self._preference = _LayoutPreference()
+        if not self._preference.persistent and not plain:
+            say(
+                "Layout preference will not persist because the Wallmat "
+                "GSettings schema is unavailable. See the schema installation "
+                "instructions in README.md."
+            )
         self._paths: list[str] = []
         self._all_paths: list[str] = []
         self._layouts: dict[str, object] = {}
