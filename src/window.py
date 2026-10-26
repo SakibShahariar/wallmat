@@ -842,7 +842,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         scroller.set_vexpand(True)
         scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         picture = Gtk.Picture()
-        picture.set_can_shrink(False)
+        picture.set_can_shrink(True)
         picture.set_halign(Gtk.Align.START)
         picture.set_valign(Gtk.Align.START)
         scroller.set_child(picture)
