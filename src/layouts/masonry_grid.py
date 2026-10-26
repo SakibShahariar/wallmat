@@ -141,6 +141,16 @@ class MasonryGridLayout(WallLayout):
         items = [MasonryItem(path) for path in paths]
         self.store.splice(0, self.store.get_n_items(), items)
 
+    def select_path(self, path: str) -> bool:
+        """Restore the selected grid item when the saved path is still present."""
+        try:
+            position = self._paths.index(path)
+        except ValueError:
+            return False
+        self.selection.set_selected(position)
+        self.grid_view.grab_focus()
+        return True
+
     def _on_setup(self, factory, list_item):
         card = SkewedCard(
             skew_deg=CELL_SKEW_DEG, base_width=140, base_height=180
