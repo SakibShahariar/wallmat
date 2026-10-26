@@ -104,8 +104,8 @@ class MasonryGridLayout(WallLayout):
         self.grid_view.add_css_class("masonry-grid")
         self.grid_view.set_min_columns(1)
         self.grid_view.set_max_columns(6)
-        self.grid_view.set_row_spacing(12)
-        self.grid_view.set_column_spacing(12)
+        # Gtk.GridView has no row/column spacing setters. Keep the gutters
+        # on each recycled cell instead of calling Gtk.Grid-only methods.
         self.grid_view.set_single_click_activate(False)
         self.grid_view.connect("activate", self._on_item_activated)
 
@@ -145,6 +145,8 @@ class MasonryGridLayout(WallLayout):
         )
         card.animations_enabled = False
         card.set_halign(Gtk.Align.CENTER)
+        for side in ("start", "end", "top", "bottom"):
+            getattr(card, f"set_margin_{side}")(6)
         list_item.set_child(card)
 
     def _on_bind(self, factory, list_item):
