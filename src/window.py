@@ -478,10 +478,18 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         try:
             directory = os.path.dirname(self._favorites_export_file)
             os.makedirs(directory, exist_ok=True)
+            existing = sorted(path for path in self._favorites if os.path.isfile(path))
+            missing_count = len(self._favorites) - len(existing)
             with open(self._favorites_export_file, "w", encoding="utf-8") as handle:
-                for path in sorted(self._favorites):
+                for path in existing:
                     handle.write(path + "\n")
-            say(f"Exported {len(self._favorites)} favorites to {self._favorites_export_file}")
+            message = (
+                f"Exported {len(existing)} existing favorites to "
+                f"{self._favorites_export_file}"
+            )
+            if missing_count:
+                message += f"; omitted {missing_count} missing file(s)"
+            say(message)
         except OSError as error:
             say(f"Could not export favorites: {error}")
 
