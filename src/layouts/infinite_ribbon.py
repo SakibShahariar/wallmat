@@ -226,7 +226,10 @@ class InfiniteRibbonLayout(WallLayout):
         if viewport_width <= 0:
             return
         center = value + viewport_width / 2.0
-        position = int(center / CARD_STRIDE)
+        # Items occupy CARD_STRIDE-wide slots; compare the viewport center
+        # with each slot's center rather than its left edge. Flooring the
+        # raw center/stride value biases focus toward the following card.
+        position = round(center / CARD_STRIDE - 0.5)
         position = max(0, min(position, self.carousel.store.get_n_items() - 1))
         if position != self._focus:
             self._focus = position
