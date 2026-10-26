@@ -76,6 +76,15 @@ class SplitScreenLayout(WallLayout):
             self.preview.set_wallpaper_path(paths[0])
             self._set_focus(0, announce=False)
 
+    def select_path(self, path: str) -> bool:
+        """Restore keyboard focus and horizontal visibility for a saved path."""
+        try:
+            position = self._paths.index(path)
+        except ValueError:
+            return False
+        self._set_focus(position, announce=False)
+        return True
+
     def _set_focus(self, position: int, announce: bool = True):
         n = self.carousel.store.get_n_items()
         if not n:
