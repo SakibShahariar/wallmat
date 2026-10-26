@@ -94,7 +94,8 @@ Use Wallmat as a wallpaper-path provider in a shell pipeline:
 ```sh
 WP="$(python3 src/main.py ~/Pictures/Wallpapers --plain 2>/dev/null)"
 matugen image "$WP" --type scheme-smart --mode dark
-gsettings set org.gnome.desktop.background picture-uri "file://$WP"
+URI="$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).resolve().as_uri())' "$WP")"
+gsettings set org.gnome.desktop.background picture-uri "$URI"
 ```
 
 In normal UI mode, **Set as wallpaper** updates GNOME's background settings. **Apply wallpaper + Matugen** also runs Matugen. Customize its arguments with `--matugen-args`:
