@@ -66,7 +66,7 @@ Wallmat scans PNG and JPEG images when their GdkPixbuf loaders are enabled. WebP
 
 - **← / →** — move focus in layouts that support keyboard navigation.
 - **Enter** — select the focused wallpaper where supported.
-- **Click** — select a wallpaper; behavior differs in Stacked Deck and some interactive layouts.
+- **Click** — select a wallpaper; behavior differs in Stacked Deck and some interactive layouts. In normal UI mode, selected wallpapers show dimensions, aspect ratio, file size, modification time, and path.
 - **Ctrl + F** — filter by filename or folder path.
 - **Favorites only** — combine a favorites-only filter with the text filter (normal UI mode).
 - **Escape** — clear the filter, or close the window when the filter is hidden.
