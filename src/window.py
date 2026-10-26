@@ -26,7 +26,8 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Gtk, Adw, Gio, GLib, Gdk
+gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import Gtk, Adw, Gio, GLib, Gdk, GdkPixbuf
 
 from layouts.split_screen import SplitScreenLayout
 from layouts.stacked_deck import StackedDeckLayout
@@ -325,7 +326,18 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self._switch_to(self._layout_ids[selected])
 
     def _scan_and_load(self, directory: str):
-        supported_exts = (".png", ".jpg", ".jpeg", ".webp")
+        # Only offer formats that are both known to work as desktop wallpapers
+        # and enabled in this session's GdkPixbuf loaders. In particular, WebP
+        # is optional on some distributions and must not be advertised when its
+        # loader is missing or disabled.
+        safe_extensions = {".png", ".jpg", ".jpeg", ".webp"}
+        supported_exts = {
+            f".{extension.lower()}"
+            for image_format in GdkPixbuf.Pixbuf.get_formats()
+            if not image_format.is_disabled()
+            for extension in image_format.get_extensions()
+            if f".{extension.lower()}" in safe_extensions
+        }
         paths = []
         truncated = False
         if os.path.isdir(directory):
