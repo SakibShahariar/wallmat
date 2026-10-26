@@ -245,6 +245,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         action_row.append(self.apply_matugen_button)
         action_row.append(self.favorite_button)
         action_row.append(self.export_favorites_button)
+        # Plain mode is a path picker for shell pipelines, not a desktop
+        # wallpaper manager; keep unrelated apply/favorites actions hidden.
+        action_row.set_visible(not self._plain)
         content.append(action_row)
         toolbar_view.set_content(content)
 
