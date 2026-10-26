@@ -502,6 +502,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if not self._plain:
             saved_path = self._preference.get_string(SELECTED_PATH_KEY, "")
             if saved_path and saved_path in self._paths and os.path.isfile(saved_path):
+                active_layout = self._layouts.get(self._current_layout_id)
+                if active_layout is not None:
+                    active_layout.select_path(saved_path)
                 self._on_wallpaper_selected(None, saved_path)
 
     def _on_folder_drop(self, _target, value, _x, _y):
