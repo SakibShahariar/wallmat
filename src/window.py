@@ -366,11 +366,17 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.favorite_button.connect("clicked", self._on_toggle_favorite)
         self.export_favorites_button = Gtk.Button(label="Export favorites")
         self.export_favorites_button.connect("clicked", self._on_export_favorites)
+        self.surprise_button = Gtk.Button(label="Surprise me")
+        self.surprise_button.set_tooltip_text(
+            "Choose and immediately apply a random wallpaper from the current filtered results"
+        )
+        self.surprise_button.connect("clicked", self._on_surprise_me)
         for action_button in (
             self.set_wallpaper_button,
             self.apply_matugen_button,
             self.favorite_button,
             self.export_favorites_button,
+            self.surprise_button,
         ):
             action_row.insert(action_button, -1)
         # Plain mode is a path picker for shell pipelines, not a desktop
@@ -781,6 +787,24 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             say(message)
         except OSError as error:
             say(f"Could not export favorites: {error}")
+
+    def _on_surprise_me(self, button):
+        """Choose and apply a random wallpaper from the currently filtered set."""
+        if self._plain:
+            return
+
+        candidates = [path for path in self._paths if os.path.isfile(path)]
+        if not candidates:
+            say("No available wallpapers match the current filters.")
+            return
+
+        # Avoid consecutive repeats when at least one alternative is available.
+        previous = getattr(self, "_last_random_path", self._selected_path)
+        alternatives = [path for path in candidates if path != previous]
+        path = random.choice(alternatives or candidates)
+        self._last_random_path = path
+        self._on_wallpaper_selected(None, path)
+        self._on_apply_wallpaper(button)
 
     def _on_apply_wallpaper(self, button):
         path = self._selected_path
