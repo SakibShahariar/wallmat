@@ -49,6 +49,11 @@ from random_selection import (
 )
 from wallpaper_scan import MAX_SCAN_DEPTH, scan_wallpapers
 from wallpaper_sort import sort_by_resolution
+from wallpaper_history import (
+    MAX_APPLIED_HISTORY,
+    append_applied,
+    for_collection,
+)
 
 SCHEMA_ID = "dev.sakib.Wallmat"
 SETTINGS_KEY = "selected-layout"
@@ -65,6 +70,7 @@ DEFAULT_ROTATION_INTERVAL = 300
 DEFAULT_RANDOM_HISTORY_LIMIT = 5
 SCAN_DEPTH_KEY = "scan-depth"
 DEFAULT_SCAN_DEPTH = 0
+APPLIED_HISTORY_KEY = "applied-wallpaper-history"
 MAX_RECENT_WALLPAPERS = 8
 DEFAULT_LAYOUT_ID = "split_screen"
 
@@ -124,6 +130,7 @@ class _LayoutPreference:
             RECENT_RANDOM_PATHS_KEY: [],
             RANDOM_HISTORY_LIMIT_KEY: DEFAULT_RANDOM_HISTORY_LIMIT,
             SCAN_DEPTH_KEY: DEFAULT_SCAN_DEPTH,
+            APPLIED_HISTORY_KEY: [],
         }
         try:
             schema_source = Gio.SettingsSchemaSource.get_default()
@@ -549,12 +556,20 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         rotation_row.append(self.rotation_interval)
         self.rotation_previous_button = Gtk.Button(label="Previous")
         self.rotation_previous_button.set_tooltip_text(
-            "Reapply the previous wallpaper selected in this session"
+            "Reapply the previous wallpaper from saved applied history"
         )
         self.rotation_previous_button.connect(
             "clicked", self._on_rotation_previous
         )
         rotation_row.append(self.rotation_previous_button)
+        self.clear_history_button = Gtk.Button(label="Clear history")
+        self.clear_history_button.set_tooltip_text(
+            "Clear the saved history of applied wallpapers"
+        )
+        self.clear_history_button.connect(
+            "clicked", self._on_clear_applied_history
+        )
+        rotation_row.append(self.clear_history_button)
         self.rotation_next_button = Gtk.Button(label="Next")
         self.rotation_next_button.set_tooltip_text(
             "Apply another random wallpaper from the current filtered results"
@@ -594,6 +609,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         self._wallpaper_dir = wallpaper_dir
         self._scan_and_load(wallpaper_dir)
+        self._restore_applied_history()
         if self._sort_mode == "random":
             # The sort preference survives restarts, but the previous
             # process's shuffled list does not. Create a fresh order before
@@ -672,6 +688,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # filters so a new folder does not appear empty because of old criteria.
         self._wallpaper_dir = path
         self._scan_and_load(path)
+        self._restore_applied_history()
         self.search_entry.set_text("")
         self.favorites_filter.set_active(False)
         self._refresh_filtered_paths()
@@ -949,20 +966,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             return
         self._selected_path = path
         self._preference.set_string(SELECTED_PATH_KEY, path)
-        self._remember_recent_path(path)
-        if not self._history_navigation:
-            if (
-                self._rotation_history_index >= 0
-                and self._rotation_history_index < len(self._rotation_history) - 1
-            ):
-                self._rotation_history = self._rotation_history[
-                    :self._rotation_history_index + 1
-                ]
-            if not self._rotation_history or self._rotation_history[-1] != path:
-                self._rotation_history.append(path)
-                if len(self._rotation_history) > 50:
-                    self._rotation_history.pop(0)
-            self._rotation_history_index = len(self._rotation_history) - 1
         self._load_selected_metadata(path)
         self.preview_button.set_sensitive(os.path.isfile(path))
         self.set_wallpaper_button.set_sensitive(True)
@@ -971,6 +974,45 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.export_favorites_button.set_sensitive(True)
         self._update_favorite_button()
         say(f"Selected: {path}")
+
+    def _restore_applied_history(self):
+        saved = self._preference.get_strv(APPLIED_HISTORY_KEY)
+        self._rotation_history = for_collection(
+            saved, self._all_paths, MAX_APPLIED_HISTORY
+        )
+        self._rotation_history_index = len(self._rotation_history) - 1
+        self._update_clear_history_button()
+
+    def _record_applied_history(self, path: str):
+        if self._history_navigation:
+            try:
+                self._rotation_history_index = self._rotation_history.index(path)
+            except ValueError:
+                pass
+            return
+        saved = self._preference.get_strv(APPLIED_HISTORY_KEY)
+        updated = append_applied(saved, path, MAX_APPLIED_HISTORY)
+        self._preference.set_strv(APPLIED_HISTORY_KEY, updated)
+        self._rotation_history = for_collection(
+            updated, self._all_paths, MAX_APPLIED_HISTORY
+        )
+        self._rotation_history_index = len(self._rotation_history) - 1
+        self._update_clear_history_button()
+
+    def _update_clear_history_button(self):
+        if hasattr(self, "clear_history_button"):
+            has_history = bool(self._rotation_history)
+            self.clear_history_button.set_sensitive(has_history)
+            self.rotation_previous_button.set_sensitive(
+                self._rotation_history_index > 0
+            )
+
+    def _on_clear_applied_history(self, _button):
+        self._preference.set_strv(APPLIED_HISTORY_KEY, [])
+        self._rotation_history = []
+        self._rotation_history_index = -1
+        self._update_clear_history_button()
+        say("Applied wallpaper history cleared.")
 
     def _refresh_recent_selector(self):
         """Show existing recent wallpapers available in the scanned folder."""
@@ -1294,15 +1336,14 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         for index in range(self._rotation_history_index - 1, -1, -1):
             path = self._rotation_history[index]
             if os.path.isfile(path):
-                self._rotation_history_index = index
                 self._history_navigation = True
                 try:
                     self._on_wallpaper_selected(None, path)
+                    self._on_apply_wallpaper(None)
                 finally:
                     self._history_navigation = False
-                self._on_apply_wallpaper(None)
                 return
-        say("There is no previous wallpaper in this session.")
+        say("There is no previous wallpaper in the saved history.")
 
     def _on_surprise_me(self, button):
         """Choose and apply a random wallpaper from the currently filtered set."""
@@ -1472,18 +1513,28 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
     def _on_apply_wallpaper(self, button):
         path = self._selected_path
         if not path:
-            return
+            return False
         try:
             settings = Gio.Settings.new("org.gnome.desktop.background")
             uri = GLib.filename_to_uri(path)
             keys = settings.list_keys()
+            updated = False
             if "picture-uri" in keys:
                 settings.set_string("picture-uri", uri)
+                updated = True
             if "picture-uri-dark" in keys:
                 settings.set_string("picture-uri-dark", uri)
+                updated = True
+            if not updated:
+                say("GNOME exposes no supported wallpaper URI setting.")
+                return False
+            self._record_applied_history(path)
+            self._remember_recent_path(path)
             say(f"Wallpaper applied: {path}")
+            return True
         except (GLib.Error, OSError, TypeError) as error:
             say(f"Could not set GNOME wallpaper: {error}")
+            return False
 
     def _on_apply_matugen(self, button):
         path = self._selected_path
