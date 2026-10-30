@@ -83,7 +83,7 @@ Use the layout selector at the bottom of the window to switch layouts without re
 
 ### Persisting preferences
 
-Wallmat can run without installing its GSettings schema, but preferences then last only for the current process. The random-selection history defaults to five wallpapers; set `random-history-limit` from 0 to 20 with `gsettings set dev.sakib.Wallmat random-history-limit 5` (use 0 to disable the exclusion window) when the schema is installed. To enable persistence for your user account from a source checkout:
+Wallmat can run without installing its GSettings schema, but preferences then last only for the current process. The random-selection history defaults to five wallpapers; set `random-history-limit` from 0 to 20 with `gsettings set dev.sakib.Wallmat random-history-limit 5` (use 0 to disable the exclusion window) when the schema is installed. Directory scanning is unlimited by default; set `scan-depth` from 0 to 20 with `gsettings set dev.sakib.Wallmat scan-depth 2` to scan the root and one nested level (0 means unlimited, 1 means root only). Symlinked files and directories are skipped to avoid duplicate entries and directory cycles. To enable persistence for your user account from a source checkout:
 
 ```sh
 mkdir -p ~/.local/share/glib-2.0/schemas
