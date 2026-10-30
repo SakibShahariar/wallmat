@@ -549,6 +549,13 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.folder_menu_button.set_popover(folder_popover)
         self.folder_menu_button.set_visible(not self._plain)
         layout_row.append(self.folder_menu_button)
+        self.more_menu_button = Gtk.MenuButton()
+        self.more_menu_button.set_label("More")
+        self.more_menu_button.set_tooltip_text(
+            "Secondary actions and wallpaper rotation controls"
+        )
+        self.more_menu_button.set_visible(not self._plain)
+        layout_row.append(self.more_menu_button)
         self.shortcuts_button = Gtk.Button(label="Shortcuts")
         self.shortcuts_button.set_tooltip_text("Show keyboard shortcuts")
         self.shortcuts_button.connect("clicked", self._show_shortcuts)
@@ -583,7 +590,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self.set_wallpaper_button,
             self.apply_matugen_button,
             self.favorite_button,
-            self.export_favorites_button,
             self.surprise_button,
         ):
             action_row.insert(action_button, -1)
@@ -592,17 +598,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         action_row.set_visible(not self._plain)
         content.append(action_row)
 
-        rotation_row = Gtk.Box(
-            orientation=Gtk.Orientation.HORIZONTAL, spacing=8
-        )
-        rotation_row.set_halign(Gtk.Align.CENTER)
-        rotation_row.set_margin_bottom(8)
         self.auto_rotate_toggle = Gtk.CheckButton(label="Auto-rotate")
         self.auto_rotate_toggle.set_tooltip_text(
             "Apply a random wallpaper from the current filtered results at an interval"
         )
         self.auto_rotate_toggle.connect("toggled", self._on_auto_rotate_toggled)
-        rotation_row.append(self.auto_rotate_toggle)
         self.rotation_interval = Gtk.DropDown.new_from_strings(
             ["1 minute", "5 minutes", "10 minutes", "30 minutes"]
         )
@@ -613,7 +613,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.rotation_interval.connect(
             "notify::selected", self._on_rotation_interval_changed
         )
-        rotation_row.append(self.rotation_interval)
         self.rotation_previous_button = Gtk.Button(label="Previous")
         self.rotation_previous_button.set_tooltip_text(
             "Reapply the previous wallpaper from saved applied history"
@@ -621,7 +620,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.rotation_previous_button.connect(
             "clicked", self._on_rotation_previous
         )
-        rotation_row.append(self.rotation_previous_button)
         self.clear_history_button = Gtk.Button(label="Clear history")
         self.clear_history_button.set_tooltip_text(
             "Clear the saved history of applied wallpapers"
@@ -629,28 +627,49 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.clear_history_button.connect(
             "clicked", self._on_clear_applied_history
         )
-        rotation_row.append(self.clear_history_button)
         self.rotation_next_button = Gtk.Button(label="Next")
         self.rotation_next_button.set_tooltip_text(
             "Apply another random wallpaper from the current filtered results"
         )
         self.rotation_next_button.connect("clicked", self._on_rotation_next)
-        rotation_row.append(self.rotation_next_button)
-        rotation_row.set_visible(not self._plain)
-        content.append(rotation_row)
 
-        cleanup_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        cleanup_row.set_halign(Gtk.Align.CENTER)
-        cleanup_row.set_margin_bottom(8)
+        self.export_favorites_button = Gtk.Button(label="Export favorites")
+        self.export_favorites_button.connect("clicked", self._on_export_favorites)
         self.remove_missing_favorites_button = Gtk.Button(
             label="Remove missing favorites"
         )
         self.remove_missing_favorites_button.connect(
             "clicked", self._on_remove_missing_favorites
         )
-        cleanup_row.append(self.remove_missing_favorites_button)
-        cleanup_row.set_visible(not self._plain)
-        content.append(cleanup_row)
+
+        # Keep low-frequency actions in one keyboard-reachable popover so
+        # the wallpaper view retains more space at narrow window sizes.
+        more_popover = Gtk.Popover()
+        more_actions = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=6
+        )
+        more_actions.set_margin_top(8)
+        more_actions.set_margin_bottom(8)
+        more_actions.set_margin_start(8)
+        more_actions.set_margin_end(8)
+        rotation_heading = Gtk.Label(label="Wallpaper rotation")
+        rotation_heading.set_xalign(0.0)
+        rotation_heading.add_css_class("heading")
+        more_actions.append(rotation_heading)
+        more_actions.append(self.auto_rotate_toggle)
+        more_actions.append(self.rotation_interval)
+        more_actions.append(self.rotation_previous_button)
+        more_actions.append(self.rotation_next_button)
+        more_actions.append(self.clear_history_button)
+        more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+        favorites_heading = Gtk.Label(label="Favorites")
+        favorites_heading.set_xalign(0.0)
+        favorites_heading.add_css_class("heading")
+        more_actions.append(favorites_heading)
+        more_actions.append(self.export_favorites_button)
+        more_actions.append(self.remove_missing_favorites_button)
+        more_popover.set_child(more_actions)
+        self.more_menu_button.set_popover(more_popover)
         self._update_missing_favorites_action()
         toolbar_view.set_content(content)
 
