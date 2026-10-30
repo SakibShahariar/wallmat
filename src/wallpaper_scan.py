@@ -3,11 +3,15 @@
 import os
 
 
+class ScanCancelled(Exception):
+    """Raised when a caller cancels an in-progress directory scan."""
+
+
 MAX_SCAN_DEPTH = 20
 
 
 def scan_wallpapers(directory, supported_extensions, max_wallpapers=10_000,
-                    max_depth=0):
+                    max_depth=0, cancellation_event=None):
     """Return (paths, errors, truncated) for a wallpaper directory.
 
     Depth zero means unlimited recursion; depth one scans only the root
@@ -43,6 +47,8 @@ def scan_wallpapers(directory, supported_extensions, max_wallpapers=10_000,
     for root, dirs, files in os.walk(
         directory, topdown=True, onerror=record_error, followlinks=False
     ):
+        if cancellation_event is not None and cancellation_event.is_set():
+            raise ScanCancelled("Wallpaper scan was cancelled")
         dirs.sort()
         files.sort()
 
@@ -59,6 +65,8 @@ def scan_wallpapers(directory, supported_extensions, max_wallpapers=10_000,
             dirs[:] = []
 
         for name in files:
+            if cancellation_event is not None and cancellation_event.is_set():
+                raise ScanCancelled("Wallpaper scan was cancelled")
             path = os.path.join(root, name)
             if os.path.islink(path):
                 continue
