@@ -49,6 +49,11 @@
       <summary>Recently applied wallpaper paths</summary>
       <description>Up to fifty wallpaper paths applied most recently, used for Previous navigation.</description>
     </key>
+    <key name="last-wallpaper-folder" type="s">
+      <default>''</default>
+      <summary>Last selected wallpaper folder</summary>
+      <description>Folder restored on the next normal UI launch when no directory is supplied on the command line.</description>
+    </key>
     <key name="selected-wallpaper" type="s">
       <default>''</default>
       <summary>Last selected wallpaper path</summary>
