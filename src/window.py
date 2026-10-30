@@ -693,6 +693,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                             break
                 if truncated:
                     break
+        self._scan_errors = list(scan_errors)
         self._all_paths = paths
         self._random_order = list(paths)
         random.shuffle(self._random_order)
@@ -850,21 +851,28 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         self._empty_state.set_visible(not self._paths)
         has_query = bool(query)
-        no_results_title = (
-            "No matching wallpapers" if has_query
-            else "No favorite wallpapers" if self._favorites_only
-            else "No wallpapers found"
-        )
-        self._empty_state.set_title(no_results_title)
-        if self._favorites_only and not self._paths:
+        if not self._all_paths and self._scan_errors:
+            self._empty_state.set_title("Could not read wallpaper folder")
             self._empty_state.set_description(
-                "Try adding favorites or turn off the Favorites only filter."
+                "Check that the selected folder exists and that you have "
+                "permission to read it. See the warning above for details."
             )
         else:
-            self._empty_state.set_description(
-                "Try a different filename or folder filter."
-                if has_query else "This folder has no supported wallpaper images."
+            no_results_title = (
+                "No matching wallpapers" if has_query
+                else "No favorite wallpapers" if self._favorites_only
+                else "No wallpapers found"
             )
+            self._empty_state.set_title(no_results_title)
+            if self._favorites_only and not self._paths:
+                self._empty_state.set_description(
+                    "Try adding favorites or turn off the Favorites only filter."
+                )
+            else:
+                self._empty_state.set_description(
+                    "Try a different filename or folder filter."
+                    if has_query else "This folder has no supported wallpaper images."
+                )
 
     def _switch_to(self, layout_id: str):
         if layout_id == self._current_layout_id:
