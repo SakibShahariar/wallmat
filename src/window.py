@@ -1276,7 +1276,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         """Stop session-only rotation and preserve plain-mode cancellation."""
         if (
             self._plain
-            and getattr(self.get_application(), "plain_exit_code", CANCELLED) != SUCCESS
+            and getattr(self.get_application(), "plain_exit_code", CANCELLED)
+            not in (SUCCESS, SCAN_FAILED)
         ):
             self.get_application().plain_exit_code = CANCELLED
         if self._rotation_source_id is not None:
