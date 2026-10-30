@@ -73,6 +73,8 @@ DEFAULT_RANDOM_HISTORY_LIMIT = 5
 SCAN_DEPTH_KEY = "scan-depth"
 DEFAULT_SCAN_DEPTH = 0
 APPLIED_HISTORY_KEY = "applied-wallpaper-history"
+LAST_FOLDER_KEY = "last-wallpaper-folder"
+DEFAULT_WALLPAPER_DIR = "/usr/share/backgrounds"
 MAX_RECENT_WALLPAPERS = 8
 DEFAULT_LAYOUT_ID = "split_screen"
 
@@ -204,7 +206,7 @@ class _LayoutPreference:
 
 
 class WallpaperChooserWindow(Adw.ApplicationWindow):
-    def __init__(self, app, wallpaper_dir: str, initial_layout_id: str | None = None,
+    def __init__(self, app, wallpaper_dir: str | None, initial_layout_id: str | None = None,
                  plain: bool = False, matugen_args: list[str] | None = None):
         super().__init__(application=app, title="Wallpaper Chooser")
         self._plain = plain
@@ -213,6 +215,15 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._matugen_args = list(
             matugen_args or ["--type", "scheme-smart", "--mode", "dark"]
         )
+        self._preference = _LayoutPreference()
+        initial_directory = wallpaper_dir
+        if initial_directory is None:
+            saved_directory = self._preference.get_string(LAST_FOLDER_KEY, "")
+            initial_directory = (
+                saved_directory if not plain and saved_directory
+                else DEFAULT_WALLPAPER_DIR
+            )
+        self._wallpaper_dir = os.path.abspath(initial_directory)
         self._selected_path: str | None = None
         self._rotation_source_id: int | None = None
         self._rotation_history: list[str] = []
@@ -220,7 +231,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._history_navigation = False
         self._rotation_interval_seconds = 300
         self.connect("close-request", self._on_window_close_request)
-        self._wallpaper_dir = os.path.abspath(wallpaper_dir)
         config_dir = os.path.expanduser("~/.config/wallmat")
         self._favorites_file = os.path.join(config_dir, "favorites.json")
         self._favorites_export_file = os.path.join(config_dir, "favorites.txt")
@@ -280,7 +290,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # User gtk.css overrides these at USER priority.
         self.connect("realize", self._register_focus_colors)
 
-        self._preference = _LayoutPreference()
         saved_rotation_interval = self._preference.get_int(
             AUTO_ROTATE_INTERVAL_KEY, DEFAULT_ROTATION_INTERVAL
         )
@@ -522,6 +531,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             "notify::selected", self._on_layout_selected
         )
         layout_row.append(self.layout_selector)
+        self.choose_folder_button = Gtk.Button(label="Choose folder")
+        self.choose_folder_button.set_tooltip_text("Choose a wallpaper folder")
+        self.choose_folder_button.connect("clicked", self._on_choose_folder)
+        self.choose_folder_button.set_visible(not self._plain)
+        layout_row.append(self.choose_folder_button)
         self.shortcuts_button = Gtk.Button(label="Shortcuts")
         self.shortcuts_button.set_tooltip_text("Show keyboard shortcuts")
         self.shortcuts_button.connect("clicked", self._show_shortcuts)
@@ -671,6 +685,81 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                     active_layout.select_path(saved_path)
                 self._on_wallpaper_selected(None, saved_path)
 
+    def _on_choose_folder(self, _button):
+        """Open the platform folder picker without blocking the GTK thread."""
+        if hasattr(Gtk, "FileDialog"):
+            dialog = Gtk.FileDialog()
+            dialog.set_title("Choose wallpaper folder")
+            if os.path.isdir(self._wallpaper_dir):
+                dialog.set_initial_folder(
+                    Gio.File.new_for_path(self._wallpaper_dir)
+                )
+            dialog.select_folder(
+                self, None, self._on_folder_dialog_response
+            )
+            return
+
+        # Compatibility fallback for GTK versions before Gtk.FileDialog.
+        dialog = Gtk.FileChooserNative.new(
+            "Choose wallpaper folder",
+            self,
+            Gtk.FileChooserAction.SELECT_FOLDER,
+            "Choose",
+            "Cancel",
+        )
+        if os.path.isdir(self._wallpaper_dir):
+            dialog.set_current_folder(
+                Gio.File.new_for_path(self._wallpaper_dir)
+            )
+        dialog.connect("response", self._on_legacy_folder_dialog_response)
+        dialog.show()
+
+    def _on_folder_dialog_response(self, dialog, result):
+        try:
+            folder = dialog.select_folder_finish(result)
+        except GLib.Error as error:
+            if error.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED):
+                return
+            say(f"Could not choose wallpaper folder: {error}")
+            return
+        path = folder.get_path() if folder is not None else None
+        if not path or not os.path.isdir(path):
+            say("Choose a local folder to switch wallpaper directories.")
+            return
+        self._confirm_folder_switch(path)
+
+    def _on_legacy_folder_dialog_response(self, dialog, response):
+        try:
+            if response == Gtk.ResponseType.ACCEPT:
+                folder = dialog.get_file()
+                path = folder.get_path() if folder is not None else None
+                if path and os.path.isdir(path):
+                    self._confirm_folder_switch(path)
+                else:
+                    say("Choose a local folder to switch wallpaper directories.")
+        finally:
+            dialog.destroy()
+
+    def _confirm_folder_switch(self, path):
+        path = os.path.abspath(path)
+        if path == self._wallpaper_dir:
+            say("That wallpaper folder is already open.")
+            return
+        dialog = Adw.MessageDialog.new(
+            self,
+            "Switch wallpaper folder?",
+            f"Rescan this folder and replace the current wallpaper list?\n\n{path}",
+        )
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("switch", "Switch folder")
+        dialog.set_default_response("cancel")
+        dialog.set_close_response("cancel")
+        dialog.set_response_appearance(
+            "switch", Adw.ResponseAppearance.SUGGESTED
+        )
+        dialog.connect("response", self._on_folder_drop_response, path)
+        dialog.present()
+
     def _on_folder_drop(self, _target, value, _x, _y):
         """Ask before replacing the active wallpaper directory via a file drop."""
         try:
@@ -688,20 +777,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             say("That drop is not a local folder. The wallpaper directory is unchanged.")
             return False
 
-        dialog = Adw.MessageDialog.new(
-            self,
-            "Switch wallpaper folder?",
-            f"Rescan this folder and replace the current wallpaper list?\n\n{path}",
-        )
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("switch", "Switch folder")
-        dialog.set_default_response("cancel")
-        dialog.set_close_response("cancel")
-        dialog.set_response_appearance(
-            "switch", Adw.ResponseAppearance.SUGGESTED
-        )
-        dialog.connect("response", self._on_folder_drop_response, path)
-        dialog.present()
+        self._confirm_folder_switch(path)
         return True
 
     def _on_folder_drop_response(self, dialog, response, path):
@@ -840,6 +916,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         if switching_folder:
             self._wallpaper_dir = directory
+            if not self._plain:
+                self._preference.set_string(LAST_FOLDER_KEY, directory)
             self._favorites = set()
             try:
                 with open(self._favorites_file, "r", encoding="utf-8") as handle:
