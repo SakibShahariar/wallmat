@@ -5,9 +5,9 @@ MAX_APPLIED_HISTORY = 50
 
 def append_applied(history, path, limit=MAX_APPLIED_HISTORY):
     """Append an applied path once, moving re-applied paths to the newest end."""
-    if not isinstance(path, str) or not path:
-        return list(history)[-max(0, int(limit)):] if limit else []
     bounded_limit = max(0, min(int(limit), MAX_APPLIED_HISTORY))
+    if not isinstance(path, str) or not path:
+        return list(history)[-bounded_limit:] if bounded_limit else []
     if bounded_limit == 0:
         return []
     updated = [
