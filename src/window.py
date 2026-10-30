@@ -48,6 +48,7 @@ from random_selection import (
     shuffle_with_recent_last,
 )
 from wallpaper_scan import MAX_SCAN_DEPTH, scan_wallpapers
+from wallpaper_sort import sort_by_resolution
 
 SCHEMA_ID = "dev.sakib.Wallmat"
 SETTINGS_KEY = "selected-layout"
@@ -315,15 +316,21 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self._preference.get_string(SORT_KEY, "name")
             if not plain else "name"
         )
-        if saved_sort_mode not in ("name", "newest", "oldest", "random", "folder"):
+        if saved_sort_mode not in (
+            "name", "newest", "oldest", "resolution", "random", "folder"
+        ):
             saved_sort_mode = "name"
         self._sort_mode = saved_sort_mode
         self._random_order: list[str] = []
+        self._resolution_cache: dict[str, tuple[tuple[int, int], tuple[int, int] | None]] = {}
         self.sort_selector = Gtk.DropDown.new_from_strings([
-            "Name (A–Z)", "Newest first", "Oldest first", "Random order", "Folder groups"
+            "Name (A–Z)", "Newest first", "Oldest first",
+            "Resolution (largest first)", "Random order", "Folder groups"
         ])
         self.sort_selector.set_selected(
-            ("name", "newest", "oldest", "random", "folder").index(self._sort_mode)
+            ("name", "newest", "oldest", "resolution", "random", "folder").index(
+                self._sort_mode
+            )
         )
         self.sort_selector.set_tooltip_text("Sort wallpapers")
         self.sort_selector.set_margin_start(12)
@@ -769,8 +776,28 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             # A file can disappear between scanning and sorting.
             return 0.0
 
+    def _image_dimensions(self, path: str) -> tuple[int, int] | None:
+        """Read image dimensions from its header and cache by file fingerprint."""
+        try:
+            stat = os.stat(path)
+        except OSError:
+            return None
+        fingerprint = (stat.st_mtime_ns, stat.st_size)
+        cached = self._resolution_cache.get(path)
+        if cached and cached[0] == fingerprint:
+            return cached[1]
+        dimensions = None
+        try:
+            info = GdkPixbuf.Pixbuf.get_file_info(path)
+            if info and info[1] > 0 and info[2] > 0:
+                dimensions = (info[1], info[2])
+        except (GLib.Error, OSError, TypeError):
+            pass
+        self._resolution_cache[path] = (fingerprint, dimensions)
+        return dimensions
+
     def _on_sort_selected(self, dropdown, _pspec):
-        modes = ("name", "newest", "oldest", "random", "folder")
+        modes = ("name", "newest", "oldest", "resolution", "random", "folder")
         selected = dropdown.get_selected()
         if selected >= len(modes):
             return
@@ -808,6 +835,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 self._all_paths,
                 key=lambda path: (self._modified_timestamp(path), path.casefold()),
             )
+        elif self._sort_mode == "resolution":
+            paths = sort_by_resolution(self._all_paths, self._image_dimensions)
         elif self._sort_mode == "random":
             paths = self._random_order
         elif self._sort_mode == "folder":
