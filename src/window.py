@@ -578,8 +578,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.favorite_button = Gtk.Button(label="Add to favorites")
         self.favorite_button.set_sensitive(False)
         self.favorite_button.connect("clicked", self._on_toggle_favorite)
-        self.export_favorites_button = Gtk.Button(label="Export favorites")
-        self.export_favorites_button.connect("clicked", self._on_export_favorites)
         self.surprise_button = Gtk.Button(label="Surprise me")
         self.surprise_button.set_tooltip_text(
             "Choose and immediately apply a random wallpaper from the current filtered results"
@@ -668,7 +666,14 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         more_actions.append(favorites_heading)
         more_actions.append(self.export_favorites_button)
         more_actions.append(self.remove_missing_favorites_button)
-        more_popover.set_child(more_actions)
+        more_scroller = Gtk.ScrolledWindow()
+        more_scroller.set_policy(
+            Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC
+        )
+        more_scroller.set_max_content_height(420)
+        more_scroller.set_propagate_natural_height(True)
+        more_scroller.set_child(more_actions)
+        more_popover.set_child(more_scroller)
         self.more_menu_button.set_popover(more_popover)
         self._update_missing_favorites_action()
         toolbar_view.set_content(content)
