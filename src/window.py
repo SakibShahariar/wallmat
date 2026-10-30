@@ -19,6 +19,7 @@ persisted across restarts.
 import os
 import sys
 import json
+import shutil
 import subprocess
 import threading
 import random
@@ -197,15 +198,38 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._favorites_file = os.path.join(config_dir, "favorites.json")
         self._favorites_export_file = os.path.join(config_dir, "favorites.txt")
         self._favorites: set[str] = set()
+        self._favorites_load_warning: str | None = None
+        self._favorites_write_blocked = False
         try:
             with open(self._favorites_file, "r", encoding="utf-8") as handle:
                 saved_favorites = json.load(handle)
-            if isinstance(saved_favorites, list):
-                self._favorites = {
-                    path for path in saved_favorites if isinstance(path, str)
-                }
-        except (OSError, json.JSONDecodeError):
+            if (
+                not isinstance(saved_favorites, list)
+                or any(not isinstance(path, str) for path in saved_favorites)
+            ):
+                raise ValueError("expected a JSON array containing only strings")
+            self._favorites = set(saved_favorites)
+        except FileNotFoundError:
+            # A first launch has no favorites file yet; this is not an error.
             pass
+        except (OSError, json.JSONDecodeError, ValueError) as error:
+            try:
+                backup_path = self._backup_corrupt_favorites()
+                self._favorites_load_warning = (
+                    f"Wallmat could not load favorites ({error}). The original "
+                    f"file was preserved at:\n{backup_path}\n\n"
+                    "Wallmat will continue with an empty favorites list. The "
+                    "backup will remain available if you need to recover it."
+                )
+            except OSError as backup_error:
+                self._favorites_write_blocked = True
+                self._favorites_load_warning = (
+                    f"Wallmat could not load favorites ({error}) and could not "
+                    f"create a recovery backup ({backup_error}). The original "
+                    "file has not been replaced, and saving favorites is "
+                    "disabled for this session to protect it. Make a manual "
+                    "copy or fix the file permissions before trying again."
+                )
         if plain:
             # stdout must carry ONLY the final selected path (the
             # matugen.fish pipeline captures it via fish command
@@ -512,6 +536,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         toolbar_view.set_content(content)
 
         self.set_content(toolbar_view)
+        if self._favorites_load_warning and not self._plain:
+            GLib.idle_add(self._show_favorites_load_warning)
 
         # GTK 4.6+ exposes local file drags through Gdk.FileList. Guard the
         # optional type so older GTK 4 builds can still launch Wallmat.
@@ -981,7 +1007,31 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._update_favorite_button()
         say(f"Removed {removed_count} missing favorite(s).")
 
+    def _backup_corrupt_favorites(self) -> str:
+        """Preserve an unreadable favorites file without overwriting older backups."""
+        backup_path = self._favorites_file + ".corrupt"
+        suffix = 1
+        while os.path.exists(backup_path):
+            backup_path = f"{self._favorites_file}.corrupt.{suffix}"
+            suffix += 1
+        shutil.copy2(self._favorites_file, backup_path)
+        return backup_path
+
+    def _show_favorites_load_warning(self):
+        dialog = Adw.MessageDialog.new(
+            self, "Favorites could not be loaded", self._favorites_load_warning
+        )
+        dialog.add_response("ok", "OK")
+        dialog.set_close_response("ok")
+        dialog.set_default_response("ok")
+        dialog.present()
+        return GLib.SOURCE_REMOVE
+
     def _save_favorites(self):
+        if self._favorites_write_blocked:
+            raise PermissionError(
+                "favorites are protected because their recovery backup failed"
+            )
         directory = os.path.dirname(self._favorites_file)
         os.makedirs(directory, exist_ok=True)
         temporary_path = self._favorites_file + ".tmp"
