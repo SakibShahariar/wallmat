@@ -60,7 +60,7 @@ class WallpaperChooserApp(Adw.Application):
 def main():
     parser = argparse.ArgumentParser(description="Wallpaper Chooser Prototype")
     parser.add_argument(
-        "wallpaper_dir", nargs="?", default="/usr/share/backgrounds",
+        "wallpaper_dir", nargs="?", default=None,
         help="Directory of wallpaper images to load"
     )
     parser.add_argument(
@@ -80,7 +80,9 @@ def main():
     args = parser.parse_args()
 
     if args.plain:
-        directory_error = validate_directory(args.wallpaper_dir)
+        directory_error = validate_directory(
+            args.wallpaper_dir or "/usr/share/backgrounds"
+        )
         if directory_error:
             print(directory_error, file=sys.stderr)
             return INVALID_DIRECTORY
