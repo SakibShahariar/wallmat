@@ -36,4 +36,6 @@ Restart Wallmat after installing or updating the schema. If `glib-compile-schema
 - `scan-depth`: 0–20 directory depth; default 0 (unlimited).
 - `applied-wallpaper-history`: up to 50 recently applied paths. Use the in-app **Clear history** action to clear it and the Recent list.
 
+Favorites are stored in `~/.config/wallmat/favorites.json`. New saves use a versioned format with paths relative to the selected collection root; favorites outside that root remain absolute. When a collection has moved and its old favorite paths no longer exist, matching relative paths are resolved under the new root. Existing legacy arrays of absolute paths remain readable and are migrated the next time favorites are saved.
+
 The app also persists layout, text filter, sort mode, Favorites only, last selection, recent wallpaper paths, and auto-rotate interval when the schema is installed. Selection is restored only when the file still exists in the current folder and matches the restored filters. Focus restoration is supported in Split-Screen Preview and selection restoration in Masonry Grid; other layouts and scroll position are not yet restored.
