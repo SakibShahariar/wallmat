@@ -1,6 +1,6 @@
 # Wallmat
 
-A keyboard-friendly wallpaper chooser for **GTK 4 and libadwaita**, with eight experimental layouts and optional [Matugen](https://github.com/InioX/matugen) integration for wallpaper-driven desktop colors.
+A keyboard-friendly wallpaper chooser built with **GTK 4** and **libadwaita**. Browse wallpapers in eight layouts, organize favorites, preview images, and optionally generate desktop colors with [Matugen](https://github.com/InioX/matugen).
 
 <p align="center">
   <img src="screenshots/split_screen.png" alt="Wallmat Split-Screen Preview" width="720">
@@ -27,103 +27,63 @@ A keyboard-friendly wallpaper chooser for **GTK 4 and libadwaita**, with eight e
   <img src="screenshots/split_screen.png" alt="Split-Screen Preview" width="24%">
 </p>
 
-- **Split-Screen Preview** — compare a wallpaper with a large preview.
-- **Stacked Deck** — browse a layered stack of wallpapers.
-- **Infinite Ribbon** — move through a continuous horizontal strip.
-- **Masonry Grid** — explore a varied grid of thumbnails, with GTK virtualizing cells outside the viewport.
-- **Glassmorphism** — browse through translucent layered cards.
-- **Parallax Gallery** — move through a depth-inspired gallery.
-- **Radial Fan** — fan wallpapers around the focused card.
-- **Cylindrical Ring** — rotate a three-dimensional-style carousel.
+| Layout | Experience |
+|---|---|
+| Split-Screen Preview | Compare a wallpaper with a large preview |
+| Stacked Deck | Browse a layered stack |
+| Infinite Ribbon | Move through a continuous horizontal strip |
+| Masonry Grid | Explore a virtualized thumbnail grid |
+| Glassmorphism | Browse translucent layered cards |
+| Parallax Gallery | Explore a depth-inspired gallery |
+| Radial Fan | Browse cards arranged around a focus |
+| Cylindrical Ring | Rotate a carousel with a 3D-style effect |
 
 ## Quick start
 
-Install the runtime dependencies on Debian or Ubuntu:
+On Debian or Ubuntu, install the runtime dependencies:
 
 ```sh
 sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1
-# Optional: WebP wallpaper and thumbnail support (when available)
+# Optional WebP support
 sudo apt install webp-pixbuf-loader
 ```
 
-Run Wallmat from a checkout:
+Run from a source checkout:
 
 ```sh
 python3 src/main.py ~/Pictures/Wallpapers
 ```
 
-Without a folder argument, Wallmat uses `/usr/share/backgrounds`. Start in a specific layout with:
+Wallmat defaults to `/usr/share/backgrounds` when no folder is supplied. Choose a layout at launch with:
 
 ```sh
 python3 src/main.py ~/Pictures/Wallpapers --layout infinite_ribbon
 ```
 
-## Supported wallpaper formats
+## Highlights
 
-Wallmat scans PNG and JPEG images when their GdkPixbuf loaders are enabled. WebP is included only when the current session has an enabled WebP loader (for example, the optional `webp-pixbuf-loader` package on Debian/Ubuntu). Other formats are intentionally excluded because loader availability alone does not guarantee consistent GNOME desktop-background support.
+- Search, favorites, recent wallpapers, and sorting.
+- Full-screen preview with zoom and pan.
+- Apply wallpapers directly or run Matugen with custom arguments.
+- Auto-rotation, random selection, and applied-wallpaper history.
+- Keyboard navigation, drag-and-drop folder switching, and persistent preferences.
 
-Thumbnail decoding runs on a fixed worker pool and the pending queue is capped. Generated thumbnails are reused from `~/.cache/wallpaper-chooser/thumbs`; the on-disk cache is pruned to a 512 MiB limit, and source size plus nanosecond modification time are part of each cache key so changed images are regenerated.
+See **[Controls and features](docs/FEATURES.md)** for usage details and **[Configuration](docs/CONFIGURATION.md)** for supported formats, cache behavior, scan settings, and preference persistence.
 
-## Controls
+## Matugen and command-line mode
 
-- **← / →** — move focus in layouts that support keyboard navigation.
-- **Enter** — select the focused wallpaper where supported.
-- **Click** — select a wallpaper; behavior differs in Stacked Deck and some interactive layouts. In normal UI mode, selected wallpapers show dimensions, format, aspect ratio, file size, modification time, and path. Details load off the UI thread, can be copied, and can be hidden.
-- **Ctrl + F** — filter by filename or folder path.
-- **Favorites only** — combine a favorites-only filter with the text filter (normal UI mode).
-- **Recent wallpapers** — reopen one of up to eight recently applied wallpapers from the current folder; missing files and items outside the active folder are handled without changing the selection.
-- **Sort** — order wallpapers by name, modification date, largest image resolution, or a stable session shuffle, or group them by immediate subfolder; search and favorites filtering preserve the chosen order. Resolution sorting reads image headers and caches dimensions by file modification time and size instead of decoding full images. Folder grouping sorts files within each folder by path and keeps top-level files first.
-- **Surprise me** — immediately apply a random wallpaper from the current filtered results, avoiding the configured recent-history window until the candidate pool is exhausted.
-- **Auto-rotate** — enable rotation every 1, 5, 10, or 30 minutes; the selected interval is saved when the GSettings schema is installed (otherwise it lasts for the current process). Rotation itself is session-only and stops when Wallmat closes. It uses the current filtered results (turn on Favorites only to restrict it to favorites) and avoids recently chosen wallpapers. Previous can reapply saved applied-wallpaper history after a restart; Next chooses another random wallpaper, and Clear history removes the saved history and Recent list.
-- **Drag-and-drop folders** — drop one local folder onto the window and confirm before rescanning; invalid drops leave the active folder unchanged. Unreadable folders are reported with their paths; readable portions of a collection remain available, while an inaccessible root is shown as a scan error rather than an empty folder.
-- **Preview** — open the selected wallpaper full-screen, load the original image off the UI thread, zoom in or out, and scroll to pan; apply it directly from the preview.
-- **Light/dark preview context** — switch the preview dialog between light and dark surfaces to compare contrast without changing GNOME’s actual theme or wallpaper settings.
-- **Escape** — clear the filter, or close the window when the filter is hidden.
-- **? / Shortcuts** — open the keyboard shortcut cheatsheet, including layout-specific caveats.
-
-Use the layout selector at the bottom of the window to switch layouts without restarting. When Wallmat's GSettings schema is installed, it remembers the chosen layout, text filter, sort mode, Favorites only setting, last selected wallpaper, and up to eight recent wallpaper paths between launches. The saved selection is restored only when that file still exists in the current folder and matches the restored filters. Visual focus restoration is supported in Split-Screen Preview and selection restoration in Masonry Grid; other layouts and scroll position are not yet restored. Without the schema, preferences fall back to in-memory values for the current process. Exact controls vary by layout. Wallpaper actions wrap onto additional rows when the window is too narrow to show them side by side.
-
-### Persisting preferences
-
-Wallmat can run without installing its GSettings schema, but preferences then last only for the current process. The random-selection history defaults to five wallpapers; set `random-history-limit` from 0 to 20 with `gsettings set dev.sakib.Wallmat random-history-limit 5` (use 0 to disable the exclusion window) when the schema is installed. Directory scanning is unlimited by default; set `scan-depth` from 0 to 20 with `gsettings set dev.sakib.Wallmat scan-depth 2` to scan the root and one nested level (0 means unlimited, 1 means root only). Symlinked files and directories are skipped to avoid duplicate entries and directory cycles. Applied wallpaper history is persisted for up to 50 entries when the schema is installed; use the in-app Clear history action to remove it and the Recent list. To enable persistence for your user account from a source checkout:
-
-```sh
-mkdir -p ~/.local/share/glib-2.0/schemas
-cp data/dev.sakib.Wallmat.gschema.xml ~/.local/share/glib-2.0/schemas/
-glib-compile-schemas ~/.local/share/glib-2.0/schemas/
-```
-
-Restart Wallmat after installing or updating the schema. If `glib-compile-schemas` is unavailable, install the GLib development utilities provided by your distribution.
-
-## Matugen integration
-
-Use Wallmat as a wallpaper-path provider in a shell pipeline:
+Wallmat can provide a selected path to scripts:
 
 ```sh
 WP="$(python3 src/main.py ~/Pictures/Wallpapers --plain 2>/dev/null)"
 matugen image "$WP" --type scheme-smart --mode dark
-URI="$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).resolve().as_uri())' "$WP")"
-gsettings set org.gnome.desktop.background picture-uri "$URI"
 ```
 
-In normal UI mode, **Set as wallpaper** updates GNOME's background settings. **Apply wallpaper + Matugen** also runs Matugen. Customize its arguments with `--matugen-args`:
-
-```sh
-python3 src/main.py ~/Pictures/Wallpapers --matugen-args="--type scheme-tonal-spot --mode light"
-```
-
-Matugen must be installed to use the Matugen action. In `--plain` mode, the selected absolute wallpaper path is the only stdout output.
+In normal UI mode, **Set as wallpaper** updates GNOME's background settings. **Apply wallpaper + Matugen** also runs Matugen. Customize its arguments with `--matugen-args`; see the [Matugen and CLI guide](docs/FEATURES.md#matugen-and-cli-mode).
 
 ## Favorites
 
-Add selected wallpapers to favorites and export their absolute paths for other tools:
-
-- Data: `~/.config/wallmat/favorites.json`
-- Export: `~/.config/wallmat/favorites.txt`
-
-If the favorites file contains invalid JSON or an invalid structure, Wallmat preserves it as `favorites.json.corrupt` (or a numbered variant), explains the recovery location, and continues without loading favorites. If the backup cannot be created, favorite writes are blocked for that session so the original file is not overwritten.
-
-Wallmat skips missing files when exporting favorites and reports how many were omitted. When saved favorites point to files that no longer exist, the **Remove missing favorites** action appears in the normal UI; it removes those stale entries from the saved favorites list while preserving existing files.
+Favorites are stored in `~/.config/wallmat/favorites.json` and exported to `favorites.txt` in the same directory. Invalid favorites data is preserved in a recovery backup rather than silently overwritten.
 
 ## License
 
