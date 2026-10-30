@@ -401,6 +401,16 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._scan_limit_notice.add_css_class("info")
         self._scan_limit_notice.set_visible(False)
         content.append(self._scan_limit_notice)
+
+        self._scan_error_notice = Gtk.Label()
+        self._scan_error_notice.set_wrap(True)
+        self._scan_error_notice.set_xalign(0.0)
+        self._scan_error_notice.set_margin_start(16)
+        self._scan_error_notice.set_margin_end(16)
+        self._scan_error_notice.set_margin_bottom(8)
+        self._scan_error_notice.add_css_class("warning")
+        self._scan_error_notice.set_visible(False)
+        content.append(self._scan_error_notice)
         content.append(content_overlay)
 
         # FlowBox wraps the action controls when the window is narrow or
@@ -654,9 +664,22 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             if f".{extension.lower()}" in safe_extensions
         }
         paths = []
+        scan_errors = []
         truncated = False
-        if os.path.isdir(directory):
-            for root, dirs, files in os.walk(directory):
+        if not os.path.isdir(directory):
+            scan_errors.append(
+                f"{directory}: not an accessible directory; check that it "
+                "exists and that you have permission to read it"
+            )
+        else:
+            def record_scan_error(error):
+                error_path = error.filename or directory
+                detail = error.strerror or str(error)
+                scan_errors.append(f"{error_path}: {detail}")
+
+            for root, dirs, files in os.walk(
+                directory, onerror=record_scan_error
+            ):
                 # Make which files are included reproducible when the cap is
                 # reached, and avoid descending further once enough images
                 # have been collected.
@@ -695,21 +718,54 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 file=sys.stderr,
             )
 
-        if not self._paths:
-            # --plain is a stdout pipeline contract: diagnostics must never
-            # be mistaken for the selected wallpaper path.
-            print(f"No wallpapers found under {directory}; pass a directory "
-                  f"with .png/.jpg/.webp files as argv[1].", file=sys.stderr)
-        self._empty_state.set_visible(not self._paths)
-        self._empty_state.set_title(
-            "No matching wallpapers" if self.search_entry.get_text().strip()
-            else "No wallpapers found"
-        )
-        self._empty_state.set_description(
-            "Try a different filename or folder name."
-            if self.search_entry.get_text().strip()
-            else "This folder has no supported wallpaper images."
-        )
+        self._scan_error_notice.set_visible(bool(scan_errors) and not self._plain)
+        if scan_errors:
+            visible_errors = scan_errors[:3]
+            details = "\n".join(visible_errors)
+            if len(scan_errors) > len(visible_errors):
+                details += f"\n…and {len(scan_errors) - len(visible_errors)} more folder error(s)"
+            self._scan_error_notice.set_text(
+                f"Some wallpaper folders could not be scanned:\n{details}"
+            )
+            for error in scan_errors:
+                print(f"Wallpaper scan warning: {error}", file=sys.stderr)
+
+        if not self._paths and not self._plain:
+            # A scan failure must not masquerade as a genuinely empty folder.
+            self._empty_state.set_visible(True)
+            if scan_errors:
+                self._empty_state.set_title("Could not read wallpaper folder")
+                self._empty_state.set_description(
+                    "Check the folder path and read permissions. See the "
+                    "warning above for the affected location."
+                )
+            else:
+                self._empty_state.set_title(
+                    "No matching wallpapers" if self.search_entry.get_text().strip()
+                    else "No wallpapers found"
+                )
+                self._empty_state.set_description(
+                    "Try a different filename or folder name."
+                    if self.search_entry.get_text().strip()
+                    else "This folder has no supported wallpaper images."
+                )
+        else:
+            self._empty_state.set_visible(not self._paths)
+            self._empty_state.set_title(
+                "No matching wallpapers" if self.search_entry.get_text().strip()
+                else "No wallpapers found"
+            )
+            self._empty_state.set_description(
+                "Try a different filename or folder name."
+                if self.search_entry.get_text().strip()
+                else "This folder has no supported wallpaper images."
+            )
+
+        if not self._paths and self._plain:
+            # --plain stdout is reserved for a selected path; diagnostics go
+            # to stderr so shell pipelines can distinguish an empty scan.
+            print(f"No wallpapers found under {directory}; pass a readable "
+                  "directory containing supported images.", file=sys.stderr)
 
     @staticmethod
     def _modified_timestamp(path: str) -> float:
