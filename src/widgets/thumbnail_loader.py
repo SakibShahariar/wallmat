@@ -33,11 +33,16 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import GLib, Gdk, GdkPixbuf
 
+from cache_utils import DEFAULT_CACHE_LIMIT_BYTES, prune_cache_directory
+
 
 CACHE_DIR = os.path.expanduser("~/.cache/wallpaper-chooser/thumbs")
 DEFAULT_THUMB_SIZE = 480
 DEBOUNCE_MS = 100
 POOL_SIZE = 3
+MAX_QUEUED_JOBS = 128
+CACHE_PRUNE_EVERY = 16
+_CACHE_MAINTENANCE_LOCK = threading.Lock()
 
 
 def webp_supported() -> bool:
@@ -61,6 +66,8 @@ class ThumbnailLoader:
 
     def __init__(self, max_concurrent: int = POOL_SIZE, thumb_size: int = DEFAULT_THUMB_SIZE):
         os.makedirs(CACHE_DIR, exist_ok=True)
+        self._cache_writes = 0
+        self._prune_cache()
         self._webp_ok = webp_supported()
         self._cache_ext = "webp" if self._webp_ok else "png"
         self._thumb_size = thumb_size
@@ -74,7 +81,10 @@ class ThumbnailLoader:
         # item_id -> generation token while queued/decoding/delivering.
         self._live: dict[str, int] = {}
 
-        self._job_queue: "queue.Queue" = queue.Queue()
+        # Bound pending work as well as worker count. When a burst fills the
+        # queue, the oldest not-yet-started request is discarded in favor of
+        # the newest visible item.
+        self._job_queue: "queue.Queue" = queue.Queue(maxsize=MAX_QUEUED_JOBS)
         self._workers = []
         for _ in range(max(1, max_concurrent)):
             t = threading.Thread(target=self._worker_loop, daemon=True)
@@ -96,7 +106,7 @@ class ThumbnailLoader:
             if self._generation.get(item_id) != generation:
                 return GLib.SOURCE_REMOVE
             self._live[item_id] = generation
-            self._job_queue.put((item_id, source_path, on_ready, generation))
+            self._enqueue_job((item_id, source_path, on_ready, generation))
             return GLib.SOURCE_REMOVE
 
         timeout_id = GLib.timeout_add(DEBOUNCE_MS, fire_after_debounce)
@@ -115,14 +125,50 @@ class ThumbnailLoader:
 
     # -- internal --
 
+    def _enqueue_job(self, job):
+        try:
+            self._job_queue.put_nowait(job)
+            return
+        except queue.Full:
+            pass
+
+        try:
+            dropped = self._job_queue.get_nowait()
+        except queue.Empty:
+            dropped = None
+        if dropped is not None:
+            self._job_queue.task_done()
+            dropped_id, _path, _callback, dropped_generation = dropped
+            if self._live.get(dropped_id) == dropped_generation:
+                self._live.pop(dropped_id, None)
+
+        try:
+            self._job_queue.put_nowait(job)
+        except queue.Full:
+            item_id, _path, _callback, generation = job
+            if self._live.get(item_id) == generation:
+                self._live.pop(item_id, None)
+
+    def _prune_cache(self):
+        with _CACHE_MAINTENANCE_LOCK:
+            prune_cache_directory(CACHE_DIR, DEFAULT_CACHE_LIMIT_BYTES)
+
+    def _note_cache_write(self):
+        self._cache_writes += 1
+        if self._cache_writes % CACHE_PRUNE_EVERY == 0:
+            self._prune_cache()
+
     def _cache_path(self, source_path: str) -> str:
         try:
-            mtime = os.path.getmtime(source_path)
+            stat = os.stat(source_path)
+            modified_ns = stat.st_mtime_ns
+            size = stat.st_size
         except OSError:
-            mtime = 0
-        # thumb_size is part of the key so a loader using a larger size
-        # never silently reuses a smaller cached file (or vice versa).
-        key = f"{source_path}:{mtime}:{self._thumb_size}"
+            modified_ns = 0
+            size = 0
+        # Size and nanosecond mtime invalidate stale thumbnails even when
+        # a file is replaced while retaining a coarse timestamp.
+        key = f"{source_path}:{modified_ns}:{size}:{self._thumb_size}"
         digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
         return os.path.join(CACHE_DIR, f"{digest}.{self._cache_ext}")
 
@@ -143,6 +189,10 @@ class ThumbnailLoader:
                     if os.path.exists(cache_path):
                         try:
                             pixbuf = GdkPixbuf.Pixbuf.new_from_file(cache_path)
+                            try:
+                                os.utime(cache_path, None)
+                            except OSError:
+                                pass
                         except GLib.Error:
                             # A truncated/corrupt cache must not permanently
                             # hide a valid source image on later launches.
@@ -155,6 +205,7 @@ class ThumbnailLoader:
                             )
                             try:
                                 pixbuf.savev(cache_path, self._cache_ext, [], [])
+                                self._note_cache_write()
                             except GLib.Error:
                                 pass  # cache write failure is non-fatal
                     else:
@@ -163,6 +214,7 @@ class ThumbnailLoader:
                         )
                         try:
                             pixbuf.savev(cache_path, self._cache_ext, [], [])
+                            self._note_cache_write()
                         except GLib.Error:
                             pass  # cache write failure is non-fatal
                 except GLib.Error:
