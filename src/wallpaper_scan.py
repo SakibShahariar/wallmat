@@ -11,7 +11,7 @@ MAX_SCAN_DEPTH = 20
 
 
 def scan_wallpapers(directory, supported_extensions, max_wallpapers=10_000,
-                    max_depth=0, cancellation_event=None):
+                    max_depth=0, cancellation_event=None, progress_callback=None):
     """Return (paths, errors, truncated) for a wallpaper directory.
 
     Depth zero means unlimited recursion; depth one scans only the root
@@ -37,7 +37,9 @@ def scan_wallpapers(directory, supported_extensions, max_wallpapers=10_000,
             f"{directory}: not an accessible directory; check that it "
             "exists and that you have permission to read it"
         )
-        return paths, errors, truncated
+        if progress_callback is not None:
+        progress_callback(len(paths))
+    return paths, errors, truncated
 
     def record_error(error):
         error_path = error.filename or directory
@@ -77,6 +79,8 @@ def scan_wallpapers(directory, supported_extensions, max_wallpapers=10_000,
                 continue
             seen_paths.add(identity)
             paths.append(path)
+            if progress_callback is not None and len(paths) % 50 == 0:
+                progress_callback(len(paths))
             if len(paths) >= max_wallpapers:
                 truncated = True
                 break
