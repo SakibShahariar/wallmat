@@ -1788,6 +1788,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         body = (
             "Global shortcuts\n"
             "Ctrl + F — show and focus the wallpaper filter\n"
+            "Ctrl + O — choose a wallpaper folder\n"
             "Escape — clear and hide the filter; press again to close\n"
             "Enter — select the focused wallpaper where the active layout supports it\n"
             "← / → — move focus in layouts that support keyboard navigation\n\n"
@@ -1809,6 +1810,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if keyval == Gdk.KEY_f and state & Gdk.ModifierType.CONTROL_MASK:
             self.search_entry.set_visible(True)
             self.search_entry.grab_focus()
+            return True
+        if keyval == Gdk.KEY_o and state & Gdk.ModifierType.CONTROL_MASK:
+            self._on_choose_folder(None)
             return True
         if keyval == Gdk.KEY_Escape:
             if self.search_entry.get_visible():
