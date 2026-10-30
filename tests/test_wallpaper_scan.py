@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from wallpaper_scan import scan_wallpapers
+from wallpaper_scan import ScanCancelled, scan_wallpapers
 
 
 class WallpaperScanTests(unittest.TestCase):
@@ -94,6 +94,37 @@ class WallpaperScanTests(unittest.TestCase):
             paths, errors, _ = scan_wallpapers(str(self.root), {".png"})
         self.assertEqual(paths, [])
         self.assertTrue(any("Permission denied" in error for error in errors))
+
+
+    def test_scan_can_be_cancelled_before_walking(self):
+        import threading
+
+        cancelled = threading.Event()
+        cancelled.set()
+        with self.assertRaises(ScanCancelled):
+            scan_wallpapers(
+                str(self.root), {".png"}, cancellation_event=cancelled
+            )
+
+    def test_scan_can_be_cancelled_between_directories(self):
+        import threading
+        import os
+
+        cancelled = threading.Event()
+        original_walk = os.walk
+
+        def cancelling_walk(*args, **kwargs):
+            for item in original_walk(*args, **kwargs):
+                yield item
+                cancelled.set()
+
+        self.write_image("root.png")
+        self.write_image("child/child.png")
+        with patch("wallpaper_scan.os.walk", side_effect=cancelling_walk):
+            with self.assertRaises(ScanCancelled):
+                scan_wallpapers(
+                    str(self.root), {".png"}, cancellation_event=cancelled
+                )
 
     def test_scan_limit_reports_truncation(self):
         self.write_image("a.png")
