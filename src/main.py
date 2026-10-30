@@ -35,6 +35,7 @@ from gi.repository import Adw
 
 sys.path.insert(0, os.path.dirname(__file__))
 from window import WallpaperChooserWindow, LAYOUT_REGISTRY
+from plain_mode import INVALID_DIRECTORY, validate_directory
 
 
 class WallpaperChooserApp(Adw.Application):
@@ -78,12 +79,19 @@ def main():
     )
     args = parser.parse_args()
 
+    if args.plain:
+        directory_error = validate_directory(args.wallpaper_dir)
+        if directory_error:
+            print(directory_error, file=sys.stderr)
+            return INVALID_DIRECTORY
+
     app = WallpaperChooserApp(
         args.wallpaper_dir, args.layout, plain=args.plain,
         matugen_args=shlex.split(args.matugen_args),
     )
-    app.run([])
+    run_status = app.run([])
+    return app.plain_exit_code if args.plain else run_status
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
