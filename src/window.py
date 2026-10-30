@@ -1274,7 +1274,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
     def _on_window_close_request(self, *_args):
         """Stop session-only rotation and preserve plain-mode cancellation."""
-        if self._plain and self._selected_path is None:
+        if (
+            self._plain
+            and getattr(self.get_application(), "plain_exit_code", CANCELLED) != SUCCESS
+        ):
             self.get_application().plain_exit_code = CANCELLED
         if self._rotation_source_id is not None:
             GLib.source_remove(self._rotation_source_id)
