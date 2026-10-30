@@ -49,6 +49,9 @@ SORT_KEY = "sort-mode"
 FAVORITES_ONLY_KEY = "favorites-only"
 SELECTED_PATH_KEY = "selected-wallpaper"
 RECENT_PATHS_KEY = "recent-wallpapers"
+AUTO_ROTATE_INTERVAL_KEY = "auto-rotate-interval"
+ROTATION_INTERVALS = (60, 300, 600, 1800)
+DEFAULT_ROTATION_INTERVAL = 300
 MAX_RECENT_WALLPAPERS = 8
 DEFAULT_LAYOUT_ID = "split_screen"
 
@@ -104,6 +107,7 @@ class _LayoutPreference:
             FAVORITES_ONLY_KEY: False,
             SELECTED_PATH_KEY: "",
             RECENT_PATHS_KEY: [],
+            AUTO_ROTATE_INTERVAL_KEY: DEFAULT_ROTATION_INTERVAL,
         }
         try:
             schema_source = Gio.SettingsSchemaSource.get_default()
@@ -149,6 +153,17 @@ class _LayoutPreference:
     def set_boolean(self, key: str, value: bool):
         if self._has_key(key):
             self._settings.set_boolean(key, value)
+        else:
+            self._memory_values[key] = value
+
+    def get_int(self, key: str, default: int = 0) -> int:
+        if self._has_key(key):
+            return self._settings.get_int(key)
+        return self._memory_values.get(key, default)
+
+    def set_int(self, key: str, value: int):
+        if self._has_key(key):
+            self._settings.set_int(key, value)
         else:
             self._memory_values[key] = value
 
@@ -218,6 +233,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.connect("realize", self._register_focus_colors)
 
         self._preference = _LayoutPreference()
+        saved_rotation_interval = self._preference.get_int(
+            AUTO_ROTATE_INTERVAL_KEY, DEFAULT_ROTATION_INTERVAL
+        )
+        if saved_rotation_interval not in ROTATION_INTERVALS:
+            saved_rotation_interval = DEFAULT_ROTATION_INTERVAL
+        self._rotation_interval_seconds = saved_rotation_interval
         self._paths: list[str] = []
         self._all_paths: list[str] = []
         self._layouts: dict[str, object] = {}
@@ -450,7 +471,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.rotation_interval = Gtk.DropDown.new_from_strings(
             ["1 minute", "5 minutes", "10 minutes", "30 minutes"]
         )
-        self.rotation_interval.set_selected(1)
+        self.rotation_interval.set_selected(
+            ROTATION_INTERVALS.index(self._rotation_interval_seconds)
+        )
         self.rotation_interval.set_tooltip_text("Auto-rotation interval")
         self.rotation_interval.connect(
             "notify::selected", self._on_rotation_interval_changed
@@ -1043,11 +1066,13 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             say("Auto-rotation disabled.")
 
     def _on_rotation_interval_changed(self, dropdown, _pspec):
-        intervals = (60, 300, 600, 1800)
         selected = dropdown.get_selected()
-        if selected >= len(intervals):
+        if selected >= len(ROTATION_INTERVALS):
             return
-        self._rotation_interval_seconds = intervals[selected]
+        self._rotation_interval_seconds = ROTATION_INTERVALS[selected]
+        self._preference.set_int(
+            AUTO_ROTATE_INTERVAL_KEY, self._rotation_interval_seconds
+        )
         if self.auto_rotate_toggle.get_active():
             if self._rotation_source_id is not None:
                 GLib.source_remove(self._rotation_source_id)
