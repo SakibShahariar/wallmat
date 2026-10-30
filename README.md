@@ -48,6 +48,14 @@ sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1
 sudo apt install webp-pixbuf-loader
 ```
 
+On Fedora, use the equivalent packages with `dnf`:
+
+```sh
+sudo dnf install python3-gobject gtk4 libadwaita
+# Optional WebP support
+sudo dnf install webp-pixbuf-loader
+```
+
 Run from a source checkout:
 
 ```sh
