@@ -62,6 +62,8 @@ python3 src/main.py ~/Pictures/Wallpapers --layout infinite_ribbon
 
 Wallmat scans PNG and JPEG images when their GdkPixbuf loaders are enabled. WebP is included only when the current session has an enabled WebP loader (for example, the optional `webp-pixbuf-loader` package on Debian/Ubuntu). Other formats are intentionally excluded because loader availability alone does not guarantee consistent GNOME desktop-background support.
 
+Thumbnail decoding runs on a fixed worker pool and the pending queue is capped. Generated thumbnails are reused from `~/.cache/wallpaper-chooser/thumbs`; the on-disk cache is pruned to a 512 MiB limit, and source size plus nanosecond modification time are part of each cache key so changed images are regenerated.
+
 ## Controls
 
 - **← / →** — move focus in layouts that support keyboard navigation.
