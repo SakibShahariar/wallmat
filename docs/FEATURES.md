@@ -13,6 +13,8 @@
 
 ## Applying and previewing
 
+- **More menu** — contains auto-rotation and its interval, Previous/Next, Clear history, Export favorites, and Remove missing favorites. Primary wallpaper actions remain visible beside the layout controls.
+
 - **Set as wallpaper** — update GNOME's background settings.
 - **Apply wallpaper + Matugen** — apply the wallpaper and run Matugen.
 - **Auto-rotate** — rotate every 1, 5, 10, or 30 minutes. Rotation stops when Wallmat closes.
