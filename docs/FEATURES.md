@@ -41,4 +41,4 @@ python3 src/main.py ~/Pictures/Wallpapers \
   --matugen-args="--type scheme-tonal-spot --mode light"
 ```
 
-In `--plain` mode, Wallmat silences normal UI feedback and prints the selected absolute wallpaper path to stdout. Diagnostics are written to stderr. This mode is intended for shell pipelines; see [issue #55](https://github.com/SakibShahariar/wallmat/issues/55) for the still-open exit-code contract work.
+In `--plain` mode, Wallmat prints only the selected absolute wallpaper path to stdout; diagnostics go to stderr. Exit statuses are: `0` success, `2` user cancellation, `3` invalid or unreadable directory, and `4` scan failure or no supported wallpapers. Wallmat does not run Matugen in this mode, so Matugen failures belong to the calling shell command, not Wallmat's picker status.
