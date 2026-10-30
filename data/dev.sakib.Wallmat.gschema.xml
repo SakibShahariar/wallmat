@@ -44,6 +44,11 @@
       <summary>Wallpaper directory scan depth</summary>
       <description>Maximum nested directory depth to scan; zero scans all readable subdirectories.</description>
     </key>
+    <key name="applied-wallpaper-history" type="as">
+      <default>[]</default>
+      <summary>Recently applied wallpaper paths</summary>
+      <description>Up to fifty wallpaper paths applied most recently, used for Previous navigation.</description>
+    </key>
     <key name="selected-wallpaper" type="s">
       <default>''</default>
       <summary>Last selected wallpaper path</summary>
