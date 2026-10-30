@@ -71,8 +71,8 @@ Wallmat scans PNG and JPEG images when their GdkPixbuf loaders are enabled. WebP
 - **Favorites only** — combine a favorites-only filter with the text filter (normal UI mode).
 - **Recent wallpapers** — reopen one of up to eight recently selected wallpapers from the current folder; missing files and items outside the active folder are handled without changing the selection.
 - **Sort** — order wallpapers by name, modification date, or a stable session shuffle, or group them by immediate subfolder; search and favorites filtering preserve the chosen order. Folder grouping sorts files within each folder by path and keeps top-level files first.
-- **Surprise me** — immediately apply a random wallpaper from the current filtered results, avoiding the previous random choice when alternatives exist.
-- **Auto-rotate** — enable rotation every 1, 5, 10, or 30 minutes; the selected interval is saved when the GSettings schema is installed (otherwise it lasts for the current process). Rotation itself is session-only and stops when Wallmat closes. It uses the current filtered results (turn on Favorites only to restrict it to favorites). Previous and Next let you navigate this session’s selection history or apply another random wallpaper.
+- **Surprise me** — immediately apply a random wallpaper from the current filtered results, avoiding the configured recent-history window until the candidate pool is exhausted.
+- **Auto-rotate** — enable rotation every 1, 5, 10, or 30 minutes; the selected interval is saved when the GSettings schema is installed (otherwise it lasts for the current process). Rotation itself is session-only and stops when Wallmat closes. It uses the current filtered results (turn on Favorites only to restrict it to favorites), avoids recently chosen wallpapers, and keeps Previous and Next for session history navigation.
 - **Drag-and-drop folders** — drop one local folder onto the window and confirm before rescanning; invalid drops leave the active folder unchanged. Unreadable folders are reported with their paths; readable portions of a collection remain available, while an inaccessible root is shown as a scan error rather than an empty folder.
 - **Preview** — open the selected wallpaper full-screen, load the original image off the UI thread, zoom in or out, and scroll to pan; apply it directly from the preview.
 - **Light/dark preview context** — switch the preview dialog between light and dark surfaces to compare contrast without changing GNOME’s actual theme or wallpaper settings.
@@ -83,7 +83,7 @@ Use the layout selector at the bottom of the window to switch layouts without re
 
 ### Persisting preferences
 
-Wallmat can run without installing its GSettings schema, but preferences then last only for the current process. To enable persistence for your user account from a source checkout:
+Wallmat can run without installing its GSettings schema, but preferences then last only for the current process. The random-selection history defaults to five wallpapers; set `random-history-limit` from 0 to 20 with `gsettings set dev.sakib.Wallmat random-history-limit 5` (use 0 to disable the exclusion window) when the schema is installed. To enable persistence for your user account from a source checkout:
 
 ```sh
 mkdir -p ~/.local/share/glib-2.0/schemas
