@@ -27,6 +27,17 @@
       <summary>Auto-rotation interval in seconds</summary>
       <description>Interval used by session auto-rotation: 60, 300, 600, or 1800 seconds.</description>
     </key>
+    <key name="recent-random-wallpapers" type="as">
+      <default>[]</default>
+      <summary>Recently selected random wallpapers</summary>
+      <description>Wallpaper paths excluded from random selection until the recent pool is exhausted.</description>
+    </key>
+    <key name="random-history-limit" type="i">
+      <range min="0" max="20"/>
+      <default>5</default>
+      <summary>Random selection history length</summary>
+      <description>Number of recently selected wallpapers to avoid in random selection; zero disables history.</description>
+    </key>
     <key name="selected-wallpaper" type="s">
       <default>''</default>
       <summary>Last selected wallpaper path</summary>
