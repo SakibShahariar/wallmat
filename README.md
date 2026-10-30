@@ -68,7 +68,7 @@ Thumbnail decoding runs on a fixed worker pool and the pending queue is capped. 
 
 - **← / →** — move focus in layouts that support keyboard navigation.
 - **Enter** — select the focused wallpaper where supported.
-- **Click** — select a wallpaper; behavior differs in Stacked Deck and some interactive layouts. In normal UI mode, selected wallpapers show dimensions, aspect ratio, file size, modification time, and path.
+- **Click** — select a wallpaper; behavior differs in Stacked Deck and some interactive layouts. In normal UI mode, selected wallpapers show dimensions, format, aspect ratio, file size, modification time, and path. Details load off the UI thread, can be copied, and can be hidden.
 - **Ctrl + F** — filter by filename or folder path.
 - **Favorites only** — combine a favorites-only filter with the text filter (normal UI mode).
 - **Recent wallpapers** — reopen one of up to eight recently selected wallpapers from the current folder; missing files and items outside the active folder are handled without changing the selection.
