@@ -381,16 +381,29 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         recent_row.set_visible(not plain)
         content.append(recent_row)
 
+        self._metadata_row = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL, spacing=8
+        )
+        self._metadata_row.set_margin_start(16)
+        self._metadata_row.set_margin_end(16)
+        self._metadata_row.set_margin_bottom(8)
         self._metadata_label = Gtk.Label()
         self._metadata_label.set_wrap(True)
         self._metadata_label.set_xalign(0.0)
-        self._metadata_label.set_margin_start(16)
-        self._metadata_label.set_margin_end(16)
-        self._metadata_label.set_margin_bottom(8)
+        self._metadata_label.set_hexpand(True)
         self._metadata_label.add_css_class("dim-label")
         self._metadata_label.set_selectable(True)
-        self._metadata_label.set_visible(False)
-        content.append(self._metadata_label)
+        self._metadata_row.append(self._metadata_label)
+        copy_metadata_button = Gtk.Button(label="Copy details")
+        copy_metadata_button.set_tooltip_text("Copy wallpaper metadata and path")
+        copy_metadata_button.connect("clicked", self._on_copy_metadata)
+        self._metadata_row.append(copy_metadata_button)
+        hide_metadata_button = Gtk.Button(label="Hide")
+        hide_metadata_button.set_tooltip_text("Hide wallpaper details")
+        hide_metadata_button.connect("clicked", self._on_hide_metadata)
+        self._metadata_row.append(hide_metadata_button)
+        self._metadata_row.set_visible(False)
+        content.append(self._metadata_row)
 
         self._settings_notice = Gtk.Label(
             label=(
@@ -1017,7 +1030,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if self._plain:
             return
         self._metadata_label.set_text("Loading wallpaper details…")
-        self._metadata_label.set_visible(True)
+        self._metadata_row.set_visible(True)
 
         def inspect_file():
             try:
@@ -1034,9 +1047,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                     stat.st_mtime
                 ).astimezone().strftime("%Y-%m-%d %H:%M")
                 ratio = width / height
+                format_name = (
+                    image_format.get_name() if image_format else "Unknown format"
+                )
                 details = (
-                    f"{width} × {height} px · {ratio:.3f}:1 · {size_text} · "
-                    f"Modified {modified}\n{path}"
+                    f"{width} × {height} px · {format_name} · "
+                    f"{ratio:.3f}:1 · {size_text} · Modified {modified}\n{path}"
                 )
             except (GLib.Error, OSError, TypeError, ValueError) as error:
                 details = f"Could not read wallpaper metadata: {error}\n{path}"
@@ -1044,12 +1060,23 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             def update_label():
                 if self._selected_path == path:
                     self._metadata_label.set_text(details)
-                    self._metadata_label.set_visible(True)
+                    self._metadata_row.set_visible(True)
                 return GLib.SOURCE_REMOVE
 
             GLib.idle_add(update_label)
 
         threading.Thread(target=inspect_file, daemon=True).start()
+
+    def _on_copy_metadata(self, _button):
+        display = Gdk.Display.get_default()
+        if display is None:
+            say("Clipboard is unavailable.")
+            return
+        display.get_clipboard().set(self._metadata_label.get_text())
+        say("Wallpaper details copied.")
+
+    def _on_hide_metadata(self, _button):
+        self._metadata_row.set_visible(False)
 
     def _update_favorite_button(self):
         if self._selected_path in self._favorites:
