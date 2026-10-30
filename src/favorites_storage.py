@@ -27,7 +27,11 @@ def decode_favorites(data, current_root):
             raise ValueError("legacy favorites must contain absolute paths")
         return set(data)
 
-    if not isinstance(data, dict) or data.get("version") != FAVORITES_VERSION:
+    if (
+        not isinstance(data, dict)
+        or type(data.get("version")) is not int
+        or data.get("version") != FAVORITES_VERSION
+    ):
         raise ValueError("unsupported favorites format or version")
 
     saved_root = data.get("root")
@@ -49,14 +53,19 @@ def decode_favorites(data, current_root):
         if not relative or os.path.isabs(relative):
             raise ValueError("favorite paths must be non-empty relative paths")
         normalized = os.path.normpath(relative)
-        if normalized == os.pardir or normalized.startswith(os.pardir + os.sep):
+        if (
+            normalized in ("", os.curdir, os.pardir)
+            or normalized.startswith(os.pardir + os.sep)
+        ):
             raise ValueError("favorite path escapes its collection root")
         original = os.path.abspath(os.path.join(saved_root, normalized))
         rebased = os.path.abspath(os.path.join(root, normalized))
-        if saved_root == root or os.path.exists(saved_root) or not os.path.exists(rebased):
+        if saved_root == root or os.path.exists(original):
             resolved.add(original)
-        else:
+        elif os.path.exists(rebased) or not os.path.exists(saved_root):
             resolved.add(rebased)
+        else:
+            resolved.add(original)
     return resolved
 
 
