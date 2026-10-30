@@ -63,6 +63,23 @@ class FavoritesStorageTests(unittest.TestCase):
             {str(old_root / "lake.png")},
         )
 
+    def test_rebases_when_old_root_remains_but_favorite_moved(self):
+        old_root = self.base / "old"
+        old_root.mkdir()
+        new_root = self.base / "new"
+        new_favorite = new_root / "lake.png"
+        new_favorite.parent.mkdir()
+        new_favorite.touch()
+        data = {
+            "version": 1,
+            "root": str(old_root),
+            "paths": ["lake.png"],
+            "external_paths": [],
+        }
+        self.assertEqual(
+            decode_favorites(data, str(new_root)), {str(new_favorite)}
+        )
+
     def test_legacy_absolute_list_remains_compatible(self):
         old = str(self.base / "old.png")
         self.assertEqual(decode_favorites([old], str(self.base)), {old})
