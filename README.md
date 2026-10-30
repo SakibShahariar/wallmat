@@ -119,6 +119,8 @@ Add selected wallpapers to favorites and export their absolute paths for other t
 - Data: `~/.config/wallmat/favorites.json`
 - Export: `~/.config/wallmat/favorites.txt`
 
+If the favorites file contains invalid JSON or an invalid structure, Wallmat preserves it as `favorites.json.corrupt` (or a numbered variant), explains the recovery location, and continues without loading favorites. If the backup cannot be created, favorite writes are blocked for that session so the original file is not overwritten.
+
 Wallmat skips missing files when exporting favorites and reports how many were omitted. When saved favorites point to files that no longer exist, the **Remove missing favorites** action appears in the normal UI; it removes those stale entries from the saved favorites list while preserving existing files.
 
 ## License
