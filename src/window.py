@@ -1001,7 +1001,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
     def _update_clear_history_button(self):
         if hasattr(self, "clear_history_button"):
-            has_history = bool(self._rotation_history)
+            has_history = bool(
+                self._preference.get_strv(APPLIED_HISTORY_KEY)
+                or self._preference.get_strv(RECENT_PATHS_KEY)
+            )
             self.clear_history_button.set_sensitive(has_history)
             self.rotation_previous_button.set_sensitive(
                 self._rotation_history_index > 0
@@ -1009,8 +1012,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
     def _on_clear_applied_history(self, _button):
         self._preference.set_strv(APPLIED_HISTORY_KEY, [])
+        self._preference.set_strv(RECENT_PATHS_KEY, [])
         self._rotation_history = []
         self._rotation_history_index = -1
+        self._refresh_recent_selector()
         self._update_clear_history_button()
         say("Applied wallpaper history cleared.")
 
