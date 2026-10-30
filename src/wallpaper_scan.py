@@ -37,9 +37,7 @@ def scan_wallpapers(directory, supported_extensions, max_wallpapers=10_000,
             f"{directory}: not an accessible directory; check that it "
             "exists and that you have permission to read it"
         )
-        if progress_callback is not None:
-        progress_callback(len(paths))
-    return paths, errors, truncated
+        return paths, errors, truncated
 
     def record_error(error):
         error_path = error.filename or directory
@@ -87,4 +85,6 @@ def scan_wallpapers(directory, supported_extensions, max_wallpapers=10_000,
         if truncated:
             break
 
+    if progress_callback is not None:
+        progress_callback(len(paths))
     return paths, errors, truncated
