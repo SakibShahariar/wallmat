@@ -38,6 +38,12 @@
       <summary>Random selection history length</summary>
       <description>Number of recently selected wallpapers to avoid in random selection; zero disables history.</description>
     </key>
+    <key name="scan-depth" type="i">
+      <range min="0" max="20"/>
+      <default>0</default>
+      <summary>Wallpaper directory scan depth</summary>
+      <description>Maximum nested directory depth to scan; zero scans all readable subdirectories.</description>
+    </key>
     <key name="selected-wallpaper" type="s">
       <default>''</default>
       <summary>Last selected wallpaper path</summary>
