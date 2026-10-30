@@ -459,6 +459,32 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._scan_error_notice.add_css_class("warning")
         self._scan_error_notice.set_visible(False)
         content.append(self._scan_error_notice)
+
+        self._scan_progress_row = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL, spacing=8
+        )
+        self._scan_progress_row.set_halign(Gtk.Align.CENTER)
+        self._scan_progress_row.set_margin_start(16)
+        self._scan_progress_row.set_margin_end(16)
+        self._scan_progress_row.set_margin_bottom(8)
+        self._scan_spinner = Gtk.Spinner()
+        self._scan_progress_row.append(self._scan_spinner)
+        self._scan_progress_label = Gtk.Label(
+            label="Scanning wallpaper folder… 0 images found"
+        )
+        self._scan_progress_label.set_xalign(0.0)
+        self._scan_progress_label.set_hexpand(True)
+        self._scan_progress_row.append(self._scan_progress_label)
+        self._cancel_scan_button = Gtk.Button(label="Cancel scan")
+        self._cancel_scan_button.set_tooltip_text(
+            "Cancel this scan and keep the current wallpaper collection"
+        )
+        self._cancel_scan_button.connect(
+            "clicked", self._on_cancel_scan_clicked
+        )
+        self._scan_progress_row.append(self._cancel_scan_button)
+        self._scan_progress_row.set_visible(False)
+        content.append(self._scan_progress_row)
         content.append(content_overlay)
 
         # FlowBox wraps the action controls when the window is narrow or
@@ -726,6 +752,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                     max_wallpapers=MAX_WALLPAPERS,
                     max_depth=scan_depth,
                     cancellation_event=cancellation_event,
+                    progress_callback=lambda count: GLib.idle_add(
+                        self._update_scan_progress, generation, count
+                    ),
                 )
             except ScanCancelled:
                 return
@@ -741,12 +770,40 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                     result[0], result[1], result[2], None,
                 )
 
+        self._scan_progress_label.set_text(
+            "Scanning wallpaper folder… 0 images found"
+        )
+        self._scan_spinner.start()
+        self._scan_progress_row.set_visible(True)
         self._scan_thread = threading.Thread(
             target=run_scan,
             name=f"wallmat-scan-{generation}",
             daemon=True,
         )
         self._scan_thread.start()
+
+    def _update_scan_progress(self, generation, count):
+        if generation != self._scan_generation:
+            return False
+        self._scan_progress_label.set_text(
+            f"Scanning wallpaper folder… {count:,} images found"
+        )
+        return False
+
+    def _on_cancel_scan_clicked(self, _button):
+        if self._scan_cancel_event is None:
+            return
+        self._scan_cancel_event.set()
+        self._scan_generation += 1
+        self._scan_cancel_event = None
+        self._scan_thread = None
+        self._scan_spinner.stop()
+        self._scan_progress_row.set_visible(False)
+        if self._plain:
+            self.get_application().plain_exit_code = CANCELLED
+            self.get_application().quit()
+        else:
+            say("Wallpaper scan canceled; the current collection was kept.")
 
     def _on_scan_complete(
         self, generation, directory, paths, scan_errors, truncated, error
@@ -756,6 +813,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             return False
         self._scan_thread = None
         self._scan_cancel_event = None
+        self._scan_spinner.stop()
+        self._scan_progress_row.set_visible(False)
 
         switching_folder = directory != self._wallpaper_dir
         if error is not None:
@@ -1320,6 +1379,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if self._scan_cancel_event is not None:
             self._scan_cancel_event.set()
         self._scan_generation += 1
+        self._scan_spinner.stop()
+        self._scan_progress_row.set_visible(False)
         if (
             self._plain
             and getattr(self.get_application(), "plain_exit_code", CANCELLED)
