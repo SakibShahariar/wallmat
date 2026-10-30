@@ -55,7 +55,7 @@ def scan_wallpapers(directory, supported_extensions, max_wallpapers=10_000,
 
         relative_root = os.path.relpath(root, directory)
         depth = 0 if relative_root == "." else relative_root.count(os.sep) + 1
-        if depth_limit and depth >= depth_limit:
+        if depth_limit and depth + 1 >= depth_limit:
             dirs[:] = []
 
         for name in files:
