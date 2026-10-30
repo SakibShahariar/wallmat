@@ -54,6 +54,7 @@ from wallpaper_history import (
     append_applied,
     for_collection,
 )
+from favorites_storage import decode_favorites, encode_favorites
 
 SCHEMA_ID = "dev.sakib.Wallmat"
 SETTINGS_KEY = "selected-layout"
@@ -216,6 +217,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._history_navigation = False
         self._rotation_interval_seconds = 300
         self.connect("close-request", self._on_window_close_request)
+        self._wallpaper_dir = os.path.abspath(wallpaper_dir)
         config_dir = os.path.expanduser("~/.config/wallmat")
         self._favorites_file = os.path.join(config_dir, "favorites.json")
         self._favorites_export_file = os.path.join(config_dir, "favorites.txt")
@@ -225,12 +227,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         try:
             with open(self._favorites_file, "r", encoding="utf-8") as handle:
                 saved_favorites = json.load(handle)
-            if (
-                not isinstance(saved_favorites, list)
-                or any(not isinstance(path, str) for path in saved_favorites)
-            ):
-                raise ValueError("expected a JSON array containing only strings")
-            self._favorites = set(saved_favorites)
+            self._favorites = decode_favorites(
+                saved_favorites, self._wallpaper_dir
+            )
         except FileNotFoundError:
             # A first launch has no favorites file yet; this is not an error.
             pass
@@ -607,8 +606,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             folder_drop.connect("drop", self._on_folder_drop)
             self.add_controller(folder_drop)
 
-        self._wallpaper_dir = wallpaper_dir
-        self._scan_and_load(wallpaper_dir)
+        self._wallpaper_dir = os.path.abspath(wallpaper_dir)
+        self._scan_and_load(self._wallpaper_dir)
         self._restore_applied_history()
         if self._sort_mode == "random":
             # The sort preference survives restarts, but the previous
@@ -686,8 +685,17 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         # Replace the root only after explicit confirmation. Clear root-specific
         # filters so a new folder does not appear empty because of old criteria.
-        self._wallpaper_dir = path
-        self._scan_and_load(path)
+        self._wallpaper_dir = os.path.abspath(path)
+        try:
+            with open(self._favorites_file, "r", encoding="utf-8") as handle:
+                self._favorites = decode_favorites(
+                    json.load(handle), self._wallpaper_dir
+                )
+        except FileNotFoundError:
+            pass
+        except (OSError, json.JSONDecodeError, ValueError) as error:
+            say(f"Could not reload favorites for this folder: {error}")
+        self._scan_and_load(self._wallpaper_dir)
         self._restore_applied_history()
         self.search_entry.set_text("")
         self.favorites_filter.set_active(False)
@@ -1196,7 +1204,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         temporary_path = self._favorites_file + ".tmp"
         try:
             with open(temporary_path, "w", encoding="utf-8") as handle:
-                json.dump(sorted(self._favorites), handle, indent=2)
+                json.dump(
+                    encode_favorites(self._favorites, self._wallpaper_dir),
+                    handle,
+                    indent=2,
+                )
                 handle.write("\n")
             os.replace(temporary_path, self._favorites_file)
         except OSError:
