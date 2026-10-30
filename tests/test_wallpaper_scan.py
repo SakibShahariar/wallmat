@@ -126,6 +126,21 @@ class WallpaperScanTests(unittest.TestCase):
                     str(self.root), {".png"}, cancellation_event=cancelled
                 )
 
+
+    def test_progress_callback_reports_batches_and_final_count(self):
+        paths = [
+            self.write_image(f"image-{index:03}.png")
+            for index in range(53)
+        ]
+        updates = []
+        scanned, errors, truncated = scan_wallpapers(
+            str(self.root), {".png"}, progress_callback=updates.append
+        )
+        self.assertEqual(scanned, paths)
+        self.assertEqual(errors, [])
+        self.assertFalse(truncated)
+        self.assertEqual(updates, [50, 53])
+
     def test_scan_limit_reports_truncation(self):
         self.write_image("a.png")
         self.write_image("b.png")
