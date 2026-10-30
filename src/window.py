@@ -47,6 +47,7 @@ from random_selection import (
     choose_next,
     shuffle_with_recent_last,
 )
+from wallpaper_scan import MAX_SCAN_DEPTH, scan_wallpapers
 
 SCHEMA_ID = "dev.sakib.Wallmat"
 SETTINGS_KEY = "selected-layout"
@@ -61,6 +62,8 @@ RANDOM_HISTORY_LIMIT_KEY = "random-history-limit"
 ROTATION_INTERVALS = (60, 300, 600, 1800)
 DEFAULT_ROTATION_INTERVAL = 300
 DEFAULT_RANDOM_HISTORY_LIMIT = 5
+SCAN_DEPTH_KEY = "scan-depth"
+DEFAULT_SCAN_DEPTH = 0
 MAX_RECENT_WALLPAPERS = 8
 DEFAULT_LAYOUT_ID = "split_screen"
 
@@ -119,6 +122,7 @@ class _LayoutPreference:
             AUTO_ROTATE_INTERVAL_KEY: DEFAULT_ROTATION_INTERVAL,
             RECENT_RANDOM_PATHS_KEY: [],
             RANDOM_HISTORY_LIMIT_KEY: DEFAULT_RANDOM_HISTORY_LIMIT,
+            SCAN_DEPTH_KEY: DEFAULT_SCAN_DEPTH,
         }
         try:
             schema_source = Gio.SettingsSchemaSource.get_default()
@@ -672,36 +676,17 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             for extension in image_format.get_extensions()
             if f".{extension.lower()}" in safe_extensions
         }
-        paths = []
-        scan_errors = []
-        truncated = False
-        if not os.path.isdir(directory):
-            scan_errors.append(
-                f"{directory}: not an accessible directory; check that it "
-                "exists and that you have permission to read it"
-            )
-        else:
-            def record_scan_error(error):
-                error_path = error.filename or directory
-                detail = error.strerror or str(error)
-                scan_errors.append(f"{error_path}: {detail}")
-
-            for root, dirs, files in os.walk(
-                directory, onerror=record_scan_error
-            ):
-                # Make which files are included reproducible when the cap is
-                # reached, and avoid descending further once enough images
-                # have been collected.
-                dirs.sort()
-                files.sort()
-                for f in files:
-                    if f.lower().endswith(tuple(supported_exts)):
-                        paths.append(os.path.join(root, f))
-                        if len(paths) >= MAX_WALLPAPERS:
-                            truncated = True
-                            break
-                if truncated:
-                    break
+        scan_depth = self._preference.get_int(
+            SCAN_DEPTH_KEY, DEFAULT_SCAN_DEPTH
+        )
+        if not 0 <= scan_depth <= MAX_SCAN_DEPTH:
+            scan_depth = DEFAULT_SCAN_DEPTH
+        paths, scan_errors, truncated = scan_wallpapers(
+            directory,
+            supported_exts,
+            max_wallpapers=MAX_WALLPAPERS,
+            max_depth=scan_depth,
+        )
         self._scan_errors = list(scan_errors)
         self._all_paths = paths
         self._random_order = self._make_random_order(paths)
