@@ -55,6 +55,7 @@ from wallpaper_history import (
     for_collection,
 )
 from favorites_storage import decode_favorites, encode_favorites
+from plain_mode import SUCCESS, CANCELLED, SCAN_FAILED
 
 SCHEMA_ID = "dev.sakib.Wallmat"
 SETTINGS_KEY = "selected-layout"
@@ -207,6 +208,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                  plain: bool = False, matugen_args: list[str] | None = None):
         super().__init__(application=app, title="Wallpaper Chooser")
         self._plain = plain
+        if plain:
+            self.get_application().plain_exit_code = CANCELLED
         self._matugen_args = list(
             matugen_args or ["--type", "scheme-smart", "--mode", "dark"]
         )
@@ -608,6 +611,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         self._wallpaper_dir = os.path.abspath(wallpaper_dir)
         self._scan_and_load(self._wallpaper_dir)
+        if self._plain and not self._all_paths:
+            self.get_application().plain_exit_code = SCAN_FAILED
+            GLib.idle_add(self.get_application().quit)
         self._restore_applied_history()
         if self._sort_mode == "random":
             # The sort preference survives restarts, but the previous
@@ -969,7 +975,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
     def _on_wallpaper_selected(self, layout, path):
         if self._plain:
             set_quiet(True)  # re-assert; guards against any late prints
-            print(path)
+            print(path, flush=True)
+            self.get_application().plain_exit_code = SUCCESS
             self.close()
             return
         self._selected_path = path
@@ -1266,7 +1273,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             say(f"Could not export favorites: {error}")
 
     def _on_window_close_request(self, *_args):
-        """Stop session-only rotation when the main window is closed."""
+        """Stop session-only rotation and preserve plain-mode cancellation."""
+        if self._plain and self._selected_path is None:
+            self.get_application().plain_exit_code = CANCELLED
         if self._rotation_source_id is not None:
             GLib.source_remove(self._rotation_source_id)
             self._rotation_source_id = None
