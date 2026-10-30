@@ -42,6 +42,11 @@ from layouts.radial_fan import RadialFanLayout
 
 from widgets.gsk_utils import register_focus_colors
 from announce import say, set_quiet
+from random_selection import (
+    MAX_RANDOM_HISTORY,
+    choose_next,
+    shuffle_with_recent_last,
+)
 
 SCHEMA_ID = "dev.sakib.Wallmat"
 SETTINGS_KEY = "selected-layout"
@@ -51,8 +56,11 @@ FAVORITES_ONLY_KEY = "favorites-only"
 SELECTED_PATH_KEY = "selected-wallpaper"
 RECENT_PATHS_KEY = "recent-wallpapers"
 AUTO_ROTATE_INTERVAL_KEY = "auto-rotate-interval"
+RECENT_RANDOM_PATHS_KEY = "recent-random-wallpapers"
+RANDOM_HISTORY_LIMIT_KEY = "random-history-limit"
 ROTATION_INTERVALS = (60, 300, 600, 1800)
 DEFAULT_ROTATION_INTERVAL = 300
+DEFAULT_RANDOM_HISTORY_LIMIT = 5
 MAX_RECENT_WALLPAPERS = 8
 DEFAULT_LAYOUT_ID = "split_screen"
 
@@ -109,6 +117,8 @@ class _LayoutPreference:
             SELECTED_PATH_KEY: "",
             RECENT_PATHS_KEY: [],
             AUTO_ROTATE_INTERVAL_KEY: DEFAULT_ROTATION_INTERVAL,
+            RECENT_RANDOM_PATHS_KEY: [],
+            RANDOM_HISTORY_LIMIT_KEY: DEFAULT_RANDOM_HISTORY_LIMIT,
         }
         try:
             schema_source = Gio.SettingsSchemaSource.get_default()
@@ -564,8 +574,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             # The sort preference survives restarts, but the previous
             # process's shuffled list does not. Create a fresh order before
             # filtering so a restored Random order is never empty.
-            self._random_order = list(self._all_paths)
-            random.shuffle(self._random_order)
+            self._random_order = self._make_random_order(self._all_paths)
         if not self._plain:
             # Apply the restored sort and favorites-only state even when the
             # saved text filter is empty.
@@ -695,8 +704,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                     break
         self._scan_errors = list(scan_errors)
         self._all_paths = paths
-        self._random_order = list(paths)
-        random.shuffle(self._random_order)
+        self._random_order = self._make_random_order(paths)
         self._paths = list(paths)
 
         # The window itself has no title bar to display this in, but it's
@@ -783,8 +791,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             return
         new_mode = modes[selected]
         if new_mode == "random" and self._sort_mode != "random":
-            self._random_order = list(self._all_paths)
-            random.shuffle(self._random_order)
+            self._random_order = self._make_random_order(self._all_paths)
         self._sort_mode = new_mode
         if not self._plain:
             self._preference.set_string(SORT_KEY, new_mode)
@@ -1202,6 +1209,28 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._on_rotation_next(None)
         return GLib.SOURCE_CONTINUE
 
+    def _make_random_order(self, paths: list[str]) -> list[str]:
+        """Shuffle all paths while deferring recently chosen wallpapers."""
+        recent = self._preference.get_strv(RECENT_RANDOM_PATHS_KEY)
+        return shuffle_with_recent_last(paths, recent)
+
+    def _choose_random_wallpaper(self, candidates: list[str]) -> str | None:
+        """Choose outside the recent history, resetting when the pool is exhausted."""
+        history_limit = self._preference.get_int(
+            RANDOM_HISTORY_LIMIT_KEY, DEFAULT_RANDOM_HISTORY_LIMIT
+        )
+        if not 0 <= history_limit <= MAX_RANDOM_HISTORY:
+            history_limit = DEFAULT_RANDOM_HISTORY_LIMIT
+        selected, updated_history = choose_next(
+            candidates,
+            self._preference.get_strv(RECENT_RANDOM_PATHS_KEY),
+            history_limit,
+        )
+        self._preference.set_strv(
+            RECENT_RANDOM_PATHS_KEY, updated_history
+        )
+        return selected
+
     def _on_rotation_next(self, _button):
         if self._plain:
             return
@@ -1212,9 +1241,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if not candidates:
             say("No available wallpapers match the current filters.")
             return
-        previous = self._selected_path
-        alternatives = [path for path in candidates if path != previous]
-        path = random.choice(alternatives or candidates)
+        path = self._choose_random_wallpaper(candidates)
+        if path is None:
+            return
         self._on_wallpaper_selected(None, path)
         self._on_apply_wallpaper(None)
 
@@ -1244,11 +1273,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             say("No available wallpapers match the current filters.")
             return
 
-        # Avoid consecutive repeats when at least one alternative is available.
-        previous = getattr(self, "_last_random_path", self._selected_path)
-        alternatives = [path for path in candidates if path != previous]
-        path = random.choice(alternatives or candidates)
-        self._last_random_path = path
+        path = self._choose_random_wallpaper(candidates)
+        if path is None:
+            return
         self._on_wallpaper_selected(None, path)
         self._on_apply_wallpaper(button)
 
