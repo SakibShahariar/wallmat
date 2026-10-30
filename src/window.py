@@ -47,7 +47,7 @@ from random_selection import (
     choose_next,
     shuffle_with_recent_last,
 )
-from wallpaper_scan import MAX_SCAN_DEPTH, scan_wallpapers
+from wallpaper_scan import MAX_SCAN_DEPTH, ScanCancelled, scan_wallpapers
 from wallpaper_sort import sort_by_resolution
 from wallpaper_history import (
     MAX_APPLIED_HISTORY,
@@ -289,6 +289,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._rotation_interval_seconds = saved_rotation_interval
         self._paths: list[str] = []
         self._all_paths: list[str] = []
+        self._random_order: list[str] = []
+        self._scan_generation = 0
+        self._scan_cancel_event = None
+        self._scan_thread = None
+        self._scan_errors: list[str] = []
         self._layouts: dict[str, object] = {}
         self._stale_layouts: set[str] = set()
         self._current_layout_id: str | None = None
@@ -611,19 +616,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         self._wallpaper_dir = os.path.abspath(wallpaper_dir)
         self._scan_and_load(self._wallpaper_dir)
-        if self._plain and not self._all_paths:
-            self.get_application().plain_exit_code = SCAN_FAILED
-            GLib.idle_add(self.get_application().quit)
-        self._restore_applied_history()
-        if self._sort_mode == "random":
-            # The sort preference survives restarts, but the previous
-            # process's shuffled list does not. Create a fresh order before
-            # filtering so a restored Random order is never empty.
-            self._random_order = self._make_random_order(self._all_paths)
         if not self._plain:
-            # Apply the restored sort and favorites-only state even when the
-            # saved text filter is empty.
-            self._refresh_filtered_paths()
             saved_filter = self._preference.get_string(FILTER_KEY, "")
             if saved_filter:
                 self.search_entry.set_text(saved_filter)
@@ -689,25 +682,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if response != "switch":
             return
 
-        # Replace the root only after explicit confirmation. Clear root-specific
-        # filters so a new folder does not appear empty because of old criteria.
-        self._wallpaper_dir = os.path.abspath(path)
-        try:
-            with open(self._favorites_file, "r", encoding="utf-8") as handle:
-                self._favorites = decode_favorites(
-                    json.load(handle), self._wallpaper_dir
-                )
-        except FileNotFoundError:
-            pass
-        except (OSError, json.JSONDecodeError, ValueError) as error:
-            say(f"Could not reload favorites for this folder: {error}")
-        self._scan_and_load(self._wallpaper_dir)
-        self._restore_applied_history()
-        self.search_entry.set_text("")
-        self.favorites_filter.set_active(False)
-        self._refresh_filtered_paths()
-        self._refresh_recent_selector()
-        say(f"Wallpaper folder changed: {path}")
+        # Keep the current collection visible until the replacement scan
+        # succeeds. Starting another scan also cancels any older request.
+        self._scan_and_load(os.path.abspath(path))
 
     def _on_layout_selected(self, dropdown, _pspec):
         selected = dropdown.get_selected()
@@ -715,10 +692,18 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self._switch_to(self._layout_ids[selected])
 
     def _scan_and_load(self, directory: str):
-        # Only offer formats that are both known to work as desktop wallpapers
-        # and enabled in this session's GdkPixbuf loaders. In particular, WebP
-        # is optional on some distributions and must not be advertised when its
-        # loader is missing or disabled.
+        """Scan a folder in a worker; apply its result only on the GTK thread."""
+        if self._scan_cancel_event is not None:
+            self._scan_cancel_event.set()
+
+        self._scan_generation += 1
+        generation = self._scan_generation
+        cancellation_event = threading.Event()
+        self._scan_cancel_event = cancellation_event
+        directory = os.path.abspath(directory)
+
+        # GTK/GdkPixbuf loader discovery and settings access stay on the
+        # main thread. The worker receives only plain Python values.
         safe_extensions = {".png", ".jpg", ".jpeg", ".webp"}
         supported_exts = {
             f".{extension.lower()}"
@@ -732,25 +717,91 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         )
         if not 0 <= scan_depth <= MAX_SCAN_DEPTH:
             scan_depth = DEFAULT_SCAN_DEPTH
-        paths, scan_errors, truncated = scan_wallpapers(
-            directory,
-            supported_exts,
-            max_wallpapers=MAX_WALLPAPERS,
-            max_depth=scan_depth,
-        )
-        self._scan_errors = list(scan_errors)
-        self._all_paths = paths
-        self._random_order = self._make_random_order(paths)
-        self._paths = list(paths)
 
-        # The window itself has no title bar to display this in, but it's
-        # still what shows up in a taskbar, Alt-Tab switcher, or window
-        # list — previously the title never changed from a generic
-        # "Wallpaper Chooser (Prototype)", so there was no way to tell
-        # which folder (or how many wallpapers) a given window was even
-        # showing without checking the terminal it was launched from.
+        def run_scan():
+            try:
+                result = scan_wallpapers(
+                    directory,
+                    supported_exts,
+                    max_wallpapers=MAX_WALLPAPERS,
+                    max_depth=scan_depth,
+                    cancellation_event=cancellation_event,
+                )
+            except ScanCancelled:
+                return
+            except Exception as error:
+                GLib.idle_add(
+                    self._on_scan_complete, generation, directory,
+                    None, [], False, error,
+                )
+                return
+            if not cancellation_event.is_set():
+                GLib.idle_add(
+                    self._on_scan_complete, generation, directory,
+                    result[0], result[1], result[2], None,
+                )
+
+        self._scan_thread = threading.Thread(
+            target=run_scan,
+            name=f"wallmat-scan-{generation}",
+            daemon=True,
+        )
+        self._scan_thread.start()
+
+    def _on_scan_complete(
+        self, generation, directory, paths, scan_errors, truncated, error
+    ):
+        """Commit a completed scan to the UI if it is still the newest one."""
+        if generation != self._scan_generation:
+            return False
+        self._scan_thread = None
+        self._scan_cancel_event = None
+
+        switching_folder = directory != self._wallpaper_dir
+        if error is not None:
+            message = f"Could not scan wallpaper folder {directory}: {error}"
+            if self._plain:
+                print(message, file=sys.stderr)
+                self.get_application().plain_exit_code = SCAN_FAILED
+                self.get_application().quit()
+            else:
+                say(message)
+            return False
+
+        # A failed replacement must not discard the currently displayed
+        # collection. An empty, successfully scanned directory is valid.
+        if switching_folder and not paths and scan_errors:
+            say(
+                "Could not read the selected wallpaper folder; "
+                "the current collection was kept."
+            )
+            for scan_error in scan_errors:
+                print(f"Wallpaper scan warning: {scan_error}", file=sys.stderr)
+            return False
+
+        if switching_folder:
+            self._wallpaper_dir = directory
+            self._favorites = set()
+            try:
+                with open(self._favorites_file, "r", encoding="utf-8") as handle:
+                    self._favorites = decode_favorites(
+                        json.load(handle), self._wallpaper_dir
+                    )
+            except FileNotFoundError:
+                pass
+            except (OSError, json.JSONDecodeError, ValueError) as favorite_error:
+                say(f"Could not reload favorites for this folder: {favorite_error}")
+            self.search_entry.set_text("")
+            self.favorites_filter.set_active(False)
+
+        self._scan_errors = list(scan_errors)
+        self._all_paths = list(paths)
+        self._random_order = self._make_random_order(self._all_paths)
+        self._paths = list(self._all_paths)
+        self._restore_applied_history()
+
         folder_label = os.path.basename(directory.rstrip(os.sep)) or directory
-        count_label = str(len(self._paths))
+        count_label = str(len(self._all_paths))
         cap_label = f" — showing first {MAX_WALLPAPERS}" if truncated else ""
         self.set_title(
             f"Wallpaper Chooser — {folder_label} ({count_label}){cap_label}"
@@ -759,7 +810,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if truncated:
             print(
                 f"Wallpaper scan limit reached ({MAX_WALLPAPERS}); "
-                f"additional supported images may have been omitted.",
+                "additional supported images may have been omitted.",
                 file=sys.stderr,
             )
 
@@ -768,49 +819,41 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             visible_errors = scan_errors[:3]
             details = "\n".join(visible_errors)
             if len(scan_errors) > len(visible_errors):
-                details += f"\n…and {len(scan_errors) - len(visible_errors)} more folder error(s)"
+                details += (
+                    f"\n…and {len(scan_errors) - len(visible_errors)} "
+                    "more folder error(s)"
+                )
             self._scan_error_notice.set_text(
                 f"Some wallpaper folders could not be scanned:\n{details}"
             )
-            for error in scan_errors:
-                print(f"Wallpaper scan warning: {error}", file=sys.stderr)
+            for scan_error in scan_errors:
+                print(f"Wallpaper scan warning: {scan_error}", file=sys.stderr)
 
-        if not self._paths and not self._plain:
-            # A scan failure must not masquerade as a genuinely empty folder.
-            self._empty_state.set_visible(True)
-            if scan_errors:
-                self._empty_state.set_title("Could not read wallpaper folder")
-                self._empty_state.set_description(
-                    "Check the folder path and read permissions. See the "
-                    "warning above for the affected location."
-                )
-            else:
-                self._empty_state.set_title(
-                    "No matching wallpapers" if self.search_entry.get_text().strip()
-                    else "No wallpapers found"
-                )
-                self._empty_state.set_description(
-                    "Try a different filename or folder name."
-                    if self.search_entry.get_text().strip()
-                    else "This folder has no supported wallpaper images."
-                )
-        else:
-            self._empty_state.set_visible(not self._paths)
-            self._empty_state.set_title(
-                "No matching wallpapers" if self.search_entry.get_text().strip()
-                else "No wallpapers found"
+        self._refresh_filtered_paths()
+        if not self._plain:
+            self._refresh_recent_selector()
+            saved_path = self._preference.get_string(SELECTED_PATH_KEY, "")
+            if (
+                saved_path
+                and saved_path in self._paths
+                and os.path.isfile(saved_path)
+            ):
+                active_layout = self._layouts.get(self._current_layout_id)
+                if active_layout is not None:
+                    active_layout.select_path(saved_path)
+                self._on_wallpaper_selected(None, saved_path)
+        elif not self._all_paths:
+            print(
+                f"No wallpapers found under {directory}; pass a readable "
+                "directory containing supported images.",
+                file=sys.stderr,
             )
-            self._empty_state.set_description(
-                "Try a different filename or folder name."
-                if self.search_entry.get_text().strip()
-                else "This folder has no supported wallpaper images."
-            )
+            self.get_application().plain_exit_code = SCAN_FAILED
+            self.get_application().quit()
 
-        if not self._paths and self._plain:
-            # --plain stdout is reserved for a selected path; diagnostics go
-            # to stderr so shell pipelines can distinguish an empty scan.
-            print(f"No wallpapers found under {directory}; pass a readable "
-                  "directory containing supported images.", file=sys.stderr)
+        if switching_folder:
+            say(f"Wallpaper folder changed: {directory}")
+        return False
 
     @staticmethod
     def _modified_timestamp(path: str) -> float:
@@ -1273,7 +1316,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             say(f"Could not export favorites: {error}")
 
     def _on_window_close_request(self, *_args):
-        """Stop session-only rotation and preserve plain-mode cancellation."""
+        """Cancel background work and stop session-only rotation."""
+        if self._scan_cancel_event is not None:
+            self._scan_cancel_event.set()
+        self._scan_generation += 1
         if (
             self._plain
             and getattr(self.get_application(), "plain_exit_code", CANCELLED)
