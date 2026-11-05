@@ -148,6 +148,8 @@ def request_wallpaper(path, callback):
             finish(None, error.message)
         else:
             finish(False, error.message)
+    except (AttributeError, TypeError) as error:
+        finish(None, str(error))
     except OSError as error:
         finish(False, str(error))
     finally:
