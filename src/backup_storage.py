@@ -99,7 +99,7 @@ def decode_backup(data, current_root):
     if data.get("format") != BACKUP_FORMAT:
         raise ValueError("file is not a Wallmat backup")
     version = data.get("version")
-    if type(version) is not int or version not in (1, BACKUP_VERSION):
+    if type(version) is not int or version not in (1, 2, BACKUP_VERSION):
         raise ValueError("unsupported Wallmat backup version")
     expected_fields = {"format", "version", "favorites", "preferences"}
     if version >= 2:
