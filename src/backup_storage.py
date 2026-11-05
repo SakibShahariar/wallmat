@@ -2,10 +2,11 @@
 
 from favorites_storage import decode_favorites, encode_favorites
 from tags_storage import decode_tags, encode_tags
+from collections_storage import decode_collections, encode_collections
 
 
 BACKUP_FORMAT = "dev.sakib.Wallmat.backup"
-BACKUP_VERSION = 2
+BACKUP_VERSION = 3
 
 # Keep this allow-list aligned with data/dev.sakib.Wallmat.gschema.xml.
 # It intentionally excludes transient state and unknown future settings.
@@ -79,13 +80,14 @@ def validate_preferences(preferences):
     return validated
 
 
-def encode_backup(favorites, wallpaper_root, preferences, tags=None):
+def encode_backup(favorites, wallpaper_root, preferences, tags=None, collections=None):
     """Build a JSON-compatible backup without mutating application state."""
     return {
         "format": BACKUP_FORMAT,
         "version": BACKUP_VERSION,
         "favorites": encode_favorites(favorites, wallpaper_root),
         "tags": encode_tags({} if tags is None else tags, wallpaper_root),
+        "collections": encode_collections({} if collections is None else collections),
         "preferences": validate_preferences(preferences),
     }
 
@@ -100,8 +102,10 @@ def decode_backup(data, current_root):
     if type(version) is not int or version not in (1, BACKUP_VERSION):
         raise ValueError("unsupported Wallmat backup version")
     expected_fields = {"format", "version", "favorites", "preferences"}
-    if version == BACKUP_VERSION:
+    if version >= 2:
         expected_fields.add("tags")
+    if version >= 3:
+        expected_fields.add("collections")
     if set(data) != expected_fields:
         raise ValueError("backup contains missing or unexpected top-level fields")
 
@@ -109,4 +113,10 @@ def decode_backup(data, current_root):
     favorites = decode_favorites(data["favorites"], current_root)
     preferences = validate_preferences(data["preferences"])
     tags = decode_tags(data["tags"], current_root) if version >= 2 else None
-    return {"favorites": favorites, "preferences": preferences, "tags": tags}
+    collections = decode_collections(data["collections"]) if version >= 3 else None
+    return {
+        "favorites": favorites,
+        "preferences": preferences,
+        "tags": tags,
+        "collections": collections,
+    }
