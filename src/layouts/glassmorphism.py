@@ -20,7 +20,8 @@ import os
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk, Gio, GObject, Gdk
+gi.require_version("Adw", "1")
+from gi.repository import Gtk, Gio, GObject, Gdk, Adw
 
 from .base import WallLayout
 from announce import say
@@ -28,6 +29,28 @@ from widgets.thumbnail_loader import ThumbnailLoader
 from widgets.gsk_utils import hide_scrollbars
 
 _GLASS_STRIDE = 180 + 12  # per-item scroll increment (180 card + 6px margins each side)
+
+_HIGH_CONTRAST_CSS = b"""
+.wallmat-glass.high-contrast .glass-card {
+    opacity: 1.0;
+    background-color: {background};
+    border: 2px solid {foreground};
+}
+.wallmat-glass.high-contrast .glass-card.active {
+    border: 3px solid {selected};
+    box-shadow: none;
+}
+.wallmat-glass.high-contrast .glass-card.focused {
+    outline: 3px solid {foreground};
+    outline-offset: 2px;
+    box-shadow: none;
+}
+.wallmat-glass.high-contrast .glass-card.active.focused {
+    outline: 3px solid {foreground};
+    border: 3px solid {selected};
+    box-shadow: none;
+}
+"""
 
 _CSS_TEMPLATE = b"""
 .glass-card {
@@ -86,6 +109,14 @@ class GlassmorphismLayout(WallLayout):
     display_name = "Glassmorphism"
     performance_tier = "medium"
 
+    def _sync_high_contrast_class(self, widget, style_manager):
+        getter = getattr(style_manager, "get_high_contrast", None)
+        enabled = bool(getter()) if getter is not None else False
+        if enabled:
+            widget.add_css_class("high-contrast")
+        else:
+            widget.remove_css_class("high-contrast")
+
     def __init__(self):
         super().__init__()
         # Keyboard navigation moves focus only; selection (glow +
@@ -97,6 +128,8 @@ class GlassmorphismLayout(WallLayout):
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         outer.set_vexpand(True)
         outer.set_hexpand(True)
+        outer.add_css_class("wallmat-glass")
+        self._outer = outer
 
         self.loader = ThumbnailLoader(thumb_size=480)  # cards render at 180x240
         self._live_widgets: dict[str, Gtk.Picture] = {}  # path -> currently-bound picture
@@ -159,6 +192,39 @@ class GlassmorphismLayout(WallLayout):
             Gtk.StyleContext.add_provider_for_display(
                 display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
             )
+
+            def theme_color(name, fallback):
+                found, color = widget.get_style_context().lookup_color(name)
+                return color.to_string().encode() if found else fallback
+
+            high_contrast_css = _HIGH_CONTRAST_CSS
+            high_contrast_css = high_contrast_css.replace(
+                b"{background}", theme_color("theme_bg_color", b"#000000")
+            )
+            high_contrast_css = high_contrast_css.replace(
+                b"{foreground}", theme_color("theme_fg_color", b"#ffffff")
+            )
+            high_contrast_css = high_contrast_css.replace(
+                b"{selected}", theme_color("theme_selected_bg_color", b"#ffffff")
+            )
+            high_contrast_provider = Gtk.CssProvider()
+            high_contrast_provider.load_from_data(high_contrast_css)
+            Gtk.StyleContext.add_provider_for_display(
+                display, high_contrast_provider, Gtk.STYLE_PROVIDER_PRIORITY_USER
+            )
+
+            style_manager = Adw.StyleManager.get_default()
+            self._sync_high_contrast_class(outer, style_manager)
+            if hasattr(style_manager, "get_high_contrast"):
+                try:
+                    style_manager.connect(
+                        "notify::high-contrast",
+                        lambda manager, _pspec: self._sync_high_contrast_class(
+                            outer, manager
+                        ),
+                    )
+                except TypeError:
+                    pass
 
         self.scroller.connect("realize", register_css)
         outer.append(self.scroller)
