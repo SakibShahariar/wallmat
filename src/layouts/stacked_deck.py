@@ -33,7 +33,6 @@ elsewhere in this app (uncached, main-thread-blocking decode). This was
 the one layout still doing that; it now matches the rest of the app.
 """
 
-import os
 
 import gi
 
@@ -45,6 +44,7 @@ from .base import WallLayout
 from announce import say
 from widgets.gsk_utils import draw_texture_cover, get_focus_ring_rgba, draw_focus_ring, get_animations_enabled
 from widgets.thumbnail_loader import ThumbnailLoader
+from widgets.accessibility import wallpaper_accessible_name
 
 CARD_ROTATIONS_DEG = [0.0, -4.0, 4.0]  # fixed per card, forever
 CARD_WIDTH = 560
@@ -318,7 +318,7 @@ class StackedDeckLayout(WallLayout):
         if not self._paths:
             return
         path = self._paths[self._deck_index % len(self._paths)]
-        name = os.path.basename(path)
+        name = wallpaper_accessible_name(path)
         self.deck.update_property(
             [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
             [
