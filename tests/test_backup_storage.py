@@ -66,6 +66,7 @@ class BackupStorageTests(unittest.TestCase):
             ("favorites-only", 1),
             ("scan-depth", 21),
             ("auto-rotate-interval", 30),
+            ("auto-rotate-interval", 61),
             ("selected-layout", "not-a-layout"),
             ("sort-mode", "invalid"),
             ("recent-wallpapers", ["/valid.png", None]),
