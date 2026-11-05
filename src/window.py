@@ -1221,8 +1221,14 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self._tag_filter_values[selected_index]
             if selected_index < len(self._tag_filter_values) else None
         )
+        available_paths = set(getattr(self, "_all_paths", []))
         tags = sorted(
-            {tag for assigned in self._tags.values() for tag in assigned},
+            {
+                tag
+                for path, assigned in self._tags.items()
+                if path in available_paths
+                for tag in assigned
+            },
             key=str.casefold,
         )
         self._tag_filter_values = [None, *tags]
