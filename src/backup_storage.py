@@ -85,7 +85,7 @@ def encode_backup(favorites, wallpaper_root, preferences, tags=None):
         "format": BACKUP_FORMAT,
         "version": BACKUP_VERSION,
         "favorites": encode_favorites(favorites, wallpaper_root),
-        "tags": encode_tags(tags or {}, wallpaper_root),
+        "tags": encode_tags({} if tags is None else tags, wallpaper_root),
         "preferences": validate_preferences(preferences),
     }
 
