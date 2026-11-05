@@ -1917,15 +1917,19 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         collection_dropdown.set_tooltip_text("Choose a collection for the selected wallpapers")
         content.append(collection_dropdown)
 
-        actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        actions = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        favorite_actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        collection_actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         favorite_button = Gtk.Button(label="Favorite selected")
         unfavorite_button = Gtk.Button(label="Remove selected from favorites")
         add_collection_button = Gtk.Button(label="Add to collection")
         export_button = Gtk.Button(label="Export selected paths…")
-        for button in (
-            favorite_button, unfavorite_button, add_collection_button, export_button
-        ):
-            actions.append(button)
+        favorite_actions.append(favorite_button)
+        favorite_actions.append(unfavorite_button)
+        collection_actions.append(add_collection_button)
+        collection_actions.append(export_button)
+        actions.append(favorite_actions)
+        actions.append(collection_actions)
         content.append(actions)
         add_collection_button.set_sensitive(bool(collection_names))
 
