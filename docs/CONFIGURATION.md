@@ -39,3 +39,24 @@ Restart Wallmat after installing or updating the schema. If `glib-compile-schema
 Favorites are stored in `~/.config/wallmat/favorites.json`. New saves use a versioned format with paths relative to the selected collection root; favorites outside that root remain absolute. When a collection has moved and its old favorite paths no longer exist, matching relative paths are resolved under the new root. Existing legacy arrays of absolute paths remain readable and are migrated the next time favorites are saved.
 
 The app also persists layout, text filter, sort mode, Favorites only, last selection, recent wallpaper paths, and auto-rotate interval when the schema is installed. Selection is restored only when the file still exists in the current folder and matches the restored filters. Focus restoration is supported in Split-Screen Preview and selection restoration in Masonry Grid; other layouts and scroll position are not yet restored.
+
+
+## Backup and restore
+
+Use **More → Backup and restore** to export a portable `wallmat-backup.json`
+or restore one. The versioned backup currently includes the favorites file and
+the supported GSettings preferences: layout, filter, sorting, favorites-only
+state, recent paths, wallpaper history, scan depth, and rotation settings.
+
+Restore validates the backup format, version, favorites paths, preference
+names, types, and supported ranges before asking for confirmation. The
+confirmation explains that included preferences and favorites will replace
+their current values. Wallmat does not include credentials or secrets in this
+backup. Restart the application after a restore so all restored preferences
+are reflected consistently.
+
+Backups contain only features currently implemented by Wallmat. Tags and
+named collections are not included until those features exist. If the
+GSettings schema is unavailable, preference persistence remains unavailable;
+install the schema as described above before relying on preferences surviving
+a restart.
