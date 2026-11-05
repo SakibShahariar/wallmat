@@ -1842,6 +1842,148 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         except OSError as error:
             say(f"Could not export favorites: {error}")
 
+    def _on_manage_collections(self, _button):
+        dialog = Gtk.Dialog(
+            title="Manage wallpaper collections", transient_for=self, modal=True
+        )
+        dialog.set_default_size(440, 360)
+        dialog.add_button("Done", Gtk.ResponseType.CLOSE)
+        content = dialog.get_content_area()
+        content.set_spacing(10)
+        content.set_margin_top(16)
+        content.set_margin_bottom(16)
+        content.set_margin_start(16)
+        content.set_margin_end(16)
+
+        description = Gtk.Label(
+            label=(
+                "Collections are named lists of wallpaper files. Add the selected "
+                "wallpaper or every wallpaper in the current folder."
+            )
+        )
+        description.set_wrap(True)
+        description.set_xalign(0.0)
+        content.append(description)
+
+        name_entry = Gtk.Entry()
+        name_entry.set_placeholder_text("New collection name")
+        content.append(name_entry)
+        create_button = Gtk.Button(label="Create collection")
+        content.append(create_button)
+        content.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+
+        collection_names = []
+        collection_dropdown = Gtk.DropDown.new_from_strings(["No collections"])
+        collection_dropdown.set_tooltip_text("Choose a collection to edit")
+        content.append(collection_dropdown)
+        add_selected_button = Gtk.Button(label="Add selected wallpaper")
+        add_folder_button = Gtk.Button(label="Add current folder")
+        remove_selected_button = Gtk.Button(label="Remove selected wallpaper")
+        content.append(add_selected_button)
+        content.append(add_folder_button)
+        content.append(remove_selected_button)
+
+        def refresh_choices(preferred=None):
+            collection_names[:] = sorted(self._collections, key=str.casefold)
+            collection_dropdown.set_model(
+                Gtk.StringList.new(collection_names or ["No collections"])
+            )
+            collection_dropdown.set_selected(
+                collection_names.index(preferred) if preferred in collection_names else 0
+            )
+            has_collection = bool(collection_names)
+            add_selected_button.set_sensitive(has_collection and bool(self._selected_path))
+            add_folder_button.set_sensitive(has_collection and bool(self._folder_paths))
+            remove_selected_button.set_sensitive(has_collection and bool(self._selected_path))
+
+        def selected_collection():
+            index = collection_dropdown.get_selected()
+            return collection_names[index] if index < len(collection_names) else None
+
+        def save_changes(previous, preferred):
+            try:
+                self._save_collections()
+            except (OSError, ValueError) as error:
+                self._collections = previous
+                refresh_choices(preferred)
+                say(f"Could not save wallpaper collections: {error}")
+                return False
+            self._refresh_collection_selector()
+            refresh_choices(preferred)
+            if self._active_collection:
+                self._activate_collection(self._active_collection)
+            return True
+
+        def on_create(_button):
+            try:
+                name = normalize_collection_name(name_entry.get_text())
+            except ValueError as error:
+                say(f"Invalid collection name: {error}")
+                return
+            if any(existing.casefold() == name.casefold() for existing in self._collections):
+                say(f"A collection named {name!r} already exists.")
+                return
+            previous = {key: list(paths) for key, paths in self._collections.items()}
+            self._collections[name] = (
+                [self._selected_path]
+                if self._selected_path and os.path.isfile(self._selected_path) else []
+            )
+            if save_changes(previous, name):
+                self._active_collection = None
+                self._refresh_collection_selector()
+                self._activate_collection(name)
+                self._refresh_collection_selector()
+                name_entry.set_text("")
+                say(f"Created collection {name!r}.")
+
+        def on_add_selected(_button):
+            name = selected_collection()
+            path = self._selected_path
+            if not name or not path or not os.path.isfile(path):
+                say("Select a collection and an existing wallpaper first.")
+                return
+            if path in self._collections[name]:
+                say("That wallpaper is already in the collection.")
+                return
+            previous = {key: list(paths) for key, paths in self._collections.items()}
+            self._collections[name].append(path)
+            if save_changes(previous, name):
+                say(f"Added wallpaper to {name!r}.")
+
+        def on_add_folder(_button):
+            name = selected_collection()
+            if not name:
+                say("Create or select a collection first.")
+                return
+            existing = set(self._collections[name])
+            additions = [path for path in self._folder_paths if path not in existing]
+            if not additions:
+                say("The current folder has no new wallpapers to add.")
+                return
+            previous = {key: list(paths) for key, paths in self._collections.items()}
+            self._collections[name].extend(additions)
+            if save_changes(previous, name):
+                say(f"Added {len(additions)} wallpaper(s) from the current folder to {name!r}.")
+
+        def on_remove_selected(_button):
+            name = selected_collection()
+            path = self._selected_path
+            if not name or not path or path not in self._collections[name]:
+                say("The selected wallpaper is not in that collection.")
+                return
+            previous = {key: list(paths) for key, paths in self._collections.items()}
+            self._collections[name].remove(path)
+            if save_changes(previous, name):
+                say(f"Removed wallpaper from {name!r}.")
+
+        create_button.connect("clicked", on_create)
+        add_selected_button.connect("clicked", on_add_selected)
+        add_folder_button.connect("clicked", on_add_folder)
+        remove_selected_button.connect("clicked", on_remove_selected)
+        refresh_choices(self._active_collection)
+        dialog.connect("response", lambda current, response: current.destroy())
+        dialog.present()
+
     def _on_manage_tags(self, _button):
         path = self._selected_path
         if not path:
