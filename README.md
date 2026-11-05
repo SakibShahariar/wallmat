@@ -70,7 +70,7 @@ python3 src/main.py ~/Pictures/Wallpapers --layout infinite_ribbon
 
 ## Highlights
 
-- Search, favorites, recent wallpapers, sorting, and JSON backup/restore.
+- Search, favorites, per-wallpaper tags, recent wallpapers, sorting, and JSON backup/restore.
 - Full-screen preview with zoom and pan.
 - Apply wallpapers directly or preview Matugen colors before applying the generated theme.
 - Auto-rotation, random selection, and applied-wallpaper history.
@@ -92,6 +92,10 @@ In normal UI mode, **Set as wallpaper** updates GNOME's background settings. **A
 ## Favorites
 
 Favorites are stored in `~/.config/wallmat/favorites.json` and exported to `favorites.txt` in the same directory. Invalid favorites data is preserved in a recovery backup rather than silently overwritten.
+
+## Tags
+
+Assign multiple tags to a wallpaper with **More → Wallpaper tags → Manage tags**. Filter the current folder by tag using the Tag dropdown, or search for a tag name. Tags are stored locally in `~/.config/wallmat/tags.json` and are included in version-2 backups.
 
 ## License
 
