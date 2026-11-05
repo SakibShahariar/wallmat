@@ -256,6 +256,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                  plain: bool = False, matugen_args: list[str] | None = None):
         super().__init__(application=app, title="Wallpaper Chooser")
         self._plain = plain
+        self._portal_request_pending = False
         if plain:
             self.get_application().plain_exit_code = CANCELLED
         self._matugen_args = list(
@@ -1501,7 +1502,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.manage_tags_button.set_sensitive(os.path.isfile(path))
         self._load_selected_metadata(path)
         self.preview_button.set_sensitive(os.path.isfile(path))
-        self.set_wallpaper_button.set_sensitive(True)
+        self.set_wallpaper_button.set_sensitive(not self._portal_request_pending)
         self.apply_matugen_button.set_sensitive(True)
         self.preview_matugen_button.set_sensitive(os.path.isfile(path))
         self.favorite_button.set_sensitive(True)
@@ -2703,10 +2704,14 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         path = self._selected_path
         if not path:
             return False
+        if self._portal_request_pending:
+            say("A wallpaper change is already waiting for the desktop portal.")
+            return False
         if (
             os.environ.get("WAYLAND_DISPLAY")
             or os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
         ):
+            self._portal_request_pending = True
             self.set_wallpaper_button.set_sensitive(False)
             request_wallpaper(
                 path,
@@ -2718,6 +2723,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         return self._apply_wallpaper_gsettings(path)
 
     def _on_portal_wallpaper_result(self, path, result, message):
+        self._portal_request_pending = False
         self.set_wallpaper_button.set_sensitive(bool(self._selected_path))
         if result is None:
             say("Wallpaper portal unavailable; using the existing GNOME settings method.")
