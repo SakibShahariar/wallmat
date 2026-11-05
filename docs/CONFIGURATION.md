@@ -57,7 +57,7 @@ are reflected consistently.
 
 Version-1 backups remain restorable and leave current tags and collections
 untouched. Version-2 backups restore tags but leave current collections
-untouched. Collections store absolute file paths; missing files are skipped
+untouched. Version-3 backups include all three data sections. Collections store absolute file paths; missing files are skipped
 when a collection is opened, and files moved to another path must be added
 again. Adding the current folder to a collection stores the wallpapers found
 at that time; it is not a live folder link. If the
