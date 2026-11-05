@@ -12,6 +12,7 @@ scaling in the carousel: 1.0 = fully active/centered, 0.0 = fully at rest.
 """
 
 import math
+import os
 
 import gi
 
@@ -69,6 +70,8 @@ class SkewedCard(Gtk.Widget):
         # clickable before the user commits to a click. Suppressed while
         # selected/focused (those states already have their own borders).
         self._hovered = False
+        self._accessible_name = "Wallpaper thumbnail"
+        self._update_accessible_description()
 
         self.set_overflow(Gtk.Overflow.VISIBLE)
         self.set_cursor_from_name("pointer")
@@ -106,14 +109,32 @@ class SkewedCard(Gtk.Widget):
             self._prominence = value
             self.queue_draw()
 
+    def set_accessible_name(self, name: str):
+        self._accessible_name = os.path.basename(name) or "Wallpaper thumbnail"
+        self._update_accessible_description()
+
+    def _update_accessible_description(self):
+        states = []
+        if self._selected:
+            states.append("Selected")
+        if self._focused:
+            states.append("Keyboard focus")
+        description = ", ".join(states) if states else "Wallpaper thumbnail"
+        self.update_property(
+            [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
+            [self._accessible_name, description],
+        )
+
     def set_selected(self, value: bool):
         if value != self._selected:
             self._selected = value
+            self._update_accessible_description()
             self.queue_draw()
 
     def set_focused(self, value: bool):
         if value != self._focused:
             self._focused = value
+            self._update_accessible_description()
             self.queue_draw()
 
     def _set_hovered(self, value: bool):
@@ -274,3 +295,10 @@ class SkewedCard(Gtk.Widget):
 
 
 GObject.type_register(SkewedCard)
+
+
+# A skewed card is an image, not an anonymous custom-drawn widget.
+try:
+    SkewedCard.set_accessible_role(Gtk.AccessibleRole.IMG)
+except (AttributeError, TypeError):
+    pass
