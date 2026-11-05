@@ -11,17 +11,17 @@ def normalize_tags(tags):
     """Validate and de-duplicate user tags while preserving display spelling."""
     if not isinstance(tags, (list, tuple, set)):
         raise ValueError("tags must be a list of strings")
+    if any(not isinstance(tag, str) for tag in tags):
+        raise ValueError("tag names must be strings")
     normalized = []
     seen = set()
-    for tag in tags:
-        if not isinstance(tag, str):
-            raise ValueError("tag names must be strings")
+    for tag in sorted(tags, key=lambda value: (value.casefold(), value)):
         name = " ".join(tag.split())
         if (
             not name
             or len(name) > MAX_TAG_LENGTH
             or "," in name
-            or any(ord(char) < 32 for char in name)
+            or any(ord(char) < 32 or ord(char) == 127 for char in name)
         ):
             raise ValueError(
                 f"tags must be 1–{MAX_TAG_LENGTH} characters and cannot contain commas"
