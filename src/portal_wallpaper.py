@@ -69,7 +69,11 @@ def request_wallpaper(path, callback):
 
     try:
         fd = os.open(path, os.O_RDONLY | getattr(os, "O_CLOEXEC", 0))
-        connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        try:
+            connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        except GLib.Error as error:
+            finish(None, error.message)
+            return
         unique_name = connection.get_unique_name()
         if not unique_name:
             finish(None, "No session-bus identity is available for the wallpaper portal.")
