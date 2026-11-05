@@ -15,6 +15,8 @@ selection-changed handler, and re-applied on bind/unbind as ListView
 recycles rows. Keyboard ←/→ and clicking a card both move the glow.
 """
 
+import os
+
 import gi
 
 gi.require_version("Gtk", "4.0")
