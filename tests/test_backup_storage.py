@@ -40,6 +40,10 @@ class BackupStorageTests(unittest.TestCase):
             restored["tags"], {str(self.favorite): {"Blue hour", "Nature"}}
         )
 
+    def test_rejects_invalid_tags_mapping(self):
+        with self.assertRaises(ValueError):
+            encode_backup(set(), str(self.root), {}, tags=[])
+
     def test_decodes_version_one_backup_without_erasing_tags(self):
         data = {
             "format": "dev.sakib.Wallmat.backup",
