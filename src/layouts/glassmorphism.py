@@ -15,8 +15,6 @@ selection-changed handler, and re-applied on bind/unbind as ListView
 recycles rows. Keyboard ←/→ and clicking a card both move the glow.
 """
 
-import os
-
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -26,6 +24,7 @@ from gi.repository import Gtk, Gio, GObject, Gdk, Adw
 from .base import WallLayout
 from announce import say
 from widgets.thumbnail_loader import ThumbnailLoader
+from widgets.accessibility import wallpaper_accessible_name
 from widgets.gsk_utils import hide_scrollbars
 
 _GLASS_STRIDE = 180 + 12  # per-item scroll increment (180 card + 6px margins each side)
@@ -295,7 +294,7 @@ class GlassmorphismLayout(WallLayout):
         is_selected = selected_item is item
         picture.update_property(
             [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
-            [os.path.basename(item.path), "Selected" if is_selected else "Wallpaper thumbnail"],
+            [wallpaper_accessible_name(item.path), "Selected" if is_selected else "Wallpaper thumbnail"],
         )
         picture.add_css_class("active") if is_selected else picture.remove_css_class("active")
 
@@ -330,7 +329,7 @@ class GlassmorphismLayout(WallLayout):
             is_selected = item is not None and item.path == path
             picture.update_property(
                 [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
-                [os.path.basename(path), "Selected" if is_selected else "Wallpaper thumbnail"],
+                [wallpaper_accessible_name(path), "Selected" if is_selected else "Wallpaper thumbnail"],
             )
             if is_selected:
                 picture.add_css_class("active")
