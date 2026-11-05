@@ -17,6 +17,8 @@ separate layers eagerly binding multiple large wallpapers each on
 launch, that was causing multi-second (reported: ~40s) launch freezes.
 """
 
+import os
+
 import gi
 
 gi.require_version("Gtk", "4.0")
