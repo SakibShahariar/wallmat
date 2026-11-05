@@ -70,7 +70,7 @@ python3 src/main.py ~/Pictures/Wallpapers --layout infinite_ribbon
 
 ## Highlights
 
-- Search, favorites, recent wallpapers, and sorting.
+- Search, favorites, recent wallpapers, sorting, and JSON backup/restore.
 - Full-screen preview with zoom and pan.
 - Apply wallpapers directly or run Matugen with custom arguments.
 - Auto-rotation, random selection, and applied-wallpaper history.
