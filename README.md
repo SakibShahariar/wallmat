@@ -70,7 +70,7 @@ python3 src/main.py ~/Pictures/Wallpapers --layout infinite_ribbon
 
 ## Highlights
 
-- Search, favorites, per-wallpaper tags, recent wallpapers, sorting, and JSON backup/restore.
+- Search, favorites, per-wallpaper tags, named collections, recent wallpapers, sorting, and JSON backup/restore.
 - Full-screen preview with zoom and pan.
 - Apply wallpapers directly or preview Matugen colors before applying the generated theme.
 - Auto-rotation, random selection, and applied-wallpaper history.
@@ -96,6 +96,10 @@ Favorites are stored in `~/.config/wallmat/favorites.json` and exported to `favo
 ## Tags
 
 Assign multiple tags to a wallpaper with **More → Wallpaper tags → Manage tags**. Filter the current folder by tag using the Tag dropdown, or search for a tag name. Tags are stored locally in `~/.config/wallmat/tags.json` and are included in version-2 backups.
+
+## Collections
+
+Create a named collection from the selected wallpaper, add more selected wallpapers, or add all wallpapers currently found in the folder. Switch between collections and the current folder using the Collection dropdown. Collections store file paths; adding a folder takes a snapshot of its current wallpapers rather than a live folder link.
 
 ## License
 
