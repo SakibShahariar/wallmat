@@ -44,14 +44,14 @@ The app also persists layout, text filter, sort mode, Favorites only, last selec
 ## Backup and restore
 
 Use **More → Backup and restore** to export a portable `wallmat-backup.json`
-or restore one. The versioned backup currently includes the favorites file and
+or restore one. Version-2 backups include favorites, per-wallpaper tags, and
 the supported GSettings preferences: layout, filter, sorting, favorites-only
 state, recent paths, wallpaper history, scan depth, and rotation settings.
 
-Restore validates the backup format, version, favorites paths, preference
-names, types, and supported ranges before asking for confirmation. The
-confirmation explains that included preferences and favorites will replace
-their current values. Wallmat does not include credentials or secrets in this
+Restore validates the backup format, version, favorites and tag paths,
+preference names, types, and supported ranges before asking for confirmation.
+The confirmation explains that included preferences, favorites, and tags will
+replace their current values. Wallmat does not include credentials or secrets in this
 backup. Restart the application after a restore so all restored preferences
 are reflected consistently.
 
