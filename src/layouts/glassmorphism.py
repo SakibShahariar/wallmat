@@ -35,16 +35,18 @@ _HIGH_CONTRAST_CSS = b"""
     background-color: {background};
     border: 2px solid {foreground};
 }
-.wallmat-glass.high-contrast .glass-card.active {
+.wallmat-glass.high-contrast .glass-card.active,
+.wallmat-glass.high-contrast .glass-card.hovered {
     border: 3px solid {selected};
     box-shadow: none;
 }
-.wallmat-glass.high-contrast .glass-card.focused {
+.wallmat-glass.high-contrast listitem:focus .glass-card,
+.wallmat-glass.high-contrast .glass-card:focus {
     outline: 3px solid {foreground};
     outline-offset: 2px;
     box-shadow: none;
 }
-.wallmat-glass.high-contrast .glass-card.active.focused {
+.wallmat-glass.high-contrast listitem:focus .glass-card.active {
     outline: 3px solid {foreground};
     border: 3px solid {selected};
     box-shadow: none;
