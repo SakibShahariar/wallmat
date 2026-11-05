@@ -7,7 +7,7 @@
 - **Click** — select a wallpaper. Stacked Deck and some interactive layouts have different selection behavior.
 - **Ctrl + F** — filter by filename, folder path, or tag name.
 
-For Orca and screen-reader checks across the eight layouts, see the [accessibility test plan](ACCESSIBILITY_TESTING.md). For Wayland portal behavior, see the [portal test plan](WAYLAND_PORTAL_TESTING.md).
+For batch selection checks, see the [batch actions test plan](BATCH_ACTIONS_TESTING.md). For Orca and screen-reader checks across the eight layouts, see the [accessibility test plan](ACCESSIBILITY_TESTING.md). For Wayland portal behavior, see the [portal test plan](WAYLAND_PORTAL_TESTING.md).
 - **Favorites only** — combine the favorites filter with text search and tag filtering (normal UI mode).
 - **Wallpaper tags** — assign multiple comma-separated tags to the selected wallpaper from **More → Wallpaper tags → Manage tags**. Use the Tag dropdown to filter every layout; filename search also matches tag names.
 - **Collections** — save named lists of wallpapers, switch between them with the Collection dropdown, add the selected wallpaper or snapshot all wallpapers from the current folder, remove individual wallpapers, or delete a collection without deleting image files. Collections work with search, favorites, tags, and all layouts.
