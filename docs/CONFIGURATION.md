@@ -36,29 +36,31 @@ Restart Wallmat after installing or updating the schema. If `glib-compile-schema
 - `scan-depth`: 0–20 directory depth; default 0 (unlimited).
 - `applied-wallpaper-history`: up to 50 recently applied paths. Use the in-app **Clear history** action to clear it and the Recent list.
 
-Favorites are stored in `~/.config/wallmat/favorites.json`. Wallpaper tags are stored separately in `~/.config/wallmat/tags.json`; assignments are relative to the selected folder where possible, while paths outside it remain absolute. New saves use a versioned format with paths relative to the selected collection root; favorites outside that root remain absolute. When a collection has moved and its old favorite paths no longer exist, matching relative paths are resolved under the new root. Existing legacy arrays of absolute paths remain readable and are migrated the next time favorites are saved.
+Favorites are stored in `~/.config/wallmat/favorites.json`. Wallpaper tags are stored separately in `~/.config/wallmat/tags.json`; assignments are relative to the selected folder where possible, while paths outside it remain absolute. Named wallpaper collections are stored in `~/.config/wallmat/collections.json` as ordered lists of absolute file paths. New saves use a versioned format with paths relative to the selected collection root; favorites outside that root remain absolute. When a collection has moved and its old favorite paths no longer exist, matching relative paths are resolved under the new root. Existing legacy arrays of absolute paths remain readable and are migrated the next time favorites are saved.
 
 The app also persists layout, text filter, sort mode, Favorites only, last selection, recent wallpaper paths, and auto-rotate interval when the schema is installed. Selection is restored only when the file still exists in the current folder and matches the restored filters. Focus restoration is supported in Split-Screen Preview and selection restoration in Masonry Grid; other layouts and scroll position are not yet restored.
 
 
 ## Backup and restore
 
-Use **More → Backup and restore** to export a portable `wallmat-backup.json`
-or restore one. Version-2 backups include favorites, per-wallpaper tags, and
-the supported GSettings preferences: layout, filter, sorting, favorites-only
+Use **More → Backup and restore** to export a versioned `wallmat-backup.json`
+or restore one. Version-3 backups include favorites, per-wallpaper tags, named
+collections, and the supported GSettings preferences: layout, filter, sorting, favorites-only
 state, recent paths, wallpaper history, scan depth, and rotation settings.
 
 Restore validates the backup format, version, favorites and tag paths,
 preference names, types, and supported ranges before asking for confirmation.
-The confirmation explains that included preferences, favorites, and tags will
-replace their current values. Wallmat does not include credentials or secrets in this
+The confirmation explains that included preferences, favorites, tags, and
+collections will replace their current values. Wallmat does not include credentials or secrets in this
 backup. Restart the application after a restore so all restored preferences
 are reflected consistently.
 
-Backups contain only features currently implemented by Wallmat. Named
-collections are not included until that feature exists. Version-1 backups
-remain restorable; they leave current tags untouched because they do not
-contain a tags section. If the
+Version-1 backups remain restorable and leave current tags and collections
+untouched. Version-2 backups restore tags but leave current collections
+untouched. Collections store absolute file paths; missing files are skipped
+when a collection is opened, and files moved to another path must be added
+again. Adding the current folder to a collection stores the wallpapers found
+at that time; it is not a live folder link. If the
 GSettings schema is unavailable, preference persistence remains unavailable;
 install the schema as described above before relying on preferences surviving
 a restart.
