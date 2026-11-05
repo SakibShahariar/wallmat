@@ -772,6 +772,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.manage_tags_button.connect("clicked", self._on_manage_tags)
         self.manage_collections_button = Gtk.Button(label="Manage collections…")
         self.manage_collections_button.connect("clicked", self._on_manage_collections)
+        self.batch_select_button = Gtk.Button(label="Select multiple…")
+        self.batch_select_button.connect("clicked", self._on_batch_select)
         self.remove_missing_favorites_button = Gtk.Button(
             label="Remove missing favorites"
         )
@@ -817,6 +819,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         collections_heading.add_css_class("heading")
         more_actions.append(collections_heading)
         more_actions.append(self.manage_collections_button)
+        more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+        batch_heading = Gtk.Label(label="Batch actions")
+        batch_heading.set_xalign(0.0)
+        batch_heading.add_css_class("heading")
+        more_actions.append(batch_heading)
+        more_actions.append(self.batch_select_button)
         more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
         backup_heading = Gtk.Label(label="Backup and restore")
         backup_heading.set_xalign(0.0)
