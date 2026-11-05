@@ -33,6 +33,8 @@ elsewhere in this app (uncached, main-thread-blocking decode). This was
 the one layout still doing that; it now matches the rest of the app.
 """
 
+import os
+
 import gi
 
 gi.require_version("Gtk", "4.0")
