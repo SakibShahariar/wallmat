@@ -1873,7 +1873,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                     say("Backup restored. Restart Wallmat to apply restored preferences.")
                 else:
                     say(
-                        "Favorites restored. Preferences cannot persist until the "
+                        "Favorites and tags restored. Preferences cannot persist until the "
                         "Wallmat GSettings schema is installed."
                     )
             finally:
