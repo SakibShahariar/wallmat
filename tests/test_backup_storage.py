@@ -29,10 +29,32 @@ class BackupStorageTests(unittest.TestCase):
             "scan-depth": 2,
             "recent-wallpapers": [str(self.favorite)],
         }
-        backup = encode_backup({str(self.favorite)}, str(self.root), preferences)
+        tags = {str(self.favorite): {"Nature", "Blue hour"}}
+        backup = encode_backup(
+            {str(self.favorite)}, str(self.root), preferences, tags
+        )
         restored = decode_backup(backup, str(self.root))
         self.assertEqual(restored["favorites"], {str(self.favorite)})
         self.assertEqual(restored["preferences"], preferences)
+        self.assertEqual(
+            restored["tags"], {str(self.favorite): {"Blue hour", "Nature"}}
+        )
+
+    def test_decodes_version_one_backup_without_erasing_tags(self):
+        data = {
+            "format": "dev.sakib.Wallmat.backup",
+            "version": 1,
+            "favorites": {
+                "version": 1,
+                "root": str(self.root),
+                "paths": ["lake.png"],
+                "external_paths": [],
+            },
+            "preferences": {"last-filter": "blue"},
+        }
+        restored = decode_backup(data, str(self.root))
+        self.assertIsNone(restored["tags"])
+        self.assertEqual(restored["favorites"], {str(self.favorite)})
 
     def test_accepts_partial_preferences(self):
         backup = encode_backup(set(), str(self.root), {"last-filter": "blue"})
