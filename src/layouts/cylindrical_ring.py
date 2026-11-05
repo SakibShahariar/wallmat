@@ -27,7 +27,6 @@ double the snapshots per frame for marginal visual gain in a prototype).
 """
 
 import math
-import os
 
 import gi
 
@@ -38,6 +37,7 @@ from gi.repository import Gtk, Gdk, Graphene, Gsk, GLib
 from .base import WallLayout
 from announce import say
 from widgets.thumbnail_loader import ThumbnailLoader
+from widgets.accessibility import wallpaper_accessible_name
 from widgets.gsk_utils import draw_card, get_animations_enabled
 
 CARD_WIDTH = 180
@@ -124,8 +124,8 @@ class _RingWidget(Gtk.Widget):
             label = "Cylindrical ring wallpaper browser"
             description = "No wallpapers. Use Left and Right to browse; press Enter to select."
         else:
-            focused = os.path.basename(self._paths[self._focus])
-            selected = os.path.basename(self._paths[self._selection])
+            focused = wallpaper_accessible_name(self._paths[self._focus])
+            selected = wallpaper_accessible_name(self._paths[self._selection])
             label = f"Cylindrical ring: {focused}"
             description = (
                 f"Keyboard focus: {focused}. Selected wallpaper: {selected}. "
