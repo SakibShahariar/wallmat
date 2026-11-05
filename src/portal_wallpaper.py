@@ -79,7 +79,7 @@ def request_wallpaper(path, callback):
             finish(None, "No session-bus identity is available for the wallpaper portal.")
             return
         sender = unique_name.lstrip(":").replace(".", "_")
-        token = uuid.uuid4().hex
+        token = f"wallmat_{uuid.uuid4().hex}"
         expected_handle = (
             f"/org/freedesktop/portal/desktop/request/{sender}/{token}"
         )
@@ -105,13 +105,21 @@ def request_wallpaper(path, callback):
         state["fd_list"] = fd_list
 
         def on_method_finished(bus, result, _user_data):
+            nonlocal subscription_id
             try:
                 reply, _returned_fds = bus.call_with_unix_fd_list_finish(result)
                 actual_handle = reply.unpack()[0]
                 if actual_handle != expected_handle and not state["completed"]:
-                    finish(
-                        False,
-                        "The desktop portal returned an unexpected request handle.",
+                    connection.signal_unsubscribe(subscription_id)
+                    subscription_id = connection.signal_subscribe(
+                        BUS_NAME,
+                        REQUEST_INTERFACE,
+                        "Response",
+                        actual_handle,
+                        None,
+                        Gio.DBusSignalFlags.NONE,
+                        on_response,
+                        None,
                     )
             except GLib.Error as error:
                 remote_name = Gio.DBusError.get_remote_error(error) or ""
