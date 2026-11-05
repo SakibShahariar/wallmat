@@ -66,7 +66,7 @@ class MatugenPreviewTests(unittest.TestCase):
         }
         self.assertEqual(
             parse_preview_output(json.dumps(payload)),
-            {"dark": [("error", "#aabbcc; color: red")]},
+            {"light": [("primary", "#112233")]},
         )
 
     def test_rejects_invalid_json_and_missing_palette(self):
