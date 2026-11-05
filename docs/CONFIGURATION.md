@@ -44,23 +44,24 @@ The app also persists layout, text filter, sort mode, Favorites only, last selec
 ## Backup and restore
 
 Use **More → Backup and restore** to export a versioned `wallmat-backup.json`
-or restore one. Version-3 backups include favorites, per-wallpaper tags, named
-collections, and the supported GSettings preferences: layout, filter, sorting, favorites-only
-state, recent paths, wallpaper history, scan depth, and rotation settings.
+or restore one. Version-3 backups include favorites, per-wallpaper tags,
+named collections, and supported GSettings preferences: layout, filter,
+sorting, favorites-only state, recent paths, wallpaper history, scan depth,
+and rotation settings.
 
 Restore validates the backup format, version, favorites and tag paths,
 preference names, types, and supported ranges before asking for confirmation.
 The confirmation explains that included preferences, favorites, tags, and
-collections will replace their current values. Wallmat does not include credentials or secrets in this
-backup. Restart the application after a restore so all restored preferences
-are reflected consistently.
+collections will replace their current values. Wallmat does not include credentials or secrets in this backup. Restart the
+application after a restore so all restored preferences are reflected
+consistently.
 
 Version-1 backups remain restorable and leave current tags and collections
 untouched. Version-2 backups restore tags but leave current collections
 untouched. Version-3 backups include all three data sections. Collections store absolute file paths; missing files are skipped
 when a collection is opened, and files moved to another path must be added
 again. Adding the current folder to a collection stores the wallpapers found
-at that time; it is not a live folder link. If the
-GSettings schema is unavailable, preference persistence remains unavailable;
+at that time; it is not a live folder link. If the GSettings schema is
+unavailable, preference persistence remains unavailable;
 install the schema as described above before relying on preferences surviving
 a restart.
