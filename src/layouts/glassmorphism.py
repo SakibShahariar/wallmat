@@ -224,7 +224,12 @@ class GlassmorphismLayout(WallLayout):
         # had, or the selection border flickers to the wrong card while the
         # selection itself stays put.
         selected_item = self.selection.get_selected_item()
-        picture.add_css_class("active") if selected_item is item else picture.remove_css_class("active")
+        is_selected = selected_item is item
+        picture.update_property(
+            [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
+            [os.path.basename(item.path), "Selected" if is_selected else "Wallpaper thumbnail"],
+        )
+        picture.add_css_class("active") if is_selected else picture.remove_css_class("active")
 
         def on_ready(item_id, texture, picture=picture):
             # ListView rows are recycled; never paint into a row that has
@@ -241,6 +246,10 @@ class GlassmorphismLayout(WallLayout):
             self._live_widgets.pop(item.path, None)
         picture: Gtk.Picture = list_item.get_child()
         picture.set_paintable(None)
+        picture.update_property(
+            [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
+            ["Wallpaper thumbnail", "Recycled wallpaper image"],
+        )
         picture.remove_css_class("active")
         picture.remove_css_class("focused")
 
@@ -250,7 +259,12 @@ class GlassmorphismLayout(WallLayout):
         # selected one — the previously-selected row (if still bound/visible)
         # needs its glow cleared too.
         for path, picture in self._live_widgets.items():
-            if item is not None and item.path == path:
+            is_selected = item is not None and item.path == path
+            picture.update_property(
+                [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
+                [os.path.basename(path), "Selected" if is_selected else "Wallpaper thumbnail"],
+            )
+            if is_selected:
                 picture.add_css_class("active")
             else:
                 picture.remove_css_class("active")
