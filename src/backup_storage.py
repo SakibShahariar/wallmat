@@ -1,10 +1,11 @@
 """Versioned, validated JSON backups for Wallmat user data."""
 
 from favorites_storage import decode_favorites, encode_favorites
+from tags_storage import decode_tags, encode_tags
 
 
 BACKUP_FORMAT = "dev.sakib.Wallmat.backup"
-BACKUP_VERSION = 1
+BACKUP_VERSION = 2
 
 # Keep this allow-list aligned with data/dev.sakib.Wallmat.gschema.xml.
 # It intentionally excludes transient state and unknown future settings.
@@ -78,12 +79,13 @@ def validate_preferences(preferences):
     return validated
 
 
-def encode_backup(favorites, wallpaper_root, preferences):
+def encode_backup(favorites, wallpaper_root, preferences, tags=None):
     """Build a JSON-compatible backup without mutating application state."""
     return {
         "format": BACKUP_FORMAT,
         "version": BACKUP_VERSION,
         "favorites": encode_favorites(favorites, wallpaper_root),
+        "tags": encode_tags(tags or {}, wallpaper_root),
         "preferences": validate_preferences(preferences),
     }
 
@@ -94,12 +96,17 @@ def decode_backup(data, current_root):
         raise ValueError("backup must be a JSON object")
     if data.get("format") != BACKUP_FORMAT:
         raise ValueError("file is not a Wallmat backup")
-    if type(data.get("version")) is not int or data["version"] != BACKUP_VERSION:
+    version = data.get("version")
+    if type(version) is not int or version not in (1, BACKUP_VERSION):
         raise ValueError("unsupported Wallmat backup version")
-    if set(data) != {"format", "version", "favorites", "preferences"}:
+    expected_fields = {"format", "version", "favorites", "preferences"}
+    if version == BACKUP_VERSION:
+        expected_fields.add("tags")
+    if set(data) != expected_fields:
         raise ValueError("backup contains missing or unexpected top-level fields")
 
     # Validate every section before callers write any current user data.
     favorites = decode_favorites(data["favorites"], current_root)
     preferences = validate_preferences(data["preferences"])
-    return {"favorites": favorites, "preferences": preferences}
+    tags = decode_tags(data["tags"], current_root) if version >= 2 else None
+    return {"favorites": favorites, "preferences": preferences, "tags": tags}
