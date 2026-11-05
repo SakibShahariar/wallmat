@@ -169,6 +169,7 @@ class MasonryGridLayout(WallLayout):
 
         self._live_widgets[item.item_id] = card
         card.texture = item.texture
+        card.set_accessible_name(item.path)
         card.set_selected(self.selection.get_selected_item() is item)
 
         if item.texture is None:
@@ -190,6 +191,7 @@ class MasonryGridLayout(WallLayout):
                 del self._live_widgets[item.item_id]
         if card is not None:
             card.texture = None
+            card.set_accessible_name("Wallpaper thumbnail")
             card.set_selected(False)
 
     def _on_item_activated(self, grid_view, position):
