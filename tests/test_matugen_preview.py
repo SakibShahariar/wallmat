@@ -48,7 +48,7 @@ class MatugenPreviewTests(unittest.TestCase):
                 },
             }
         }
-        parsed = parse_preview_output(json.dumps(payload) + "\\nok")
+        parsed = parse_preview_output(json.dumps(payload) + "\nok")
         self.assertEqual(
             parsed,
             {
