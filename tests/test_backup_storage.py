@@ -30,8 +30,9 @@ class BackupStorageTests(unittest.TestCase):
             "recent-wallpapers": [str(self.favorite)],
         }
         tags = {str(self.favorite): {"Nature", "Blue hour"}}
+        collections = {"Nature": [str(self.favorite)]}
         backup = encode_backup(
-            {str(self.favorite)}, str(self.root), preferences, tags
+            {str(self.favorite)}, str(self.root), preferences, tags, collections
         )
         restored = decode_backup(backup, str(self.root))
         self.assertEqual(restored["favorites"], {str(self.favorite)})
@@ -39,10 +40,15 @@ class BackupStorageTests(unittest.TestCase):
         self.assertEqual(
             restored["tags"], {str(self.favorite): {"Blue hour", "Nature"}}
         )
+        self.assertEqual(
+            restored["collections"], {"Nature": [str(self.favorite)]}
+        )
 
     def test_rejects_invalid_tags_mapping(self):
         with self.assertRaises(ValueError):
             encode_backup(set(), str(self.root), {}, tags=[])
+        with self.assertRaises(ValueError):
+            encode_backup(set(), str(self.root), {}, collections=[])
 
     def test_decodes_version_one_backup_without_erasing_tags(self):
         data = {
@@ -59,6 +65,13 @@ class BackupStorageTests(unittest.TestCase):
         restored = decode_backup(data, str(self.root))
         self.assertIsNone(restored["tags"])
         self.assertEqual(restored["favorites"], {str(self.favorite)})
+
+    def test_decodes_version_two_backup_without_erasing_collections(self):
+        data = encode_backup(set(), str(self.root), {})
+        data["version"] = 2
+        data.pop("collections")
+        restored = decode_backup(data, str(self.root))
+        self.assertIsNone(restored["collections"])
 
     def test_accepts_partial_preferences(self):
         backup = encode_backup(set(), str(self.root), {"last-filter": "blue"})
