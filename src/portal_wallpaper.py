@@ -19,6 +19,8 @@ _PORTAL_UNAVAILABLE_ERRORS = {
     "org.freedesktop.DBus.Error.UnknownInterface",
     "org.freedesktop.DBus.Error.UnknownMethod",
     "org.freedesktop.DBus.Error.UnknownObject",
+    "org.freedesktop.DBus.Error.NoReply",
+    "org.freedesktop.DBus.Error.NotSupported",
 }
 
 
