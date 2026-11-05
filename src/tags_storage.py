@@ -82,7 +82,7 @@ def decode_tags(data, current_root):
     relative_paths = data.get("paths")
     external_paths = data.get("external_paths")
     if (
-        not isinstance(saved_root, str) or not saved_root
+        not isinstance(saved_root, str) or not saved_root or not os.path.isabs(saved_root)
         or not isinstance(relative_paths, dict)
         or not isinstance(external_paths, dict)
         or set(data) != {"version", "root", "paths", "external_paths"}
