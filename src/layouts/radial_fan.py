@@ -62,6 +62,7 @@ class _FanWidget(Gtk.Widget):
         self.set_overflow(Gtk.Overflow.VISIBLE)
         self.set_hexpand(True)
         self.set_vexpand(True)
+        self.set_focusable(True)
         self.set_size_request(560, 380)
 
         self._paths: list[str] = []
