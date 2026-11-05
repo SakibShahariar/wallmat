@@ -1851,6 +1851,183 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         except OSError as error:
             say(f"Could not export favorites: {error}")
 
+    def _on_batch_select(self, _button):
+        paths = list(self._paths)
+        if not paths:
+            say("There are no visible wallpapers to select.")
+            return
+
+        dialog = Gtk.Dialog(
+            title="Select multiple wallpapers", transient_for=self, modal=True
+        )
+        dialog.set_default_size(620, 520)
+        dialog.add_button("Done", Gtk.ResponseType.CLOSE)
+        content = dialog.get_content_area()
+        content.set_spacing(10)
+        content.set_margin_top(12)
+        content.set_margin_bottom(12)
+        content.set_margin_start(12)
+        content.set_margin_end(12)
+
+        description = Gtk.Label(
+            label=(
+                "Select several visible wallpapers in this list. GTK's multi-selection "
+                "supports modifier-key and range selection independently of the active layout."
+            )
+        )
+        description.set_wrap(True)
+        description.set_xalign(0.0)
+        content.append(description)
+
+        store = Gio.ListStore.new(Gtk.StringObject)
+        for path in paths:
+            store.append(Gtk.StringObject.new(path))
+        selection = Gtk.MultiSelection(model=store)
+        factory = Gtk.SignalListItemFactory()
+
+        def on_setup(_factory, list_item):
+            label = Gtk.Label(xalign=0.0)
+            label.set_margin_start(8)
+            label.set_margin_end(8)
+            label.set_margin_top(5)
+            label.set_margin_bottom(5)
+            list_item.set_child(label)
+
+        def on_bind(_factory, list_item):
+            path = list_item.get_item().get_string()
+            label = list_item.get_child()
+            label.set_text(os.path.basename(path))
+            label.set_tooltip_text(path)
+
+        factory.connect("setup", on_setup)
+        factory.connect("bind", on_bind)
+        list_view = Gtk.ListView(model=selection, factory=factory)
+        list_view.set_vexpand(True)
+        list_view.set_hexpand(True)
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_vexpand(True)
+        scroller.set_hexpand(True)
+        scroller.set_child(list_view)
+        content.append(scroller)
+
+        collection_names = sorted(self._collections, key=str.casefold)
+        collection_dropdown = Gtk.DropDown.new_from_strings(
+            collection_names or ["No collections"]
+        )
+        collection_dropdown.set_tooltip_text("Choose a collection for the selected wallpapers")
+        content.append(collection_dropdown)
+
+        actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        favorite_button = Gtk.Button(label="Favorite selected")
+        unfavorite_button = Gtk.Button(label="Remove selected from favorites")
+        add_collection_button = Gtk.Button(label="Add to collection")
+        export_button = Gtk.Button(label="Export selected paths…")
+        for button in (
+            favorite_button, unfavorite_button, add_collection_button, export_button
+        ):
+            actions.append(button)
+        content.append(actions)
+        add_collection_button.set_sensitive(bool(collection_names))
+
+        def selected_paths():
+            return [
+                store.get_item(index).get_string()
+                for index in range(store.get_n_items())
+                if selection.is_selected(index)
+            ]
+
+        def update_favorites(add):
+            chosen = selected_paths()
+            if not chosen:
+                say("Select at least one wallpaper first.")
+                return
+            previous = self._favorites.copy()
+            if add:
+                self._favorites.update(chosen)
+            else:
+                self._favorites.difference_update(chosen)
+            try:
+                self._save_favorites()
+            except (OSError, ValueError) as error:
+                self._favorites = previous
+                say(f"Could not update favorites: {error}")
+                return
+            self._update_missing_favorites_action()
+            self._update_favorite_button()
+            if self._favorites_only:
+                self._refresh_filtered_paths()
+            say(
+                f"{'Added' if add else 'Removed'} {len(chosen)} wallpaper(s) "
+                f"{'to' if add else 'from'} favorites."
+            )
+
+        def on_add_to_collection(_button):
+            index = collection_dropdown.get_selected()
+            name = collection_names[index] if index < len(collection_names) else None
+            chosen = selected_paths()
+            if not name or not chosen:
+                say("Select a collection and at least one wallpaper.")
+                return
+            previous = {key: list(values) for key, values in self._collections.items()}
+            existing = set(self._collections[name])
+            additions = [path for path in chosen if path not in existing]
+            if not additions:
+                say("All selected wallpapers are already in that collection.")
+                return
+            self._collections[name].extend(additions)
+            try:
+                self._save_collections()
+            except (OSError, ValueError) as error:
+                self._collections = previous
+                say(f"Could not update collection: {error}")
+                return
+            if self._active_collection == name:
+                self._activate_collection(name)
+                self._refresh_collection_selector()
+            say(f"Added {len(additions)} wallpaper(s) to {name!r}.")
+
+        def on_export_selected(_button):
+            chosen = selected_paths()
+            if not chosen:
+                say("Select at least one wallpaper first.")
+                return
+            chooser = Gtk.FileChooserNative.new(
+                "Export selected wallpaper paths",
+                dialog,
+                Gtk.FileChooserAction.SAVE,
+                "Export",
+                "Cancel",
+            )
+            chooser.set_current_name("wallmat-selected-wallpapers.txt")
+
+            def on_export_response(current, response):
+                try:
+                    if response != Gtk.ResponseType.ACCEPT:
+                        return
+                    target = current.get_file()
+                    target_path = target.get_path() if target is not None else None
+                    if not target_path:
+                        say("Choose a local file path for the export.")
+                        return
+                    with open(target_path, "w", encoding="utf-8") as handle:
+                        for path in chosen:
+                            handle.write(path + "\n")
+                    say(f"Exported {len(chosen)} wallpaper path(s) to {target_path}.")
+                except OSError as error:
+                    say(f"Could not export selected wallpaper paths: {error}")
+                finally:
+                    current.destroy()
+
+            chooser.connect("response", on_export_response)
+            chooser.show()
+
+        favorite_button.connect("clicked", lambda _button: update_favorites(True))
+        unfavorite_button.connect("clicked", lambda _button: update_favorites(False))
+        add_collection_button.connect("clicked", on_add_to_collection)
+        export_button.connect("clicked", on_export_selected)
+        dialog.connect("response", lambda current, response: current.destroy())
+        dialog.present()
+
     def _on_manage_collections(self, _button):
         dialog = Gtk.Dialog(
             title="Manage wallpaper collections", transient_for=self, modal=True
