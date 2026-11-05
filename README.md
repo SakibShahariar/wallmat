@@ -87,7 +87,7 @@ WP="$(python3 src/main.py ~/Pictures/Wallpapers --plain 2>/dev/null)"
 matugen image "$WP" --type scheme-smart --mode dark
 ```
 
-In normal UI mode, **Set as wallpaper** updates GNOME's background settings. **Apply wallpaper + Matugen** also runs Matugen. Customize its arguments with `--matugen-args`; see the [Matugen and CLI guide](docs/FEATURES.md#matugen-and-cli-mode).
+In normal UI mode, **Set as wallpaper** uses the XDG Wallpaper portal on Wayland and falls back to GNOME's background settings only when the portal is unavailable; other sessions use GNOME settings directly. Portal cancellation or failure is reported without bypassing the user's decision. **Apply wallpaper + Matugen** also runs Matugen. Customize its arguments with `--matugen-args`; see the [Matugen and CLI guide](docs/FEATURES.md#matugen-and-cli-mode).
 
 ## Favorites
 
@@ -95,7 +95,7 @@ Favorites are stored in `~/.config/wallmat/favorites.json` and exported to `favo
 
 ## Tags
 
-Assign multiple tags to a wallpaper with **More → Wallpaper tags → Manage tags**. Filter the current folder by tag using the Tag dropdown, or search for a tag name. Tags are stored locally in `~/.config/wallmat/tags.json` and are included in version-2 backups.
+Assign multiple tags to a wallpaper with **More → Wallpaper tags → Manage tags**. Filter the current folder by tag using the Tag dropdown, or search for a tag name. Tags are stored locally in `~/.config/wallmat/tags.json` and are included in version-3 backups.
 
 ## Collections
 
