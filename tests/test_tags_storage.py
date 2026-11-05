@@ -28,6 +28,12 @@ class TagsStorageTests(unittest.TestCase):
             ["blue hour", "Nature"],
         )
 
+    def test_set_input_is_deterministic(self):
+        self.assertEqual(
+            normalize_tags({"nature", "Nature", "blue"}),
+            ["blue", "Nature"],
+        )
+
     def test_rejects_invalid_tag_values(self):
         for tags in ([""], ["x" * 41], ["has,comma"], [None]):
             with self.subTest(tags=tags):
