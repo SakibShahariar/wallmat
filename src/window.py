@@ -59,6 +59,7 @@ from backup_storage import encode_backup, decode_backup
 from matugen_preview import build_preview_command, parse_preview_output
 from tags_storage import decode_tags, encode_tags, normalize_tags
 from collections_storage import decode_collections, encode_collections, normalize_collection_name
+from portal_wallpaper import request_wallpaper
 from plain_mode import SUCCESS, CANCELLED, SCAN_FAILED
 
 SCHEMA_ID = "dev.sakib.Wallmat"
@@ -2513,6 +2514,34 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         path = self._selected_path
         if not path:
             return False
+        if (
+            os.environ.get("WAYLAND_DISPLAY")
+            or os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
+        ):
+            self.set_wallpaper_button.set_sensitive(False)
+            request_wallpaper(
+                path,
+                lambda result, message: self._on_portal_wallpaper_result(
+                    path, result, message
+                ),
+            )
+            return True
+        return self._apply_wallpaper_gsettings(path)
+
+    def _on_portal_wallpaper_result(self, path, result, message):
+        self.set_wallpaper_button.set_sensitive(bool(self._selected_path))
+        if result is None:
+            say("Wallpaper portal unavailable; using the existing GNOME settings method.")
+            self._apply_wallpaper_gsettings(path)
+            return
+        if not result:
+            say(message or "The desktop portal did not apply the wallpaper.")
+            return
+        self._record_applied_history(path)
+        self._remember_recent_path(path)
+        say(f"Wallpaper applied through the desktop portal: {path}")
+
+    def _apply_wallpaper_gsettings(self, path):
         try:
             settings = Gio.Settings.new("org.gnome.desktop.background")
             uri = GLib.filename_to_uri(path)
