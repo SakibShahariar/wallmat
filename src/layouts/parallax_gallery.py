@@ -280,7 +280,17 @@ class ParallaxGalleryLayout(WallLayout):
         focus_item = None
         if self._focus is not None:
             focus_item = self.fg_store.get_item(self._focus)
-        if focus_item is not None and item.path == focus_item.path:
+        is_focused = focus_item is not None and item.path == focus_item.path
+        selected_item = self.selection.get_selected_item()
+        is_selected = selected_item is item
+        description = "Selected" if is_selected else "Wallpaper thumbnail"
+        if is_focused:
+            description += "; keyboard focus"
+        picture.update_property(
+            [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
+            [os.path.basename(item.path), description],
+        )
+        if is_focused:
             picture.add_css_class("focused")
         else:
             picture.remove_css_class("focused")
@@ -297,6 +307,10 @@ class ParallaxGalleryLayout(WallLayout):
             self._live_fg.pop(item.path, None)
         picture: Gtk.Picture = list_item.get_child()
         picture.set_paintable(None)
+        picture.update_property(
+            [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
+            ["Wallpaper thumbnail", "Recycled wallpaper image"],
+        )
         picture.remove_css_class("focused")
 
     def _on_fg_scroll(self, adjustment):
@@ -305,6 +319,19 @@ class ParallaxGalleryLayout(WallLayout):
 
     def _on_selected(self, selection, position, n_items):
         item = self.selection.get_selected_item()
+        for path, picture in self._live_fg.items():
+            is_selected = item is not None and item.path == path
+            is_focused = False
+            if self._focus is not None:
+                focus_item = self.fg_store.get_item(self._focus)
+                is_focused = focus_item is not None and focus_item.path == path
+            description = "Selected" if is_selected else "Wallpaper thumbnail"
+            if is_focused:
+                description += "; keyboard focus"
+            picture.update_property(
+                [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
+                [os.path.basename(path), description],
+            )
         if item is not None:
             self.emit("wallpaper-selected", item.path)
 
@@ -356,8 +383,18 @@ class ParallaxGalleryLayout(WallLayout):
             item = self.fg_store.get_item(self._focus)
             if item is not None:
                 focus_path = item.path
+        selected_item = self.selection.get_selected_item()
         for path, picture in self._live_fg.items():
-            if path == focus_path:
+            is_focused = path == focus_path
+            is_selected = selected_item is not None and selected_item.path == path
+            description = "Selected" if is_selected else "Wallpaper thumbnail"
+            if is_focused:
+                description += "; keyboard focus"
+            picture.update_property(
+                [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
+                [os.path.basename(path), description],
+            )
+            if is_focused:
                 picture.add_css_class("focused")
             else:
                 picture.remove_css_class("focused")
