@@ -84,6 +84,16 @@ class TagsStorageTests(unittest.TestCase):
             {str(old_root / "lake.png"): {"Nature"}},
         )
 
+    def test_rejects_relative_saved_root(self):
+        invalid = {
+            "version": 1,
+            "root": "relative/root",
+            "paths": {},
+            "external_paths": {},
+        }
+        with self.assertRaises(ValueError):
+            decode_tags(invalid, str(self.root))
+
     def test_rejects_path_traversal_and_unknown_version(self):
         invalid = {
             "version": 1,
