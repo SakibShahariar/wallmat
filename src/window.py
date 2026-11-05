@@ -1691,6 +1691,16 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._update_favorite_button()
         say(f"Removed {removed_count} missing favorite(s).")
 
+    def _backup_corrupt_collections(self) -> str:
+        """Preserve an unreadable collections file without overwriting backups."""
+        backup_path = self._collections_file + ".corrupt"
+        suffix = 1
+        while os.path.exists(backup_path):
+            backup_path = f"{self._collections_file}.corrupt.{suffix}"
+            suffix += 1
+        shutil.copy2(self._collections_file, backup_path)
+        return backup_path
+
     def _backup_corrupt_tags(self) -> str:
         """Preserve an unreadable tags file without overwriting older backups."""
         backup_path = self._tags_file + ".corrupt"
@@ -1734,6 +1744,26 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 json.dump(encode_tags(self._tags, self._wallpaper_dir), handle, indent=2)
                 handle.write("\n")
             os.replace(temporary_path, self._tags_file)
+        except OSError:
+            try:
+                os.unlink(temporary_path)
+            except OSError:
+                pass
+            raise
+
+    def _save_collections(self):
+        if self._collections_write_blocked:
+            raise PermissionError(
+                "collections are protected because their recovery backup failed"
+            )
+        directory = os.path.dirname(self._collections_file)
+        os.makedirs(directory, exist_ok=True)
+        temporary_path = self._collections_file + ".tmp"
+        try:
+            with open(temporary_path, "w", encoding="utf-8") as handle:
+                json.dump(encode_collections(self._collections), handle, indent=2)
+                handle.write("\n")
+            os.replace(temporary_path, self._collections_file)
         except OSError:
             try:
                 os.unlink(temporary_path)
