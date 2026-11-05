@@ -27,7 +27,6 @@ Images route through ThumbnailLoader (async, downscaled, cached).
 """
 
 import math
-import os
 
 import gi
 
@@ -38,6 +37,7 @@ from gi.repository import Gtk, Gdk, Graphene, Gsk
 from .base import WallLayout
 from announce import say
 from widgets.thumbnail_loader import ThumbnailLoader
+from widgets.accessibility import wallpaper_accessible_name
 from widgets.gsk_utils import draw_card
 
 CARD_WIDTH = 120
@@ -105,8 +105,8 @@ class _FanWidget(Gtk.Widget):
             label = "Radial fan wallpaper browser"
             description = "No wallpapers. Use Left and Right to browse; press Enter to select."
         else:
-            focused = os.path.basename(self._paths[self._front])
-            selected = os.path.basename(self._paths[self._selection])
+            focused = wallpaper_accessible_name(self._paths[self._front])
+            selected = wallpaper_accessible_name(self._paths[self._selection])
             label = f"Radial fan: {focused}"
             description = (
                 f"Keyboard focus: {focused}. Selected wallpaper: {selected}. "
