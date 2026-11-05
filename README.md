@@ -76,7 +76,7 @@ python3 src/main.py ~/Pictures/Wallpapers --layout infinite_ribbon
 - Auto-rotation, random selection, and applied-wallpaper history.
 - Keyboard navigation, drag-and-drop folder switching, and persistent preferences.
 
-See **[Controls and features](docs/FEATURES.md)** for usage details and **[Configuration](docs/CONFIGURATION.md)** for supported formats, cache behavior, scan settings, and preference persistence.
+See **[Controls and features](docs/FEATURES.md)** for usage details, **[Configuration](docs/CONFIGURATION.md)** for supported formats and persistence, and the **[screenshot coverage guide](docs/SCREENSHOTS.md)** for image inventory and refresh rules.
 
 ## Matugen and command-line mode
 
