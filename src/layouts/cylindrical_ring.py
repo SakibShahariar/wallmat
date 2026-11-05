@@ -27,6 +27,7 @@ double the snapshots per frame for marginal visual gain in a prototype).
 """
 
 import math
+import os
 
 import gi
 
@@ -87,6 +88,7 @@ class _RingWidget(Gtk.Widget):
         # watched (a toggle mid-session just needs a relaunch here).
         self._animations_enabled = get_animations_enabled()
         self._hovered = False
+        self._update_accessible_summary()
 
         # Accept both axes: many touchpads report vertical wheel gestures
         # as dy even when the ring's interaction is rotational/horizontal.
@@ -116,6 +118,23 @@ class _RingWidget(Gtk.Widget):
 
         self.connect("realize", lambda w: w.grab_focus())
 
+    def _update_accessible_summary(self):
+        if not self._paths:
+            label = "Cylindrical ring wallpaper browser"
+            description = "No wallpapers. Use Left and Right to browse; press Enter to select."
+        else:
+            focused = os.path.basename(self._paths[self._focus])
+            selected = os.path.basename(self._paths[self._selection])
+            label = f"Cylindrical ring: {focused}"
+            description = (
+                f"Keyboard focus: {focused}. Selected wallpaper: {selected}. "
+                "Use Left and Right to browse; press Enter to select."
+            )
+        self.update_property(
+            [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
+            [label, description],
+        )
+
     def _set_hovered(self, value: bool):
         if value != self._hovered:
             self._hovered = value
@@ -130,6 +149,7 @@ class _RingWidget(Gtk.Widget):
         self._target_center = None
         self._focus = 0
         self._selection = 0
+        self._update_accessible_summary()
         for path in paths:
             def on_ready(item_id, texture, path=path):
                 self._textures[item_id] = texture
@@ -147,6 +167,7 @@ class _RingWidget(Gtk.Widget):
             return
         position %= n
         self._focus = position
+        self._update_accessible_summary()
         self._target_center = float(self._focus)
         self._start_anim()
         if announce:
@@ -326,6 +347,12 @@ class _RingWidget(Gtk.Widget):
             snapshot.restore()
 
         snapshot.restore()
+
+
+try:
+    _RingWidget.set_accessible_role(Gtk.AccessibleRole.GROUP)
+except (AttributeError, TypeError):
+    pass
 
 
 class CylindricalRingLayout(WallLayout):
