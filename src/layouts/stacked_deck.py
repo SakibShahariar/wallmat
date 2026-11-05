@@ -175,6 +175,12 @@ class _DeckWidget(Gtk.Widget):
             snapshot.restore()
 
 
+try:
+    _DeckWidget.set_accessible_role(Gtk.AccessibleRole.GROUP)
+except (AttributeError, TypeError):
+    pass
+
+
 class StackedDeckLayout(WallLayout):
     display_name = "Stacked Deck"
     performance_tier = "fast"
@@ -236,6 +242,7 @@ class StackedDeckLayout(WallLayout):
     def _apply_wallpapers(self, paths: list[str]):
         self._deck_index = 0
         self._load_all_cards()
+        self._print_focus()
 
     def _request_texture(self, slot: _DeckSlot, path: str):
         """Async, cached decode via the shared ThumbnailLoader — replaces
@@ -305,6 +312,14 @@ class StackedDeckLayout(WallLayout):
         if not self._paths:
             return
         path = self._paths[self._deck_index % len(self._paths)]
+        name = os.path.basename(path)
+        self.deck.update_property(
+            [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
+            [
+                f"Wallpaper deck: {name}",
+                f"Keyboard focus: {name}. Use Left and Right to browse; press Enter or Use this wallpaper to select.",
+            ],
+        )
         say(f"Focus: {path}")
 
     def _deal(self, direction: int):
@@ -430,4 +445,9 @@ class StackedDeckLayout(WallLayout):
         if not self._paths:
             return
         path = self._paths[self._deck_index % len(self._paths)]
+        name = os.path.basename(path)
+        self.deck.update_property(
+            [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
+            [f"Wallpaper deck: {name}", f"Selected wallpaper: {name}"],
+        )
         self.emit("wallpaper-selected", path)
