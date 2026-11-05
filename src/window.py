@@ -1823,10 +1823,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         confirmation = Adw.MessageDialog.new(
             self,
             "Restore Wallmat backup?",
-            "This will replace the current favorites and the preferences included "
-            "in the backup. Wallmat validates the complete file before changing "
-            "anything. Export a backup of the current state first if you may "
-            "want to undo this restore.",
+            "This will replace the current favorites, wallpaper tags, and "
+            "preferences included in the backup. Wallmat validates the complete "
+            "file before changing anything. Export a backup of the current state "
+            "first if you may want to undo this restore.",
         )
         confirmation.add_response("cancel", "Cancel")
         confirmation.add_response("restore", "Restore")
