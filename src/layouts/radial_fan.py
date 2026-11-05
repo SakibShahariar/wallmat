@@ -27,6 +27,7 @@ Images route through ThumbnailLoader (async, downscaled, cached).
 """
 
 import math
+import os
 
 import gi
 
@@ -69,6 +70,7 @@ class _FanWidget(Gtk.Widget):
         self._front = 0
         self._selection = 0  # path index last explicitly selected
         self._hovered = False
+        self._update_accessible_summary()
 
         scroll = Gtk.EventControllerScroll.new(
             Gtk.EventControllerScrollFlags.VERTICAL | Gtk.EventControllerScrollFlags.HORIZONTAL
@@ -97,6 +99,23 @@ class _FanWidget(Gtk.Widget):
 
         self.connect("realize", lambda w: w.grab_focus())
 
+    def _update_accessible_summary(self):
+        if not self._paths:
+            label = "Radial fan wallpaper browser"
+            description = "No wallpapers. Use Left and Right to browse; press Enter to select."
+        else:
+            focused = os.path.basename(self._paths[self._front])
+            selected = os.path.basename(self._paths[self._selection])
+            label = f"Radial fan: {focused}"
+            description = (
+                f"Keyboard focus: {focused}. Selected wallpaper: {selected}. "
+                "Use Left and Right to browse; press Enter to select."
+            )
+        self.update_property(
+            [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
+            [label, description],
+        )
+
     def _set_hovered(self, value: bool):
         if value != self._hovered:
             self._hovered = value
@@ -107,6 +126,7 @@ class _FanWidget(Gtk.Widget):
         self._textures.clear()
         self._front = 0
         self._selection = 0
+        self._update_accessible_summary()
         for path in paths:
             def on_ready(item_id, texture, path=path):
                 self._textures[item_id] = texture
@@ -121,6 +141,7 @@ class _FanWidget(Gtk.Widget):
         if not self._paths:
             return
         self._front = (self._front + delta) % len(self._paths)
+        self._update_accessible_summary()
         self.queue_draw()
         if announce:
             say(f"Focus: {self._paths[self._front]}")
@@ -131,6 +152,7 @@ class _FanWidget(Gtk.Widget):
         if not self._paths:
             return
         self._selection = self._front
+        self._update_accessible_summary()
         self.emit_selection()
 
     def _geometry(self):
@@ -278,6 +300,12 @@ class _FanWidget(Gtk.Widget):
                 hover_overlay.parse("rgba(255,255,255,0.10)")
                 snapshot.append_color(hover_overlay, hover_rect)
             snapshot.restore()
+
+
+try:
+    _FanWidget.set_accessible_role(Gtk.AccessibleRole.GROUP)
+except (AttributeError, TypeError):
+    pass
 
 
 class RadialFanLayout(WallLayout):
