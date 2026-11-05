@@ -12,7 +12,6 @@ scaling in the carousel: 1.0 = fully active/centered, 0.0 = fully at rest.
 """
 
 import math
-import os
 
 import gi
 
@@ -110,7 +109,7 @@ class SkewedCard(Gtk.Widget):
             self.queue_draw()
 
     def set_accessible_name(self, name: str):
-        self._accessible_name = os.path.basename(name) or "Wallpaper thumbnail"
+        self._accessible_name = wallpaper_accessible_name(name)
         self._update_accessible_description()
 
     def _update_accessible_description(self):
