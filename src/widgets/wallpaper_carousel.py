@@ -240,6 +240,7 @@ class WallpaperCarousel(Gtk.Box):
             self.loader.request(item.item_id, item.path, on_ready)
 
         selected_item = self.selection.get_selected_item()
+        card.set_accessible_name(item.path)
         card.set_selected(selected_item is item)
         card.set_focused(self._focused_item is not None and self._focused_item == item.item_id)
 
@@ -256,6 +257,8 @@ class WallpaperCarousel(Gtk.Box):
 
         # Release the GPU texture reference for this recycled slot.
         card.texture = None
+        card.set_accessible_name("Wallpaper thumbnail")
+        card.set_selected(False)
         card.set_focused(False)
 
     def _on_selection_changed(self, selection, position, n_items):
