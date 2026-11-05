@@ -2063,7 +2063,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 return
             backup = encode_backup(
                 self._favorites, self._wallpaper_dir,
-                self._preference.export_values(), self._tags,
+                self._preference.export_values(), self._tags, self._collections,
             )
             temporary_path = path + ".tmp"
             try:
@@ -2111,8 +2111,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         confirmation = Adw.MessageDialog.new(
             self,
             "Restore Wallmat backup?",
-            "This will replace the current favorites, wallpaper tags, and "
-            "preferences included in the backup. Wallmat validates the complete "
+            "This will replace the current favorites, wallpaper tags, collections, "
+            "and preferences included in the backup. Wallmat validates the complete "
             "file before changing anything. Export a backup of the current state "
             "first if you may want to undo this restore.",
         )
@@ -2127,27 +2127,43 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                     return
                 old_favorites = self._favorites.copy()
                 old_tags = {path: set(tags) for path, tags in self._tags.items()}
+                old_collections = {
+                    name: list(paths) for name, paths in self._collections.items()
+                }
                 old_preferences = self._preference.export_values()
                 if imported["tags"] is not None and self._tags_write_blocked:
                     say("Tags cannot be restored because their recovery backup failed.")
+                    return
+                if imported["collections"] is not None and self._collections_write_blocked:
+                    say("Collections cannot be restored because their recovery backup failed.")
                     return
                 self._favorites = set(imported["favorites"])
                 if imported["tags"] is not None:
                     self._tags = {
                         path: set(tags) for path, tags in imported["tags"].items()
                     }
+                if imported["collections"] is not None:
+                    self._collections = {
+                        name: list(paths)
+                        for name, paths in imported["collections"].items()
+                    }
                 try:
                     self._save_favorites()
                     if imported["tags"] is not None:
                         self._save_tags()
+                    if imported["collections"] is not None:
+                        self._save_collections()
                     self._preference.import_values(imported["preferences"])
                 except (OSError, ValueError, TypeError) as error:
                     self._favorites = old_favorites
                     self._tags = old_tags
+                    self._collections = old_collections
                     try:
                         self._save_favorites()
                         if imported["tags"] is not None:
                             self._save_tags()
+                        if imported["collections"] is not None:
+                            self._save_collections()
                         self._preference.import_values(old_preferences)
                     except (OSError, ValueError, TypeError):
                         pass
@@ -2155,6 +2171,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                     return
                 self._update_favorite_button()
                 self._update_missing_favorites_action()
+                self._active_collection = None
+                self._refresh_collection_selector()
+                self._all_paths = list(self._folder_paths)
+                self._random_order = self._make_random_order(self._all_paths)
                 self._refresh_tag_filter()
                 self._refresh_filtered_paths()
                 if self._preference.persistent:
