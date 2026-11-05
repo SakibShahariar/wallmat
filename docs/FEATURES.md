@@ -13,7 +13,7 @@
 
 ## Applying and previewing
 
-- **More menu** — contains auto-rotation and its interval, Previous/Next, Clear history, Export favorites, and Remove missing favorites. Primary wallpaper actions remain visible beside the layout controls.
+- **More menu** — contains auto-rotation and its interval, Previous/Next, Clear history, favorite maintenance, and **Backup and restore** for favorites plus supported preferences. Primary wallpaper actions remain visible beside the layout controls.
 
 - **Set as wallpaper** — update GNOME's background settings.
 - **Apply wallpaper + Matugen** — apply the wallpaper and run Matugen.
