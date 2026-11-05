@@ -56,6 +56,7 @@ from wallpaper_history import (
 )
 from favorites_storage import decode_favorites, encode_favorites
 from backup_storage import encode_backup, decode_backup
+from matugen_preview import build_preview_command, parse_preview_output
 from plain_mode import SUCCESS, CANCELLED, SCAN_FAILED
 
 SCHEMA_ID = "dev.sakib.Wallmat"
@@ -617,6 +618,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.apply_matugen_button.add_css_class("suggested-action")
         self.apply_matugen_button.set_sensitive(False)
         self.apply_matugen_button.connect("clicked", self._on_apply_matugen)
+        self.preview_matugen_button = Gtk.Button(label="Preview Matugen colors…")
+        self.preview_matugen_button.set_sensitive(False)
+        self.preview_matugen_button.connect("clicked", self._on_preview_matugen)
         self.favorite_button = Gtk.Button(label="Add to favorites")
         self.favorite_button.set_sensitive(False)
         self.favorite_button.connect("clicked", self._on_toggle_favorite)
@@ -719,6 +723,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         more_actions.append(backup_heading)
         more_actions.append(self.export_backup_button)
         more_actions.append(self.import_backup_button)
+        more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+        matugen_heading = Gtk.Label(label="Matugen")
+        matugen_heading.set_xalign(0.0)
+        matugen_heading.add_css_class("heading")
+        more_actions.append(matugen_heading)
+        more_actions.append(self.preview_matugen_button)
         more_scroller = Gtk.ScrolledWindow()
         more_scroller.set_policy(
             Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC
@@ -1255,6 +1265,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.preview_button.set_sensitive(os.path.isfile(path))
         self.set_wallpaper_button.set_sensitive(True)
         self.apply_matugen_button.set_sensitive(True)
+        self.preview_matugen_button.set_sensitive(os.path.isfile(path))
         self.favorite_button.set_sensitive(True)
         self.export_favorites_button.set_sensitive(True)
         self._update_favorite_button()
@@ -1954,6 +1965,108 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         except (GLib.Error, OSError, TypeError) as error:
             say(f"Could not set GNOME wallpaper: {error}")
             return False
+
+    def _on_preview_matugen(self, _button):
+        path = self._selected_path
+        if not path or not os.path.isfile(path):
+            say("Select an existing wallpaper before previewing Matugen colors.")
+            return
+
+        command = build_preview_command(path, self._matugen_args)
+        self.preview_matugen_button.set_sensitive(False)
+
+        def run_preview():
+            try:
+                result = subprocess.run(
+                    command, capture_output=True, text=True, check=False,
+                    timeout=120,
+                )
+                if result.returncode != 0:
+                    detail = (result.stderr or result.stdout).strip()
+                    if not detail:
+                        detail = f"exit status {result.returncode}"
+                    raise RuntimeError(detail.splitlines()[-1][:240])
+                colors = parse_preview_output(result.stdout)
+                GLib.idle_add(self._show_matugen_preview, path, colors)
+            except (OSError, subprocess.SubprocessError, ValueError, RuntimeError) as error:
+                GLib.idle_add(self._matugen_preview_failed, str(error))
+
+        threading.Thread(target=run_preview, daemon=True).start()
+
+    def _matugen_preview_failed(self, detail):
+        self.preview_matugen_button.set_sensitive(bool(self._selected_path))
+        say(f"Could not preview Matugen colors: {detail}")
+        return GLib.SOURCE_REMOVE
+
+    def _show_matugen_preview(self, path, colors):
+        if self._selected_path != path:
+            self.preview_matugen_button.set_sensitive(bool(self._selected_path))
+            say("Wallpaper selection changed while the Matugen preview was running. Preview again.")
+            return GLib.SOURCE_REMOVE
+
+        self.preview_matugen_button.set_sensitive(True)
+        dialog = Gtk.Dialog(
+            title="Matugen color preview", transient_for=self, modal=True
+        )
+        dialog.set_default_size(560, 420)
+        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        dialog.add_button("Apply wallpaper + Matugen", Gtk.ResponseType.ACCEPT)
+        dialog.set_default_response(Gtk.ResponseType.CANCEL)
+
+        content = dialog.get_content_area()
+        content.set_spacing(12)
+        content.set_margin_top(16)
+        content.set_margin_bottom(16)
+        content.set_margin_start(16)
+        content.set_margin_end(16)
+        description = Gtk.Label(
+            label="Preview generated with your configured Matugen arguments. "
+                  "No wallpaper, templates, or system theme were changed."
+        )
+        description.set_wrap(True)
+        description.set_xalign(0.0)
+        content.append(description)
+
+        palettes = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+        palettes.set_halign(Gtk.Align.FILL)
+        for mode in ("dark", "light"):
+            entries = colors.get(mode)
+            if not entries:
+                continue
+            frame = Gtk.Frame(label=mode.title())
+            grid = Gtk.Grid()
+            grid.set_row_spacing(8)
+            grid.set_column_spacing(12)
+            grid.set_margin_top(10)
+            grid.set_margin_bottom(10)
+            grid.set_margin_start(10)
+            grid.set_margin_end(10)
+            for row, (name, color) in enumerate(entries):
+                color_label = Gtk.Label(label=name.replace("_", " ").title())
+                color_label.set_xalign(0.0)
+                swatch = Gtk.Label()
+                display_color = color[:7] if len(color) == 9 else color
+                swatch.set_markup(
+                    f'<span background="{display_color}" foreground="#000000">'
+                    f'  {display_color}  </span>'
+                )
+                grid.attach(color_label, 0, row, 1, 1)
+                grid.attach(swatch, 1, row, 1, 1)
+            frame.set_child(grid)
+            palettes.append(frame)
+        content.append(palettes)
+
+        def on_preview_response(preview_dialog, response):
+            preview_dialog.destroy()
+            if response == Gtk.ResponseType.ACCEPT:
+                if self._selected_path == path:
+                    self._on_apply_matugen(self.apply_matugen_button)
+                else:
+                    say("Wallpaper selection changed. Preview the new selection before applying Matugen.")
+
+        dialog.connect("response", on_preview_response)
+        dialog.present()
+        return GLib.SOURCE_REMOVE
 
     def _on_apply_matugen(self, button):
         path = self._selected_path
