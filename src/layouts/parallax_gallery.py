@@ -17,8 +17,6 @@ separate layers eagerly binding multiple large wallpapers each on
 launch, that was causing multi-second (reported: ~40s) launch freezes.
 """
 
-import os
-
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -28,6 +26,7 @@ from gi.repository import Gtk, Gdk, GdkPixbuf, Gio, GObject, GLib
 from .base import WallLayout
 from announce import say
 from widgets.thumbnail_loader import ThumbnailLoader
+from widgets.accessibility import wallpaper_accessible_name
 from widgets.gsk_utils import hide_scrollbars
 
 PARALLAX_RATIO = 0.3
@@ -290,7 +289,7 @@ class ParallaxGalleryLayout(WallLayout):
             description += "; keyboard focus"
         picture.update_property(
             [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
-            [os.path.basename(item.path), description],
+            [wallpaper_accessible_name(item.path), description],
         )
         if is_focused:
             picture.add_css_class("focused")
@@ -332,7 +331,7 @@ class ParallaxGalleryLayout(WallLayout):
                 description += "; keyboard focus"
             picture.update_property(
                 [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
-                [os.path.basename(path), description],
+                [wallpaper_accessible_name(path), description],
             )
         if item is not None:
             self.emit("wallpaper-selected", item.path)
