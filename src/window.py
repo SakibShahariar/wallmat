@@ -58,6 +58,7 @@ from favorites_storage import decode_favorites, encode_favorites
 from backup_storage import encode_backup, decode_backup
 from matugen_preview import build_preview_command, parse_preview_output
 from tags_storage import decode_tags, encode_tags, normalize_tags
+from collections_storage import decode_collections, encode_collections, normalize_collection_name
 from plain_mode import SUCCESS, CANCELLED, SCAN_FAILED
 
 SCHEMA_ID = "dev.sakib.Wallmat"
@@ -332,6 +333,33 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                     "disabled for this session to protect the original file."
                 )
 
+        self._collections_file = os.path.join(config_dir, "collections.json")
+        self._collections: dict[str, list[str]] = {}
+        self._collections_write_blocked = False
+        self._collections_load_warning: str | None = None
+        try:
+            with open(self._collections_file, "r", encoding="utf-8") as handle:
+                self._collections = decode_collections(json.load(handle))
+        except FileNotFoundError:
+            pass
+        except (OSError, json.JSONDecodeError, ValueError) as error:
+            try:
+                backup_path = self._backup_corrupt_collections()
+                self._collections_load_warning = (
+                    f"Wallmat could not load wallpaper collections ({error}). "
+                    f"The original file was preserved at:\\n{backup_path}"
+                )
+            except OSError as backup_error:
+                self._collections_write_blocked = True
+                self._collections_load_warning = (
+                    f"Wallmat could not load wallpaper collections ({error}) and "
+                    f"could not create a recovery backup ({backup_error}). "
+                    "Collection saving is disabled for this session to protect "
+                    "the original file."
+                )
+        self._active_collection: str | None = None
+        self._folder_paths: list[str] = []
+
         if plain:
             # stdout must carry ONLY the final selected path (the
             # matugen.fish pipeline captures it via fish command
@@ -452,6 +480,20 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         tag_row.append(self.tag_filter)
         tag_row.set_visible(not self._plain)
 
+        collection_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        collection_row.set_halign(Gtk.Align.CENTER)
+        collection_row.set_margin_start(12)
+        collection_row.set_margin_end(12)
+        collection_row.set_margin_bottom(6)
+        collection_row.append(Gtk.Label(label="Collection"))
+        self._collection_selector_values = [None]
+        self._updating_collection_selector = False
+        self.collection_selector = Gtk.DropDown.new_from_strings(["Current folder"])
+        self.collection_selector.set_tooltip_text("Switch between saved wallpaper collections")
+        self.collection_selector.connect("notify::selected", self._on_collection_selected)
+        collection_row.append(self.collection_selector)
+        collection_row.set_visible(not self._plain)
+
         # Empty-state message covers both an empty directory and a filter
         # with no matching filenames.
         content_overlay = Gtk.Overlay()
@@ -470,6 +512,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         content.append(self.sort_selector)
         content.append(self.favorites_filter)
         content.append(tag_row)
+        content.append(collection_row)
 
         recent_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         recent_row.set_halign(Gtk.Align.CENTER)
@@ -726,6 +769,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.manage_tags_button = Gtk.Button(label="Manage tags…")
         self.manage_tags_button.set_sensitive(False)
         self.manage_tags_button.connect("clicked", self._on_manage_tags)
+        self.manage_collections_button = Gtk.Button(label="Manage collections…")
+        self.manage_collections_button.connect("clicked", self._on_manage_collections)
         self.remove_missing_favorites_button = Gtk.Button(
             label="Remove missing favorites"
         )
@@ -766,6 +811,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         more_actions.append(tags_heading)
         more_actions.append(self.manage_tags_button)
         more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+        collections_heading = Gtk.Label(label="Wallpaper collections")
+        collections_heading.set_xalign(0.0)
+        collections_heading.add_css_class("heading")
+        more_actions.append(collections_heading)
+        more_actions.append(self.manage_collections_button)
+        more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
         backup_heading = Gtk.Label(label="Backup and restore")
         backup_heading.set_xalign(0.0)
         backup_heading.add_css_class("heading")
@@ -795,7 +846,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             GLib.idle_add(self._show_favorites_load_warning)
         if self._tags_load_warning and not self._plain:
             GLib.idle_add(say, self._tags_load_warning)
+        if self._collections_load_warning and not self._plain:
+            GLib.idle_add(say, self._collections_load_warning)
         self._refresh_tag_filter()
+        self._refresh_collection_selector()
 
         # GTK 4.6+ exposes local file drags through Gdk.FileList. Guard the
         # optional type so older GTK 4 builds can still launch Wallmat.
@@ -809,6 +863,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._wallpaper_dir = os.path.abspath(wallpaper_dir)
         self._scan_and_load(self._wallpaper_dir)
         self._refresh_tag_filter()
+        self._refresh_collection_selector()
         if not self._plain:
             saved_filter = self._preference.get_string(FILTER_KEY, "")
             if saved_filter:
@@ -1068,6 +1123,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             return False
 
         if switching_folder:
+            self._active_collection = None
             self._wallpaper_dir = directory
             if not self._plain:
                 self._preference.set_string(LAST_FOLDER_KEY, directory)
@@ -1094,8 +1150,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self.favorites_filter.set_active(False)
 
         self._scan_errors = list(scan_errors)
+        self._folder_paths = list(paths)
         self._all_paths = list(paths)
         self._refresh_tag_filter()
+        self._refresh_collection_selector()
         self._random_order = self._make_random_order(self._all_paths)
         self._paths = list(self._all_paths)
         self._restore_applied_history()
