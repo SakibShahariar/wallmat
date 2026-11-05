@@ -203,6 +203,7 @@ class StackedDeckLayout(WallLayout):
         outer.set_halign(Gtk.Align.CENTER)
 
         self.deck = _DeckWidget()
+        self.deck.set_focusable(True)
         self.deck.set_halign(Gtk.Align.CENTER)
         self.deck.set_valign(Gtk.Align.CENTER)
         self.deck.set_margin_top(20)
@@ -238,6 +239,9 @@ class StackedDeckLayout(WallLayout):
         self.deck.connect("realize", lambda w: self._load_all_cards())
 
         return outer
+
+    def on_activate(self):
+        self.deck.grab_focus()
 
     def _apply_wallpapers(self, paths: list[str]):
         self._deck_index = 0
