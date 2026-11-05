@@ -70,7 +70,7 @@ python3 src/main.py ~/Pictures/Wallpapers --layout infinite_ribbon
 
 ## Highlights
 
-- Search, favorites, per-wallpaper tags, named collections, recent wallpapers, sorting, JSON backup/restore, and Wayland wallpaper portal support.
+- Search, favorites, per-wallpaper tags, named collections, layout-independent batch actions, recent wallpapers, sorting, JSON backup/restore, and Wayland wallpaper portal support.
 - Full-screen preview with zoom and pan.
 - Apply wallpapers directly or preview Matugen colors before applying the generated theme.
 - Auto-rotation, random selection, and applied-wallpaper history.
