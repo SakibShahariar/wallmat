@@ -85,6 +85,7 @@ def decode_tags(data, current_root):
         not isinstance(saved_root, str) or not saved_root
         or not isinstance(relative_paths, dict)
         or not isinstance(external_paths, dict)
+        or set(data) != {"version", "root", "paths", "external_paths"}
     ):
         raise ValueError("invalid tags data structure")
 
@@ -103,7 +104,8 @@ def decode_tags(data, current_root):
             raise ValueError("tag paths must be non-empty relative paths")
         normalized_path = os.path.normpath(relative)
         if (
-            normalized_path in ("", os.curdir, os.pardir)
+            normalized_path != relative
+            or normalized_path in ("", os.curdir, os.pardir)
             or normalized_path.startswith(os.pardir + os.sep)
         ):
             raise ValueError("tag path escapes its collection root")
