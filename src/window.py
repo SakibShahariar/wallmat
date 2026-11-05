@@ -1915,6 +1915,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             refresh_choices(preferred)
             if self._active_collection:
                 self._activate_collection(self._active_collection)
+            refresh_choices(preferred)
             return True
 
         def on_create(_button):
@@ -1936,6 +1937,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 self._refresh_collection_selector()
                 self._activate_collection(name)
                 self._refresh_collection_selector()
+                refresh_choices(name)
                 name_entry.set_text("")
                 say(f"Created collection {name!r}.")
 
