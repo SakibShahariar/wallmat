@@ -1568,7 +1568,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             try:
                 with open(temporary_path, "w", encoding="utf-8") as handle:
                     json.dump(backup, handle, indent=2)
-                    handle.write("\\n")
+                    handle.write("\n")
                 os.replace(temporary_path, path)
             except OSError:
                 try:
@@ -1643,7 +1643,13 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 self._update_missing_favorites_action()
                 if self._favorites_only:
                     self._refresh_filtered_paths()
-                say("Backup restored. Restart Wallmat to apply restored preferences.")
+                if self._preference.persistent:
+                    say("Backup restored. Restart Wallmat to apply restored preferences.")
+                else:
+                    say(
+                        "Favorites restored. Preferences cannot persist until the "
+                        "Wallmat GSettings schema is installed."
+                    )
             finally:
                 dialog.destroy()
 
