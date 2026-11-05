@@ -66,6 +66,8 @@ def validate_preferences(preferences):
                 raise ValueError(
                     f"{key} must be an integer from {minimum} to {maximum}"
                 )
+            if key == "auto-rotate-interval" and value not in {60, 300, 600, 1800}:
+                raise ValueError("auto-rotate-interval is not a supported interval")
         elif key in _STRING_LIST_SETTINGS:
             if (
                 not isinstance(value, list)
