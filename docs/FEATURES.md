@@ -8,13 +8,14 @@
 - **Ctrl + F** — filter by filename or folder path.
 - **Favorites only** — combine the favorites filter with text search and tag filtering (normal UI mode).
 - **Wallpaper tags** — assign multiple comma-separated tags to the selected wallpaper from **More → Wallpaper tags → Manage tags**. Use the Tag dropdown to filter every layout; filename search also matches tag names.
+- **Collections** — save named lists of wallpapers, switch between them with the Collection dropdown, add the selected wallpaper or snapshot all wallpapers from the current folder, and remove individual wallpapers. Collections work with search, favorites, tags, and all layouts.
 - **Sort** — name, modification date, largest resolution, random order, or immediate-subfolder grouping. Search and favorites filters preserve the selected order.
 - **Recent wallpapers** — reopen up to eight recently applied wallpapers from the current folder. Missing or out-of-folder items do not change the selection.
 - **Surprise me** — apply a random wallpaper from the filtered results, avoiding the configured recent-history window until the candidate pool is exhausted.
 
 ## Applying and previewing
 
-- **More menu** — contains auto-rotation and its interval, Previous/Next, Clear history, favorite maintenance and **Manage tags**, **Backup and restore** for favorites, tags, and supported preferences, and **Preview Matugen colors**.
+- **More menu** — contains auto-rotation and its interval, Previous/Next, Clear history, favorite maintenance, **Manage tags**, **Manage collections**, **Backup and restore** for favorites, tags, collections, and supported preferences, and **Preview Matugen colors**.
 
 - **Set as wallpaper** — update GNOME's background settings.
 - **Apply wallpaper + Matugen** — apply the wallpaper and run Matugen immediately.
