@@ -808,6 +808,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         self._wallpaper_dir = os.path.abspath(wallpaper_dir)
         self._scan_and_load(self._wallpaper_dir)
+        self._refresh_tag_filter()
         if not self._plain:
             saved_filter = self._preference.get_string(FILTER_KEY, "")
             if saved_filter:
@@ -1094,6 +1095,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         self._scan_errors = list(scan_errors)
         self._all_paths = list(paths)
+        self._refresh_tag_filter()
         self._random_order = self._make_random_order(self._all_paths)
         self._paths = list(self._all_paths)
         self._restore_applied_history()
@@ -1608,7 +1610,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         try:
             with open(temporary_path, "w", encoding="utf-8") as handle:
                 json.dump(encode_tags(self._tags, self._wallpaper_dir), handle, indent=2)
-                handle.write("\\n")
+                handle.write("\n")
             os.replace(temporary_path, self._tags_file)
         except OSError:
             try:
