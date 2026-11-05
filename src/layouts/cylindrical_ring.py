@@ -180,6 +180,7 @@ class _RingWidget(Gtk.Widget):
         if not self._paths:
             return
         self._selection = self._focus
+        self._update_accessible_summary()
         self.on_select(self._paths[self._selection])
 
     def _start_anim(self):
