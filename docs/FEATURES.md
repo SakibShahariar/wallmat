@@ -25,6 +25,31 @@
 - **Light/dark preview context** — compare contrast without changing GNOME's theme or wallpaper.
 - **Click metadata** — selected image details include dimensions, format, aspect ratio, file size, modification time, and path. Details load off the UI thread and can be copied or hidden.
 
+## Keyboard navigation by layout
+
+The seven custom-navigation layouts intercept Left/Right and Enter themselves.
+Arrow keys move the layout's visual focus; Enter or keypad Enter commits the
+focused wallpaper. Their edge behavior differs:
+
+| Layout | Left/Right behavior |
+|---|---|
+| Split-Screen Preview | Moves focus through the carousel and stops at either end |
+| Stacked Deck | Deals the previous/next card; the deck cycles through the collection |
+| Infinite Ribbon | Moves through the repeated ribbon without a visible end |
+| Glassmorphism | Moves focus through the cards and stops at either end |
+| Parallax Gallery | Moves focus through the cards and stops at either end |
+| Radial Fan | Rotates the front card through the collection |
+| Cylindrical Ring | Rotates the ring to center the previous/next card |
+
+Masonry Grid uses GTK's native `Gtk.GridView` keyboard handling rather than a
+custom Left/Right handler. Its focus movement and activation behavior therefore
+need to be checked in a running GTK session; do not assume it behaves exactly
+like the seven custom layouts.
+
+The shortcuts below are global window actions. The layout-specific arrow and
+Enter behavior applies when the corresponding wallpaper view has keyboard
+focus.
+
 ## Folders and shortcuts
 
 - **Folder menu → Choose wallpaper folder / Ctrl + O** — open a local folder picker, then confirm before replacing the collection. The last chosen folder is restored on the next normal UI launch when no directory is supplied on the command line.
