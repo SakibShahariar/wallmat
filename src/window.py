@@ -1267,6 +1267,64 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             )
         self._refresh_filtered_paths()
 
+    def _on_collection_selected(self, dropdown, _pspec):
+        if self._updating_collection_selector:
+            return
+        selected_index = dropdown.get_selected()
+        collection = (
+            self._collection_selector_values[selected_index]
+            if selected_index < len(self._collection_selector_values) else None
+        )
+        if collection != self._active_collection:
+            self._activate_collection(collection)
+
+    def _activate_collection(self, collection):
+        self._active_collection = collection
+        if collection is None:
+            self._all_paths = list(self._folder_paths)
+            folder_label = os.path.basename(self._wallpaper_dir.rstrip(os.sep)) or self._wallpaper_dir
+            self.set_title(f"Wallpaper Chooser — {folder_label} ({len(self._all_paths)})")
+        else:
+            saved_paths = self._collections.get(collection, [])
+            self._all_paths = [path for path in saved_paths if os.path.isfile(path)]
+            missing = len(saved_paths) - len(self._all_paths)
+            self.set_title(f"Wallpaper Chooser — {collection} ({len(self._all_paths)})")
+            if missing:
+                say(f"{missing} missing wallpaper(s) in collection {collection!r} were skipped.")
+        self._random_order = self._make_random_order(self._all_paths)
+        self._selected_path = None
+        for button in (
+            self.manage_tags_button, self.favorite_button,
+            self.export_favorites_button, self.preview_button,
+            self.set_wallpaper_button, self.apply_matugen_button,
+            self.preview_matugen_button,
+        ):
+            button.set_sensitive(False)
+        self._restore_applied_history()
+        self._refresh_tag_filter()
+        self._refresh_filtered_paths()
+        say(f"Showing {collection or 'current folder'}: {len(self._all_paths)} wallpaper(s).")
+
+    def _refresh_collection_selector(self):
+        if not hasattr(self, "collection_selector"):
+            return
+        names = sorted(self._collections, key=str.casefold)
+        if self._active_collection not in names:
+            self._active_collection = None
+        self._collection_selector_values = [None, *names]
+        self._updating_collection_selector = True
+        try:
+            self.collection_selector.set_model(
+                Gtk.StringList.new(["Current folder", *names])
+            )
+            selected = (
+                self._collection_selector_values.index(self._active_collection)
+                if self._active_collection in self._collection_selector_values else 0
+            )
+            self.collection_selector.set_selected(selected)
+        finally:
+            self._updating_collection_selector = False
+
     def _on_tag_filter_changed(self, dropdown, _pspec):
         if not self._updating_tag_filter:
             self._refresh_filtered_paths()
