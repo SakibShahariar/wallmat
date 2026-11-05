@@ -1879,9 +1879,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         add_selected_button = Gtk.Button(label="Add selected wallpaper")
         add_folder_button = Gtk.Button(label="Add current folder")
         remove_selected_button = Gtk.Button(label="Remove selected wallpaper")
+        delete_collection_button = Gtk.Button(label="Delete collection…")
         content.append(add_selected_button)
         content.append(add_folder_button)
         content.append(remove_selected_button)
+        content.append(delete_collection_button)
 
         def refresh_choices(preferred=None):
             collection_names[:] = sorted(self._collections, key=str.casefold)
@@ -1895,6 +1897,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             add_selected_button.set_sensitive(has_collection and bool(self._selected_path))
             add_folder_button.set_sensitive(has_collection and bool(self._folder_paths))
             remove_selected_button.set_sensitive(has_collection and bool(self._selected_path))
+            delete_collection_button.set_sensitive(has_collection)
 
         def selected_collection():
             index = collection_dropdown.get_selected()
@@ -1976,7 +1979,43 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             if save_changes(previous, name):
                 say(f"Removed wallpaper from {name!r}.")
 
+        def on_delete_collection(_button):
+            name = selected_collection()
+            if not name:
+                return
+            confirmation = Adw.MessageDialog.new(
+                dialog,
+                "Delete collection?",
+                f"Delete {name!r}? This removes the saved collection only; "
+                "the wallpaper files themselves will not be deleted.",
+            )
+            confirmation.add_response("cancel", "Cancel")
+            confirmation.add_response("delete", "Delete")
+            confirmation.set_close_response("cancel")
+            confirmation.set_default_response("cancel")
+
+            def on_delete_response(confirm_dialog, choice):
+                try:
+                    if choice != "delete":
+                        return
+                    previous = {
+                        key: list(paths) for key, paths in self._collections.items()
+                    }
+                    was_active = self._active_collection == name
+                    self._collections.pop(name, None)
+                    if save_changes(previous, None):
+                        if was_active:
+                            self._activate_collection(None)
+                            self._refresh_collection_selector()
+                        say(f"Deleted collection {name!r}.")
+                finally:
+                    confirm_dialog.destroy()
+
+            confirmation.connect("response", on_delete_response)
+            confirmation.present()
+
         create_button.connect("clicked", on_create)
+        delete_collection_button.connect("clicked", on_delete_collection)
         add_selected_button.connect("clicked", on_add_selected)
         add_folder_button.connect("clicked", on_add_folder)
         remove_selected_button.connect("clicked", on_remove_selected)
