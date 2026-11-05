@@ -97,6 +97,20 @@ class TagsStorageTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             decode_tags(invalid, str(self.root))
 
+    def test_rejects_unexpected_fields_and_noncanonical_paths(self):
+        invalid = {
+            "version": 1,
+            "root": str(self.root),
+            "paths": {"folder/../lake.png": ["Nature"]},
+            "external_paths": {},
+        }
+        with self.assertRaises(ValueError):
+            decode_tags(invalid, str(self.root))
+        invalid["paths"] = {}
+        invalid["unexpected"] = True
+        with self.assertRaises(ValueError):
+            decode_tags(invalid, str(self.root))
+
     def test_rejects_invalid_tag_payload(self):
         invalid = {
             "version": 1,
