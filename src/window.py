@@ -57,6 +57,7 @@ from wallpaper_history import (
 from favorites_storage import decode_favorites, encode_favorites
 from backup_storage import encode_backup, decode_backup
 from matugen_preview import build_preview_command, parse_preview_output
+from tags_storage import decode_tags, encode_tags, normalize_tags
 from plain_mode import SUCCESS, CANCELLED, SCAN_FAILED
 
 SCHEMA_ID = "dev.sakib.Wallmat"
@@ -307,6 +308,30 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                     "disabled for this session to protect it. Make a manual "
                     "copy or fix the file permissions before trying again."
                 )
+        self._tags_file = os.path.join(config_dir, "tags.json")
+        self._tags: dict[str, set[str]] = {}
+        self._tags_write_blocked = False
+        self._tags_load_warning: str | None = None
+        try:
+            with open(self._tags_file, "r", encoding="utf-8") as handle:
+                self._tags = decode_tags(json.load(handle), self._wallpaper_dir)
+        except FileNotFoundError:
+            pass
+        except (OSError, json.JSONDecodeError, ValueError) as error:
+            try:
+                backup_path = self._backup_corrupt_tags()
+                self._tags_load_warning = (
+                    f"Wallmat could not load wallpaper tags ({error}). The original "
+                    f"file was preserved at:\\n{backup_path}"
+                )
+            except OSError as backup_error:
+                self._tags_write_blocked = True
+                self._tags_load_warning = (
+                    f"Wallmat could not load wallpaper tags ({error}) and could not "
+                    f"create a recovery backup ({backup_error}). Tag saving is "
+                    "disabled for this session to protect the original file."
+                )
+
         if plain:
             # stdout must carry ONLY the final selected path (the
             # matugen.fish pipeline captures it via fish command
@@ -413,6 +438,20 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.favorites_filter.set_visible(not self._plain)
         self.favorites_filter.connect("toggled", self._on_favorites_filter_toggled)
 
+        tag_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        tag_row.set_halign(Gtk.Align.CENTER)
+        tag_row.set_margin_start(12)
+        tag_row.set_margin_end(12)
+        tag_row.set_margin_bottom(6)
+        tag_row.append(Gtk.Label(label="Tag"))
+        self._tag_filter_values = [None]
+        self._updating_tag_filter = False
+        self.tag_filter = Gtk.DropDown.new_from_strings(["All tags"])
+        self.tag_filter.set_tooltip_text("Filter wallpapers by tag")
+        self.tag_filter.connect("notify::selected", self._on_tag_filter_changed)
+        tag_row.append(self.tag_filter)
+        tag_row.set_visible(not self._plain)
+
         # Empty-state message covers both an empty directory and a filter
         # with no matching filenames.
         content_overlay = Gtk.Overlay()
@@ -430,6 +469,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         content.append(self.search_entry)
         content.append(self.sort_selector)
         content.append(self.favorites_filter)
+        content.append(tag_row)
 
         recent_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         recent_row.set_halign(Gtk.Align.CENTER)
@@ -683,6 +723,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.export_backup_button.connect("clicked", self._on_export_backup)
         self.import_backup_button = Gtk.Button(label="Restore backup…")
         self.import_backup_button.connect("clicked", self._on_import_backup)
+        self.manage_tags_button = Gtk.Button(label="Manage tags…")
+        self.manage_tags_button.set_sensitive(False)
+        self.manage_tags_button.connect("clicked", self._on_manage_tags)
         self.remove_missing_favorites_button = Gtk.Button(
             label="Remove missing favorites"
         )
@@ -717,6 +760,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         more_actions.append(self.export_favorites_button)
         more_actions.append(self.remove_missing_favorites_button)
         more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+        tags_heading = Gtk.Label(label="Wallpaper tags")
+        tags_heading.set_xalign(0.0)
+        tags_heading.add_css_class("heading")
+        more_actions.append(tags_heading)
+        more_actions.append(self.manage_tags_button)
+        more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
         backup_heading = Gtk.Label(label="Backup and restore")
         backup_heading.set_xalign(0.0)
         backup_heading.add_css_class("heading")
@@ -744,6 +793,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.set_content(toolbar_view)
         if self._favorites_load_warning and not self._plain:
             GLib.idle_add(self._show_favorites_load_warning)
+        if self._tags_load_warning and not self._plain:
+            GLib.idle_add(say, self._tags_load_warning)
+        self._refresh_tag_filter()
 
         # GTK 4.6+ exposes local file drags through Gdk.FileList. Guard the
         # optional type so older GTK 4 builds can still launch Wallmat.
@@ -1028,6 +1080,15 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 pass
             except (OSError, json.JSONDecodeError, ValueError) as favorite_error:
                 say(f"Could not reload favorites for this folder: {favorite_error}")
+            self._tags = {}
+            try:
+                with open(self._tags_file, "r", encoding="utf-8") as handle:
+                    self._tags = decode_tags(json.load(handle), self._wallpaper_dir)
+            except FileNotFoundError:
+                pass
+            except (OSError, json.JSONDecodeError, ValueError) as tag_error:
+                say(f"Could not reload wallpaper tags for this folder: {tag_error}")
+            self._refresh_tag_filter()
             self.search_entry.set_text("")
             self.favorites_filter.set_active(False)
 
@@ -1146,6 +1207,36 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             )
         self._refresh_filtered_paths()
 
+    def _on_tag_filter_changed(self, dropdown, _pspec):
+        if not self._updating_tag_filter:
+            self._refresh_filtered_paths()
+
+    def _refresh_tag_filter(self):
+        if not hasattr(self, "tag_filter"):
+            return
+        selected_index = self.tag_filter.get_selected()
+        selected_tag = (
+            self._tag_filter_values[selected_index]
+            if selected_index < len(self._tag_filter_values) else None
+        )
+        tags = sorted(
+            {tag for assigned in self._tags.values() for tag in assigned},
+            key=str.casefold,
+        )
+        self._tag_filter_values = [None, *tags]
+        self._updating_tag_filter = True
+        try:
+            self.tag_filter.set_model(Gtk.StringList.new(["All tags", *tags]))
+            selected = next(
+                (i for i, tag in enumerate(self._tag_filter_values)
+                 if tag is not None and selected_tag is not None
+                 and tag.casefold() == selected_tag.casefold()),
+                0,
+            )
+            self.tag_filter.set_selected(selected)
+        finally:
+            self._updating_tag_filter = False
+
     def _refresh_filtered_paths(self):
         query = self.search_entry.get_text().strip().casefold()
         if self._sort_mode == "newest":
@@ -1174,6 +1265,18 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             paths = sorted(self._all_paths, key=lambda path: path.casefold())
         if self._favorites_only:
             paths = [path for path in paths if path in self._favorites]
+        selected_tag_index = self.tag_filter.get_selected()
+        selected_tag = (
+            self._tag_filter_values[selected_tag_index]
+            if selected_tag_index < len(self._tag_filter_values) else None
+        )
+        if selected_tag:
+            selected_tag_key = selected_tag.casefold()
+            paths = [
+                path for path in paths
+                if any(tag.casefold() == selected_tag_key
+                       for tag in self._tags.get(path, set()))
+            ]
         if query:
             # Match both the basename and its path within the selected root.
             # The basename keeps the common filename-search behavior while
@@ -1183,6 +1286,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 path for path in paths
                 if query in os.path.basename(path).casefold()
                 or query in os.path.relpath(path, root).casefold()
+                or any(query in tag.casefold() for tag in self._tags.get(path, set()))
             ]
         self._paths = list(paths)
 
@@ -1261,6 +1365,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             return
         self._selected_path = path
         self._preference.set_string(SELECTED_PATH_KEY, path)
+        self.manage_tags_button.set_sensitive(os.path.isfile(path))
         self._load_selected_metadata(path)
         self.preview_button.set_sensitive(os.path.isfile(path))
         self.set_wallpaper_button.set_sensitive(True)
@@ -1462,6 +1567,16 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._update_favorite_button()
         say(f"Removed {removed_count} missing favorite(s).")
 
+    def _backup_corrupt_tags(self) -> str:
+        """Preserve an unreadable tags file without overwriting older backups."""
+        backup_path = self._tags_file + ".corrupt"
+        suffix = 1
+        while os.path.exists(backup_path):
+            backup_path = f"{self._tags_file}.corrupt.{suffix}"
+            suffix += 1
+        shutil.copy2(self._tags_file, backup_path)
+        return backup_path
+
     def _backup_corrupt_favorites(self) -> str:
         """Preserve an unreadable favorites file without overwriting older backups."""
         backup_path = self._favorites_file + ".corrupt"
@@ -1481,6 +1596,26 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         dialog.set_default_response("ok")
         dialog.present()
         return GLib.SOURCE_REMOVE
+
+    def _save_tags(self):
+        if self._tags_write_blocked:
+            raise PermissionError(
+                "wallpaper tags are protected because their recovery backup failed"
+            )
+        directory = os.path.dirname(self._tags_file)
+        os.makedirs(directory, exist_ok=True)
+        temporary_path = self._tags_file + ".tmp"
+        try:
+            with open(temporary_path, "w", encoding="utf-8") as handle:
+                json.dump(encode_tags(self._tags, self._wallpaper_dir), handle, indent=2)
+                handle.write("\\n")
+            os.replace(temporary_path, self._tags_file)
+        except OSError:
+            try:
+                os.unlink(temporary_path)
+            except OSError:
+                pass
+            raise
 
     def _save_favorites(self):
         if self._favorites_write_blocked:
@@ -1553,6 +1688,65 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         except OSError as error:
             say(f"Could not export favorites: {error}")
 
+    def _on_manage_tags(self, _button):
+        path = self._selected_path
+        if not path:
+            return
+        dialog = Gtk.Dialog(
+            title="Manage wallpaper tags", transient_for=self, modal=True
+        )
+        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        dialog.add_button("Save", Gtk.ResponseType.ACCEPT)
+        dialog.set_default_response(Gtk.ResponseType.ACCEPT)
+        content = dialog.get_content_area()
+        content.set_spacing(8)
+        content.set_margin_top(16)
+        content.set_margin_bottom(16)
+        content.set_margin_start(16)
+        content.set_margin_end(16)
+        description = Gtk.Label(
+            label="Enter comma-separated tags for this wallpaper. Tags are saved locally."
+        )
+        description.set_wrap(True)
+        description.set_xalign(0.0)
+        content.append(description)
+        entry = Gtk.Entry()
+        entry.set_placeholder_text("e.g. Nature, Minimal, Dark")
+        entry.set_text(", ".join(sorted(self._tags.get(path, set()), key=str.casefold)))
+        content.append(entry)
+
+        def on_tag_response(tag_dialog, response):
+            if response != Gtk.ResponseType.ACCEPT:
+                tag_dialog.destroy()
+                return
+            raw_tags = [part.strip() for part in entry.get_text().split(",") if part.strip()]
+            try:
+                new_tags = set(normalize_tags(raw_tags))
+            except ValueError as error:
+                say(f"Invalid wallpaper tags: {error}")
+                return
+            old_tags = set(self._tags.get(path, set()))
+            if new_tags:
+                self._tags[path] = new_tags
+            else:
+                self._tags.pop(path, None)
+            try:
+                self._save_tags()
+            except (OSError, ValueError) as error:
+                if old_tags:
+                    self._tags[path] = old_tags
+                else:
+                    self._tags.pop(path, None)
+                say(f"Could not save wallpaper tags: {error}")
+                return
+            self._refresh_tag_filter()
+            self._refresh_filtered_paths()
+            say(f"Saved {len(new_tags)} tag(s) for this wallpaper.")
+            tag_dialog.destroy()
+
+        dialog.connect("response", on_tag_response)
+        dialog.present()
+
     def _on_export_backup(self, _button):
         dialog = Gtk.FileChooserNative.new(
             "Export Wallmat backup", self, Gtk.FileChooserAction.SAVE,
@@ -1573,7 +1767,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 return
             backup = encode_backup(
                 self._favorites, self._wallpaper_dir,
-                self._preference.export_values(),
+                self._preference.export_values(), self._tags,
             )
             temporary_path = path + ".tmp"
             try:
@@ -1636,15 +1830,28 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 if choice != "restore":
                     return
                 old_favorites = self._favorites.copy()
+                old_tags = {path: set(tags) for path, tags in self._tags.items()}
                 old_preferences = self._preference.export_values()
+                if imported["tags"] is not None and self._tags_write_blocked:
+                    say("Tags cannot be restored because their recovery backup failed.")
+                    return
                 self._favorites = set(imported["favorites"])
+                if imported["tags"] is not None:
+                    self._tags = {
+                        path: set(tags) for path, tags in imported["tags"].items()
+                    }
                 try:
                     self._save_favorites()
+                    if imported["tags"] is not None:
+                        self._save_tags()
                     self._preference.import_values(imported["preferences"])
                 except (OSError, ValueError, TypeError) as error:
                     self._favorites = old_favorites
+                    self._tags = old_tags
                     try:
                         self._save_favorites()
+                        if imported["tags"] is not None:
+                            self._save_tags()
                         self._preference.import_values(old_preferences)
                     except (OSError, ValueError, TypeError):
                         pass
@@ -1652,8 +1859,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                     return
                 self._update_favorite_button()
                 self._update_missing_favorites_action()
-                if self._favorites_only:
-                    self._refresh_filtered_paths()
+                self._refresh_tag_filter()
+                self._refresh_filtered_paths()
                 if self._preference.persistent:
                     say("Backup restored. Restart Wallmat to apply restored preferences.")
                 else:
