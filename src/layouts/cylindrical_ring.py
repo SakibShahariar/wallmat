@@ -67,6 +67,7 @@ class _RingWidget(Gtk.Widget):
         self.set_overflow(Gtk.Overflow.VISIBLE)
         self.set_hexpand(True)
         self.set_vexpand(True)
+        self.set_focusable(True)
         self.set_size_request(360, CARD_HEIGHT + 60)
 
         self._textures: dict[str, Gdk.Texture] = {}
