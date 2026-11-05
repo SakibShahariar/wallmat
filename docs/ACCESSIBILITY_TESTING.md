@@ -46,6 +46,17 @@ the issue complete.
   prevents access to surrounding controls.
 - [ ] No custom-drawn card or browser group is exposed as an unlabeled graphic.
 
+## High contrast and large text
+
+- [ ] Enable the desktop's high-contrast setting and verify Glassmorphism cards
+  no longer rely on low-opacity dimming; active and keyboard-focused cards
+  retain clearly visible borders.
+- [ ] Toggle high contrast while Wallmat is open and verify the Glassmorphism
+  styling updates without restarting the app.
+- [ ] Increase the desktop text scale substantially and verify labels, buttons,
+  dialogs, dropdowns, and keyboard hints remain readable and are not clipped.
+- [ ] Repeat the large-text check with long filenames and collection names.
+
 ## Reporting
 
 For each failure, record the layout, exact key sequence, expected announcement,
