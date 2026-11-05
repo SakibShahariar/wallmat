@@ -2149,12 +2149,17 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         finally:
             dialog.destroy()
 
+        restore_sections = ["favorites", "preferences"]
+        if imported["tags"] is not None:
+            restore_sections.insert(1, "wallpaper tags")
+        if imported["collections"] is not None:
+            restore_sections.insert(-1, "collections")
         confirmation = Adw.MessageDialog.new(
             self,
             "Restore Wallmat backup?",
-            "This will replace the current favorites, wallpaper tags, collections, "
-            "and preferences included in the backup. Wallmat validates the complete "
-            "file before changing anything. Export a backup of the current state "
+            "This will replace " + ", ".join(restore_sections)
+            + " from the selected backup. Wallmat validates the complete file "
+            "before changing anything. Export a backup of the current state "
             "first if you may want to undo this restore.",
         )
         confirmation.add_response("cancel", "Cancel")
@@ -2222,7 +2227,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                     say("Backup restored. Restart Wallmat to apply restored preferences.")
                 else:
                     say(
-                        "Favorites and tags restored. Preferences cannot persist until the "
+                        "Backup data restored. Preferences cannot persist until the "
                         "Wallmat GSettings schema is installed."
                     )
             finally:
