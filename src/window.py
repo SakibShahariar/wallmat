@@ -55,6 +55,7 @@ from wallpaper_history import (
     for_collection,
 )
 from favorites_storage import decode_favorites, encode_favorites
+from backup_storage import encode_backup, decode_backup
 from plain_mode import SUCCESS, CANCELLED, SCAN_FAILED
 
 SCHEMA_ID = "dev.sakib.Wallmat"
@@ -135,6 +136,7 @@ class _LayoutPreference:
             RANDOM_HISTORY_LIMIT_KEY: DEFAULT_RANDOM_HISTORY_LIMIT,
             SCAN_DEPTH_KEY: DEFAULT_SCAN_DEPTH,
             APPLIED_HISTORY_KEY: [],
+            LAST_FOLDER_KEY: "",
         }
         try:
             schema_source = Gio.SettingsSchemaSource.get_default()
@@ -203,6 +205,46 @@ class _LayoutPreference:
 
     def set(self, layout_id: str):
         self.set_string(SETTINGS_KEY, layout_id)
+
+    def export_values(self) -> dict:
+        """Return the supported persisted settings in JSON-compatible form."""
+        return {
+            SETTINGS_KEY: self.get_string(SETTINGS_KEY, DEFAULT_LAYOUT_ID),
+            FILTER_KEY: self.get_string(FILTER_KEY, ""),
+            SORT_KEY: self.get_string(SORT_KEY, "name"),
+            FAVORITES_ONLY_KEY: self.get_boolean(FAVORITES_ONLY_KEY),
+            AUTO_ROTATE_INTERVAL_KEY: self.get_int(
+                AUTO_ROTATE_INTERVAL_KEY, DEFAULT_ROTATION_INTERVAL
+            ),
+            RECENT_RANDOM_PATHS_KEY: self.get_strv(RECENT_RANDOM_PATHS_KEY),
+            RANDOM_HISTORY_LIMIT_KEY: self.get_int(
+                RANDOM_HISTORY_LIMIT_KEY, DEFAULT_RANDOM_HISTORY_LIMIT
+            ),
+            SCAN_DEPTH_KEY: self.get_int(SCAN_DEPTH_KEY, DEFAULT_SCAN_DEPTH),
+            APPLIED_HISTORY_KEY: self.get_strv(APPLIED_HISTORY_KEY),
+            LAST_FOLDER_KEY: self.get_string(LAST_FOLDER_KEY, ""),
+            SELECTED_PATH_KEY: self.get_string(SELECTED_PATH_KEY, ""),
+            RECENT_PATHS_KEY: self.get_strv(RECENT_PATHS_KEY),
+        }
+
+    def import_values(self, values: dict):
+        """Apply already-validated settings using their declared GSettings types."""
+        for key, value in values.items():
+            if key in {
+                SETTINGS_KEY, FILTER_KEY, SORT_KEY, LAST_FOLDER_KEY,
+                SELECTED_PATH_KEY,
+            }:
+                self.set_string(key, value)
+            elif key == FAVORITES_ONLY_KEY:
+                self.set_boolean(key, value)
+            elif key in {
+                AUTO_ROTATE_INTERVAL_KEY, RANDOM_HISTORY_LIMIT_KEY, SCAN_DEPTH_KEY,
+            }:
+                self.set_int(key, value)
+            elif key in {
+                RECENT_RANDOM_PATHS_KEY, APPLIED_HISTORY_KEY, RECENT_PATHS_KEY,
+            }:
+                self.set_strv(key, value)
 
 
 class WallpaperChooserWindow(Adw.ApplicationWindow):
@@ -633,6 +675,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         self.export_favorites_button = Gtk.Button(label="Export favorites")
         self.export_favorites_button.connect("clicked", self._on_export_favorites)
+        self.export_backup_button = Gtk.Button(label="Export backup…")
+        self.export_backup_button.connect("clicked", self._on_export_backup)
+        self.import_backup_button = Gtk.Button(label="Restore backup…")
+        self.import_backup_button.connect("clicked", self._on_import_backup)
         self.remove_missing_favorites_button = Gtk.Button(
             label="Remove missing favorites"
         )
@@ -666,6 +712,13 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         more_actions.append(favorites_heading)
         more_actions.append(self.export_favorites_button)
         more_actions.append(self.remove_missing_favorites_button)
+        more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+        backup_heading = Gtk.Label(label="Backup and restore")
+        backup_heading.set_xalign(0.0)
+        backup_heading.add_css_class("heading")
+        more_actions.append(backup_heading)
+        more_actions.append(self.export_backup_button)
+        more_actions.append(self.import_backup_button)
         more_scroller = Gtk.ScrolledWindow()
         more_scroller.set_policy(
             Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC
@@ -1488,6 +1541,114 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             say(message)
         except OSError as error:
             say(f"Could not export favorites: {error}")
+
+    def _on_export_backup(self, _button):
+        dialog = Gtk.FileChooserNative.new(
+            "Export Wallmat backup", self, Gtk.FileChooserAction.SAVE,
+            "Export", "Cancel",
+        )
+        dialog.set_current_name("wallmat-backup.json")
+        dialog.connect("response", self._on_backup_export_response)
+        dialog.show()
+
+    def _on_backup_export_response(self, dialog, response):
+        try:
+            if response != Gtk.ResponseType.ACCEPT:
+                return
+            selected = dialog.get_file()
+            path = selected.get_path() if selected is not None else None
+            if not path:
+                say("Choose a local file to export the backup.")
+                return
+            backup = encode_backup(
+                self._favorites, self._wallpaper_dir,
+                self._preference.export_values(),
+            )
+            temporary_path = path + ".tmp"
+            try:
+                with open(temporary_path, "w", encoding="utf-8") as handle:
+                    json.dump(backup, handle, indent=2)
+                    handle.write("\\n")
+                os.replace(temporary_path, path)
+            except OSError:
+                try:
+                    os.unlink(temporary_path)
+                except OSError:
+                    pass
+                raise
+            say(f"Wallmat backup exported to {path}")
+        except (OSError, ValueError, TypeError) as error:
+            say(f"Could not export Wallmat backup: {error}")
+        finally:
+            dialog.destroy()
+
+    def _on_import_backup(self, _button):
+        dialog = Gtk.FileChooserNative.new(
+            "Restore Wallmat backup", self, Gtk.FileChooserAction.OPEN,
+            "Continue", "Cancel",
+        )
+        dialog.connect("response", self._on_backup_import_response)
+        dialog.show()
+
+    def _on_backup_import_response(self, dialog, response):
+        try:
+            if response != Gtk.ResponseType.ACCEPT:
+                return
+            selected = dialog.get_file()
+            path = selected.get_path() if selected is not None else None
+            if not path:
+                say("Choose a local backup file.")
+                return
+            with open(path, "r", encoding="utf-8") as handle:
+                imported = decode_backup(json.load(handle), self._wallpaper_dir)
+        except (OSError, json.JSONDecodeError, ValueError, TypeError) as error:
+            say(f"Could not read Wallmat backup: {error}")
+            return
+        finally:
+            dialog.destroy()
+
+        confirmation = Adw.MessageDialog.new(
+            self,
+            "Restore Wallmat backup?",
+            "This will replace the current favorites and the preferences included "
+            "in the backup. Wallmat validates the complete file before changing "
+            "anything. Export a backup of the current state first if you may "
+            "want to undo this restore.",
+        )
+        confirmation.add_response("cancel", "Cancel")
+        confirmation.add_response("restore", "Restore")
+        confirmation.set_close_response("cancel")
+        confirmation.set_default_response("cancel")
+
+        def on_confirmation_response(dialog, choice):
+            try:
+                if choice != "restore":
+                    return
+                old_favorites = self._favorites.copy()
+                old_preferences = self._preference.export_values()
+                self._favorites = set(imported["favorites"])
+                try:
+                    self._save_favorites()
+                    self._preference.import_values(imported["preferences"])
+                except (OSError, ValueError, TypeError) as error:
+                    self._favorites = old_favorites
+                    try:
+                        self._save_favorites()
+                        self._preference.import_values(old_preferences)
+                    except (OSError, ValueError, TypeError):
+                        pass
+                    say(f"Could not restore Wallmat backup: {error}")
+                    return
+                self._update_favorite_button()
+                self._update_missing_favorites_action()
+                if self._favorites_only:
+                    self._refresh_filtered_paths()
+                say("Backup restored. Restart Wallmat to apply restored preferences.")
+            finally:
+                dialog.destroy()
+
+        confirmation.connect("response", on_confirmation_response)
+        confirmation.present()
 
     def _on_window_close_request(self, *_args):
         """Cancel background work and stop session-only rotation."""
