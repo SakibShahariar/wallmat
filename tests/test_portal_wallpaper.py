@@ -33,6 +33,12 @@ class PortalWallpaperTests(unittest.TestCase):
         self.assertTrue(
             is_portal_unavailable_error("org.freedesktop.DBus.Error.UnknownMethod")
         )
+        self.assertTrue(
+            is_portal_unavailable_error("org.freedesktop.DBus.Error.NoReply")
+        )
+        self.assertTrue(
+            is_portal_unavailable_error("org.freedesktop.DBus.Error.NotSupported")
+        )
         self.assertFalse(
             is_portal_unavailable_error("org.freedesktop.portal.Error.NotAllowed")
         )
