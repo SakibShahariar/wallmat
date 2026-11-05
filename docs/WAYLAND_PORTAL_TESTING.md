@@ -23,8 +23,8 @@ direct settings write.
   bypassing the portal decision.
 - [ ] Run with the portal service unavailable and verify that the existing
   GNOME GSettings method is attempted.
-- [ ] Run with the Wallpaper interface/method unavailable and verify the same
-  fallback behavior.
+- [ ] Run with the Wallpaper interface/method unavailable or unresponsive and
+  verify the same fallback behavior.
 - [ ] On an X11 session, verify that the existing GSettings path is used
   directly without a portal prompt.
 - [ ] Verify that the window remains responsive while the portal request is
