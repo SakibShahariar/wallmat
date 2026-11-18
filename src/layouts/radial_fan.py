@@ -67,6 +67,11 @@ class _FanWidget(Gtk.Widget):
 
         self._paths: list[str] = []
         self._textures: dict[str, Gdk.Texture] = {}
+        # Paths with an outstanding debounce/decode. Only the handful of
+        # on-screen cards are ever requested (see do_snapshot); the previous
+        # eager per-path loop scheduled one GLib timeout for every wallpaper
+        # in the library on every filter refresh.
+        self._requested: set[str] = set()
         self._loader = ThumbnailLoader(thumb_size=320)  # cards render at 120x160
         self._front = 0
         self._selection = 0  # path index last explicitly selected
@@ -125,16 +130,26 @@ class _FanWidget(Gtk.Widget):
     def set_paths(self, paths: list[str]):
         self._paths = list(paths)
         self._textures.clear()
+        for path in self._requested:
+            self._loader.cancel(path)
+        self._requested.clear()
         self._front = 0
         self._selection = 0
         self._update_accessible_summary()
-        for path in paths:
-            def on_ready(item_id, texture, path=path):
-                self._textures[item_id] = texture
-                self.queue_draw()
-
-            self._loader.request(path, path, on_ready)
         self.queue_draw()
+
+    def _ensure_thumbnail(self, path: str):
+        """Request a thumbnail only for a card that is actually on screen."""
+        if path in self._textures or path in self._requested:
+            return
+        self._requested.add(path)
+
+        def on_ready(item_id, texture):
+            self._requested.discard(item_id)
+            self._textures[item_id] = texture
+            self.queue_draw()
+
+        self._loader.request(path, path, on_ready)
 
     def _cycle_front(self, delta: int, announce: bool = False):
         """Move which card is top-of-fan (keyboard focus). Selection is
@@ -268,6 +283,7 @@ class _FanWidget(Gtk.Widget):
         # Paint order: angularly-outermost first, front (rel=0) last, so
         # the top card is drawn on top and stays readable.
         rels = sorted(range(-(n // 2), n - (n // 2)), key=lambda r: -abs(r))
+        visible_paths = set()
         for rel in rels:
             idx = (self._front + rel) % n
             bx, by, angle = self._card_rect(pivot_x, pivot_y, radius, start_angle, step, rel)
@@ -278,6 +294,8 @@ class _FanWidget(Gtk.Widget):
                 continue
 
             path = self._paths[idx]
+            visible_paths.add(path)
+            self._ensure_thumbnail(path)
             selected = idx == self._selection
             focused = idx == self._front and not selected
 
@@ -301,6 +319,11 @@ class _FanWidget(Gtk.Widget):
                 hover_overlay.parse("rgba(255,255,255,0.10)")
                 snapshot.append_color(hover_overlay, hover_rect)
             snapshot.restore()
+
+        # Drop decodes for cards that scrolled out of view before finishing.
+        for stale in self._requested - visible_paths:
+            self._loader.cancel(stale)
+        self._requested.intersection_update(visible_paths)
 
 
 try:

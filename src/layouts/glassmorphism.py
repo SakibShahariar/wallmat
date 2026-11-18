@@ -321,6 +321,7 @@ class GlassmorphismLayout(WallLayout):
         )
         picture.remove_css_class("active")
         picture.remove_css_class("focused")
+        picture.remove_css_class("hovered")
 
     def _on_selection_changed(self, selection, position, n_items):
         item = self.selection.get_selected_item()

@@ -67,7 +67,9 @@ class ThumbnailLoader:
     def __init__(self, max_concurrent: int = POOL_SIZE, thumb_size: int = DEFAULT_THUMB_SIZE):
         os.makedirs(CACHE_DIR, exist_ok=True)
         self._cache_writes = 0
-        self._prune_cache()
+        # Cache pruning scans and stats every cached thumbnail. Doing it in
+        # every loader constructor blocked the GTK thread at layout-switch
+        # time; the periodic prune after CACHE_PRUNE_EVERY writes is enough.
         self._webp_ok = webp_supported()
         self._cache_ext = "webp" if self._webp_ok else "png"
         self._thumb_size = thumb_size
@@ -76,7 +78,11 @@ class ThumbnailLoader:
         self._pending_timeouts: dict[str, int] = {}
         # item_id -> generation token for the current request. A boolean
         # is not sufficient: cancel + re-request can make an old queued
-        # result look live again if the same item_id is reused.
+        # result look live again if the same item_id is reused. Tokens come
+        # from a global monotonic counter, so a token can be removed as soon
+        # as its request ends without ever colliding with a later request
+        # for the same item_id.
+        self._generation_counter = 0
         self._generation: dict[str, int] = {}
         # item_id -> generation token while queued/decoding/delivering.
         self._live: dict[str, int] = {}
@@ -99,7 +105,9 @@ class ThumbnailLoader:
         called on the GLib main thread once decoding finishes.
         """
         self.cancel(item_id)  # invalidate any prior timeout/job/delivery
-        generation = self._generation[item_id]
+        self._generation_counter += 1
+        generation = self._generation_counter
+        self._generation[item_id] = generation
 
         def fire_after_debounce():
             self._pending_timeouts.pop(item_id, None)
@@ -117,11 +125,17 @@ class ThumbnailLoader:
         timeout_id = self._pending_timeouts.pop(item_id, None)
         if timeout_id is not None:
             GLib.source_remove(timeout_id)
-        # Invalidate queued work and idle callbacks too. The generation
-        # token prevents an old result from being accepted after the same
-        # item_id has already been requested again.
-        self._generation[item_id] = self._generation.get(item_id, 0) + 1
+        # Invalidate queued work and idle callbacks too. Tokens are unique
+        # across the loader, so an old queued job sees a missing (or later
+        # replaced) token and discards its result. Dropping the token on
+        # cancel also means a plain unbind never leaks an _generation entry.
         self._live.pop(item_id, None)
+        self._generation.pop(item_id, None)
+
+    def _forget(self, item_id, generation):
+        """Drop a request's generation once no job can deliver it anymore."""
+        if self._generation.get(item_id) == generation:
+            self._generation.pop(item_id, None)
 
     # -- internal --
 
@@ -141,6 +155,7 @@ class ThumbnailLoader:
             dropped_id, _path, _callback, dropped_generation = dropped
             if self._live.get(dropped_id) == dropped_generation:
                 self._live.pop(dropped_id, None)
+            self._forget(dropped_id, dropped_generation)
 
         try:
             self._job_queue.put_nowait(job)
@@ -148,6 +163,7 @@ class ThumbnailLoader:
             item_id, _path, _callback, generation = job
             if self._live.get(item_id) == generation:
                 self._live.pop(item_id, None)
+            self._forget(item_id, generation)
 
     def _prune_cache(self):
         with _CACHE_MAINTENANCE_LOCK:
@@ -218,6 +234,7 @@ class ThumbnailLoader:
                         except GLib.Error:
                             pass  # cache write failure is non-fatal
                 except GLib.Error:
+                    self._forget(item_id, generation)
                     continue
 
                 if (self._live.get(item_id) != generation
@@ -235,6 +252,10 @@ class ThumbnailLoader:
                 or self._generation.get(item_id) != generation):
             return GLib.SOURCE_REMOVE
         self._live.pop(item_id, None)
+        # No job can deliver this generation again. Drop the token before
+        # the callback runs in case it schedules a fresh request for the
+        # same item_id.
+        self._forget(item_id, generation)
         texture = Gdk.Texture.new_for_pixbuf(pixbuf)
         on_ready(item_id, texture)
         return GLib.SOURCE_REMOVE

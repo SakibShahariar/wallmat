@@ -72,6 +72,9 @@ class _RingWidget(Gtk.Widget):
 
         self._textures: dict[str, Gdk.Texture] = {}
         self._paths: list[str] = []
+        # Paths with an outstanding debounce/decode. Thumbnails are requested
+        # lazily for on-screen cards only; see _ensure_thumbnail/do_snapshot.
+        self._requested: set[str] = set()
         self._loader = ThumbnailLoader(thumb_size=480)  # cards render at 180x240
         self._center_unit = 0.0
         self._target_center: float | None = None
@@ -146,18 +149,28 @@ class _RingWidget(Gtk.Widget):
     def set_paths(self, paths: list[str]):
         self._paths = list(paths)
         self._textures.clear()
+        for path in self._requested:
+            self._loader.cancel(path)
+        self._requested.clear()
         self._center_unit = 0.0
         self._target_center = None
         self._focus = 0
         self._selection = 0
         self._update_accessible_summary()
-        for path in paths:
-            def on_ready(item_id, texture, path=path):
-                self._textures[item_id] = texture
-                self.queue_draw()
-
-            self._loader.request(path, path, on_ready)
         self.queue_draw()
+
+    def _ensure_thumbnail(self, path: str):
+        """Request a thumbnail only for a card that is actually on screen."""
+        if path in self._textures or path in self._requested:
+            return
+        self._requested.add(path)
+
+        def on_ready(item_id, texture):
+            self._requested.discard(item_id)
+            self._textures[item_id] = texture
+            self.queue_draw()
+
+        self._loader.request(path, path, on_ready)
 
     def _center_on(self, position: int, announce: bool = False):
         """Spin the ring so `position` (path index) is front-and-center,
@@ -308,7 +321,15 @@ class _RingWidget(Gtk.Widget):
             path_idx = index % n
             visible.append((self._depth_z(theta), screen_x, path_idx, theta))
         if not visible:
+            for stale in self._requested:
+                self._loader.cancel(stale)
+            self._requested.clear()
             return
+
+        visible_paths = {self._paths[entry[2]] for entry in visible}
+        for stale in self._requested - visible_paths:
+            self._loader.cancel(stale)
+        self._requested.intersection_update(visible_paths)
 
         visible.sort(key=lambda v: v[0])  # most negative z first -> deepest drawn first
 
@@ -321,6 +342,7 @@ class _RingWidget(Gtk.Widget):
         axis_y = Graphene.Vec3().init(0.0, 1.0, 0.0)
         for z, screen_x, path_idx, theta in visible:
             path = self._paths[path_idx]
+            self._ensure_thumbnail(path)
             texture = self._textures.get(path)
             selected = path_idx == self._selection
             focused = path_idx == self._focus and not selected

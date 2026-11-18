@@ -47,7 +47,9 @@ from random_selection import (
     choose_next,
     shuffle_with_recent_last,
 )
-from wallpaper_scan import MAX_SCAN_DEPTH, ScanCancelled, scan_wallpapers
+from wallpaper_scan import (
+    MAX_SCAN_DEPTH, ScanCancelled, scan_wallpapers, scan_wallpaper_metadata,
+)
 from wallpaper_sort import sort_by_resolution
 from wallpaper_history import (
     MAX_APPLIED_HISTORY,
@@ -86,6 +88,10 @@ DEFAULT_LAYOUT_ID = "split_screen"
 # Keep very large wallpaper collections from monopolizing startup. The scan
 # stops after this many supported images and reports that the result is capped.
 MAX_WALLPAPERS = 10_000
+
+# Filtering re-sorts and rebuilds the active layout's model, so typing in the
+# search box is debounced instead of doing that work on every keystroke.
+SEARCH_DEBOUNCE_MS = 180
 
 LAYOUT_REGISTRY = {
     "split_screen": SplitScreenLayout,
@@ -443,6 +449,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             saved_sort_mode = "name"
         self._sort_mode = saved_sort_mode
         self._random_order: list[str] = []
+        self._layouts_populated = False
+        self._search_timeout_id = None
+        # File metadata is collected once per scan in the worker thread so
+        # sorting/filtering never issues one stat() per wallpaper on the GTK
+        # thread. Keyed by path; replaced wholesale on each completed scan.
+        self._mtime_index: dict[str, tuple[int, int]] = {}
         self._resolution_cache: dict[str, tuple[tuple[int, int], tuple[int, int] | None]] = {}
         self.sort_selector = Gtk.DropDown.new_from_strings([
             "Name (A–Z)", "Newest first", "Oldest first",
@@ -1059,9 +1071,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 )
                 return
             if not cancellation_event.is_set():
+                # One extra metadata pass in the worker replaces thousands of
+                # main-thread stat() calls during later sorts/filtering.
+                mtimes = scan_wallpaper_metadata(result[0])
                 GLib.idle_add(
                     self._on_scan_complete, generation, directory,
-                    result[0], result[1], result[2], None,
+                    result[0], result[1], result[2], None, mtimes,
                 )
 
         self._scan_progress_label.set_text(
@@ -1100,7 +1115,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             say("Wallpaper scan canceled; the current collection was kept.")
 
     def _on_scan_complete(
-        self, generation, directory, paths, scan_errors, truncated, error
+        self, generation, directory, paths, scan_errors, truncated, error,
+        mtimes=None,
     ):
         """Commit a completed scan to the UI if it is still the newest one."""
         if generation != self._scan_generation:
@@ -1162,6 +1178,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._scan_errors = list(scan_errors)
         self._folder_paths = list(paths)
         self._all_paths = list(paths)
+        self._mtime_index = mtimes if mtimes is not None else {}
+        # Image dimensions are fingerprinted by (mtime, size); a new scan can
+        # replace files with matching fingerprints, so drop stale entries.
+        self._resolution_cache.clear()
         self._refresh_tag_filter()
         self._refresh_collection_selector()
         self._random_order = self._make_random_order(self._all_paths)
@@ -1223,8 +1243,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             say(f"Wallpaper folder changed: {directory}")
         return False
 
-    @staticmethod
-    def _modified_timestamp(path: str) -> float:
+    def _modified_timestamp(self, path: str) -> float:
+        fingerprint = self._mtime_index.get(path)
+        if fingerprint is not None:
+            return fingerprint[0] / 1_000_000_000.0
+        # Collection paths and files replaced after the scan are not in the
+        # index; fall back to a single direct stat for those.
         try:
             return os.path.getmtime(path)
         except OSError:
@@ -1267,7 +1291,19 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
     def _on_search_changed(self, entry):
         if not self._plain:
             self._preference.set_string(FILTER_KEY, entry.get_text())
+        # Debounce the expensive re-sort + model rebuild. Persisting the text
+        # above is cheap; recomputing the whole filtered list per keystroke is
+        # not, especially with date/resolution sorts over a large folder.
+        if self._search_timeout_id is not None:
+            GLib.source_remove(self._search_timeout_id)
+        self._search_timeout_id = GLib.timeout_add(
+            SEARCH_DEBOUNCE_MS, self._debounced_search_refresh
+        )
+
+    def _debounced_search_refresh(self):
+        self._search_timeout_id = None
         self._refresh_filtered_paths()
+        return GLib.SOURCE_REMOVE
 
     def _on_favorites_filter_toggled(self, button):
         self._favorites_only = button.get_active()
@@ -1422,15 +1458,19 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 or query in os.path.relpath(path, root).casefold()
                 or any(query in tag.casefold() for tag in self._tags.get(path, set()))
             ]
-        self._paths = list(paths)
+        new_paths = list(paths)
+        paths_changed = not getattr(self, "_layouts_populated", False) or new_paths != self._paths
+        self._paths = new_paths
 
-        for layout_id, layout in self._layouts.items():
-            if layout_id == self._current_layout_id:
-                layout.load_wallpapers(self._paths)
-            else:
-                # Refresh inactive layouts only when the user switches to
-                # them, keeping rapid search edits from doing hidden work.
-                self._stale_layouts.add(layout_id)
+        if paths_changed:
+            self._layouts_populated = True
+            for layout_id, layout in self._layouts.items():
+                if layout_id == self._current_layout_id:
+                    layout.load_wallpapers(self._paths)
+                else:
+                    # Refresh inactive layouts only when the user switches to
+                    # them, keeping rapid search edits from doing hidden work.
+                    self._stale_layouts.add(layout_id)
 
         self._empty_state.set_visible(not self._paths)
         has_query = bool(query)
@@ -2443,6 +2483,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if self._rotation_source_id is not None:
             GLib.source_remove(self._rotation_source_id)
             self._rotation_source_id = None
+        if self._search_timeout_id is not None:
+            GLib.source_remove(self._search_timeout_id)
+            self._search_timeout_id = None
         return False
 
     def _on_auto_rotate_toggled(self, button):

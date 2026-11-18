@@ -1,5 +1,6 @@
 """Tests for bounded and symlink-safe wallpaper directory scanning."""
 
+import os
 import sys
 import tempfile
 import unittest
@@ -8,7 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from wallpaper_scan import ScanCancelled, scan_wallpapers
+from wallpaper_scan import ScanCancelled, scan_wallpapers, scan_wallpaper_metadata
 
 
 class WallpaperScanTests(unittest.TestCase):
@@ -24,6 +25,18 @@ class WallpaperScanTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"image")
         return str(path)
+
+    def test_metadata_index_uses_mtime_ns_and_skips_missing_files(self):
+        first = self.write_image("first.png")
+        second = self.write_image("nested/second.jpg")
+        os.utime(first, ns=(1_700_000_000_000_000_000, 1_700_000_000_000_000_000))
+        metadata = scan_wallpaper_metadata(
+            [first, second, str(self.root / "gone.png")]
+        )
+        self.assertEqual(metadata[first][0], 1_700_000_000_000_000_000)
+        self.assertEqual(metadata[first][1], len(b"image"))
+        self.assertIn(second, metadata)
+        self.assertNotIn(str(self.root / "gone.png"), metadata)
 
     def test_depth_one_scans_only_root(self):
         root_image = self.write_image("root.png")

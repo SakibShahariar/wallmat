@@ -17,6 +17,8 @@ separate layers eagerly binding multiple large wallpapers each on
 launch, that was causing multi-second (reported: ~40s) launch freezes.
 """
 
+import os
+
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -85,6 +87,7 @@ class ParallaxGalleryLayout(WallLayout):
         # exclusively on Enter or a click.
         self._focus = None
         self._live_fg: dict[str, Gtk.Picture] = {}  # path -> currently-bound fg picture
+        self._live_bg: dict[str, Gtk.Picture] = {}  # path -> currently-bound bg picture
 
     def build(self) -> Gtk.Widget:
         # Two separate loader instances, not one shared — the same path
@@ -109,6 +112,7 @@ class ParallaxGalleryLayout(WallLayout):
         bg_factory = Gtk.SignalListItemFactory()
         bg_factory.connect("setup", self._on_bg_setup)
         bg_factory.connect("bind", self._on_bg_bind)
+        bg_factory.connect("unbind", self._on_bg_unbind)
         self.bg_view = Gtk.ListView(
             model=Gtk.NoSelection(model=self.bg_store), factory=bg_factory
         )
@@ -237,16 +241,28 @@ class ParallaxGalleryLayout(WallLayout):
         item: _ParallaxItem = list_item.get_item()
         picture: Gtk.Picture = list_item.get_child()
         picture.set_paintable(None)  # clear stale content while loading
+        self._live_bg[item.path] = picture
 
         def on_ready(item_id, texture, picture=picture):
             # Ignore a completion for a picture that has been recycled.
-            if self._live_fg.get(item_id) is picture:
+            # This must check the BACKGROUND widgets: _live_fg holds the
+            # foreground layer and never contains this picture, so the
+            # previous check here made the entire parallax background blank.
+            if self._live_bg.get(item_id) is picture:
                 picture.set_paintable(texture)
 
         # item_id doesn't need to be unique the way the carousel's
         # duplicated-path case required — bg_loader is a separate loader
         # instance from fg_loader, so path alone is a safe key here.
         self.bg_loader.request(item.path, item.path, on_ready)
+
+    def _on_bg_unbind(self, factory, list_item):
+        item: _ParallaxItem = list_item.get_item()
+        if item is not None:
+            self.bg_loader.cancel(item.path)
+            self._live_bg.pop(item.path, None)
+        picture: Gtk.Picture = list_item.get_child()
+        picture.set_paintable(None)
 
     def _on_fg_setup(self, factory, list_item):
         picture = Gtk.Picture()
@@ -297,7 +313,10 @@ class ParallaxGalleryLayout(WallLayout):
             picture.remove_css_class("focused")
 
         def on_ready(item_id, texture, picture=picture):
-            picture.set_paintable(texture)
+            # A decode delivered from a worker can land after the row was
+            # rebound to a different wallpaper; never paint into that row.
+            if self._live_fg.get(item_id) is picture:
+                picture.set_paintable(texture)
 
         self.fg_loader.request(item.path, item.path, on_ready)
 
@@ -313,6 +332,7 @@ class ParallaxGalleryLayout(WallLayout):
             ["Wallpaper thumbnail", "Recycled wallpaper image"],
         )
         picture.remove_css_class("focused")
+        picture.remove_css_class("hovered")
 
     def _on_fg_scroll(self, adjustment):
         bg_adjustment = self.bg_scroller.get_hadjustment()

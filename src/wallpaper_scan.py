@@ -88,3 +88,21 @@ def scan_wallpapers(directory, supported_extensions, max_wallpapers=10_000,
     if progress_callback is not None:
         progress_callback(len(paths))
     return paths, errors, truncated
+
+
+def scan_wallpaper_metadata(paths):
+    """Return ``{path: (mtime_ns, size)}`` for a scanned path list.
+
+    Called once per scan from the worker thread so date/folder sorting can
+    avoid an ``os.stat()`` syscall per wallpaper on the GTK thread on every
+    filter refresh. Files that vanish between the scan and this pass are
+    simply left out; callers fall back to a direct stat for those.
+    """
+    metadata = {}
+    for path in paths:
+        try:
+            stat = os.stat(path)
+        except OSError:
+            continue
+        metadata[path] = (stat.st_mtime_ns, stat.st_size)
+    return metadata

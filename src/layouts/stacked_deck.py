@@ -451,7 +451,7 @@ class StackedDeckLayout(WallLayout):
         if not self._paths:
             return
         path = self._paths[self._deck_index % len(self._paths)]
-        name = os.path.basename(path)
+        name = wallpaper_accessible_name(path)
         self.deck.update_property(
             [Gtk.AccessibleProperty.LABEL, Gtk.AccessibleProperty.DESCRIPTION],
             [f"Wallpaper deck: {name}", f"Selected wallpaper: {name}"],

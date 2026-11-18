@@ -102,6 +102,9 @@ class InfiniteRibbonLayout(WallLayout):
 
     def _apply_wallpapers(self, paths: list[str]):
         if not paths:
+            # Clear the stale set length too: a scroll event fired while the
+            # store is emptying must not try to focus a non-existent item.
+            self._single_set_len = 0
             self.carousel.load_wallpapers([])
             return
         # Triplicate the list so there's always a "previous" and "next"
@@ -202,6 +205,8 @@ class InfiniteRibbonLayout(WallLayout):
     def _on_scroll(self, adjustment):
         if not getattr(self, "_single_set_len", 0):
             return
+        if self.carousel.store.get_n_items() == 0:
+            return
         set_span = self._single_set_len * CARD_STRIDE
         value = adjustment.get_value()
 
@@ -232,8 +237,10 @@ class InfiniteRibbonLayout(WallLayout):
         position = round(center / CARD_STRIDE - 0.5)
         position = max(0, min(position, self.carousel.store.get_n_items() - 1))
         if position != self._focus:
-            self._focus = position
             item = self.carousel.store.get_item(position)
+            if item is None:
+                return
+            self._focus = position
             self.carousel.set_focus(item.item_id)
 
     def _on_selected(self, carousel, path):

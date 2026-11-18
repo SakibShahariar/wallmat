@@ -12,6 +12,7 @@ scaling in the carousel: 1.0 = fully active/centered, 0.0 = fully at rest.
 """
 
 import math
+import weakref
 
 import gi
 
@@ -19,7 +20,21 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Gsk", "4.0")
 from gi.repository import Gtk, Gsk, Graphene, GObject, Gdk
 
+from .accessibility import wallpaper_accessible_name
 from .gsk_utils import get_accent_rgba, get_focus_ring_rgba, get_selection_border_rgba, draw_focus_ring
+
+
+# One shared style-manager handler for every card. A per-card lambda closing
+# over `self` was connected to the global Adw.StyleManager and never removed,
+# so every card (and its texture) ever created stayed alive for the whole
+# session. WeakSet keeps only live cards and adds no strong references.
+_LIVE_CARDS = weakref.WeakSet()
+_ACCENT_HANDLER_CONNECTED = False
+
+
+def _on_accent_color_changed(*_args):
+    for card in list(_LIVE_CARDS):
+        card.queue_draw()
 
 
 def natural_width(base_width: float, base_height: float, skew_deg: float = -12.0) -> int:
@@ -83,11 +98,16 @@ class SkewedCard(Gtk.Widget):
         # Redraw when the system accent color changes, so an already-open
         # window updates its selection border live instead of only
         # picking up the new color on next launch.
+        global _ACCENT_HANDLER_CONNECTED
+        _LIVE_CARDS.add(self)
         try:
             gi.require_version("Adw", "1")
             from gi.repository import Adw
-            style_manager = Adw.StyleManager.get_default()
-            style_manager.connect("notify::accent-color", lambda *a: self.queue_draw())
+            if not _ACCENT_HANDLER_CONNECTED:
+                Adw.StyleManager.get_default().connect(
+                    "notify::accent-color", _on_accent_color_changed
+                )
+                _ACCENT_HANDLER_CONNECTED = True
         except Exception:
             pass
 
