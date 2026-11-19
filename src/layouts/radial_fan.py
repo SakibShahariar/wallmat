@@ -197,33 +197,24 @@ class _FanWidget(Gtk.Widget):
 
     @staticmethod
     def _card_size_for_radius(radius: float):
-        card_w = max(90.0, min(180.0, radius * 0.36))
+        # Large portrait cards: ~130x174 at the radii used here, matching
+        # the earlier hand-of-cards look while still showing wallpaper.
+        card_w = max(130.0, min(220.0, radius * 0.9))
         return card_w, card_w * 1.34
 
     def _radius(self) -> float:
-        """Radius that centres the fan vertically and keeps it in view.
+        """Largest radius that keeps the whole hand inside the widget.
 
-        The old radius (pivot_y - small margin) pushed the front card's
-        top above the widget, so most of the hand was clipped. Solve for
-        the radius that puts the fan's vertical midpoint at the widget's
-        midpoint, then shrink if the front card would still overflow.
+        Deliberately upper-biased: the fan fills more of the window with
+        readable cards. The front card is kept 16px below the top edge.
         """
         width = max(1, self.get_width())
-        height = max(1, self.get_height())
-        pivot_y = height - PIVOT_BOTTOM_MARGIN
-        half_arc = math.radians(MAX_FAN_ANGLE_DEG / 2.0)
-        # card_h ~= 1.34 * 0.36 * radius = 0.4824 * radius (before clamping)
-        centered = (pivot_y - height / 2.0) * 2.0 / (
-            1.0 + math.cos(half_arc) + 1.34 * 0.36
-        )
-        radius = max(0.0, min(width * 0.42, centered))
-        for _ in range(6):
-            card_h = self._card_size_for_radius(radius)[1]
-            limit = max(0.0, pivot_y - card_h - 16)
-            if radius <= limit:
-                break
-            radius = limit
-        return radius
+        pivot_y = max(1, self.get_height()) - PIVOT_BOTTOM_MARGIN
+        # Solve directly from the card height; an iterative shrink from a
+        # large radius overshot badly because card size itself depends on
+        # the radius (and collapsed it to ~25px).
+        card_h = self._card_size_for_radius(0.0)[1]
+        return max(0.0, min(width * 0.42, pivot_y - card_h - 16))
 
     def _card_size(self):
         """Size cards relative to the fan radius, not the whole widget."""
