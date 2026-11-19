@@ -3026,24 +3026,49 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         threading.Thread(target=run_matugen, daemon=True).start()
 
     def _show_shortcuts(self, *_args):
-        body = (
-            "Global shortcuts\n"
-            "Ctrl + F — show and focus the wallpaper filter\n"
-            "Ctrl + O — choose a wallpaper folder\n"
-            "Ctrl + 1…8 — switch wallpaper layout\n"
-            "Escape — clear and hide the filter; press again to close\n"
-            "Enter — select the focused wallpaper where the active layout supports it\n"
-            "← / → — move focus in layouts that support keyboard navigation\n\n"
-            "Layout differences\n"
-            "Stacked Deck and interactive layouts can handle clicks and selection "
-            "differently. Arrow and Enter behavior depends on the active layout; "
-            "not every layout exposes the same keyboard navigation."
-        )
-        dialog = Adw.MessageDialog.new(self, "Keyboard shortcuts", body)
-        dialog.add_response("close", "Close")
-        dialog.set_close_response("close")
-        dialog.set_default_response("close")
-        dialog.present()
+        if not hasattr(Adw, "ShortcutsDialog"):
+            # Older libadwaita: fall back to the plain text dialog.
+            body = (
+                "Ctrl+F filter, Ctrl+O folder, Ctrl+1…8 layout, ? help, "
+                "Escape clear filter/close, Enter select, Left/Right browse."
+            )
+            dialog = Adw.MessageDialog.new(self, "Keyboard shortcuts", body)
+            dialog.add_response("close", "Close")
+            dialog.set_close_response("close")
+            dialog.set_default_response("close")
+            dialog.present()
+            return
+
+        dialog = Adw.ShortcutsDialog.new()
+
+        general = Adw.ShortcutsSection.new("General")
+        for title, accelerator in (
+            ("Show wallpaper filter", "<Control>F"),
+            ("Choose wallpaper folder", "<Control>O"),
+            ("Show keyboard help", "question"),
+            ("Clear filter / close window", "Escape"),
+        ):
+            general.add(Adw.ShortcutsItem.new(title, accelerator))
+        dialog.add(general)
+
+        layouts = Adw.ShortcutsSection.new("Switch layout")
+        for index, layout_id in enumerate(self._layout_ids[:8], start=1):
+            layouts.add(Adw.ShortcutsItem.new(
+                f"{LAYOUT_REGISTRY[layout_id].display_name}",
+                f"<Control>{index}",
+            ))
+        dialog.add(layouts)
+
+        browsing = Adw.ShortcutsSection.new("Browsing")
+        for title, accelerator in (
+            ("Move focus", "Left"),
+            ("Move focus", "Right"),
+            ("Select focused wallpaper", "Return"),
+        ):
+            browsing.add(Adw.ShortcutsItem.new(title, accelerator))
+        dialog.add(browsing)
+
+        dialog.present(self)
 
     def _on_key_pressed(self, controller, keyval, keycode, state):
         if state & Gdk.ModifierType.CONTROL_MASK:

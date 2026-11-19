@@ -95,7 +95,9 @@ class RuntimeWiringTests(unittest.TestCase):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertNotIn("layout_selector", source)
         self.assertIn("Gdk.KEY_1, Gdk.KEY_2, Gdk.KEY_3, Gdk.KEY_4,", source)
-        self.assertIn("Ctrl + 1…8 — switch wallpaper layout", source)
+        self.assertIn("Adw.ShortcutsDialog.new()", source)
+        self.assertIn("Adw.ShortcutsSection.new", source)
+        self.assertIn("Adw.ShortcutsItem.new", source)
         self.assertNotIn("shortcuts_button", source)
 
     def test_desktop_launcher_templates_and_installer(self):
