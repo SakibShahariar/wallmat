@@ -21,8 +21,11 @@ from gi.repository import Gtk, Gdk
 
 from .base import WallLayout
 from announce import say
-from widgets.wallpaper_carousel import WallpaperCarousel
+from widgets.wallpaper_carousel import WallpaperCarousel, CARD_WIDTH
+from widgets.skewed_card import natural_width
 from widgets.desktop_preview import DesktopPreview
+
+CARD_STRIDE = natural_width(CARD_WIDTH, int(CARD_WIDTH * 1.3)) + 12
 
 
 class SplitScreenLayout(WallLayout):
@@ -73,6 +76,12 @@ class SplitScreenLayout(WallLayout):
         # strip look stuck on its first few items.
         self.carousel.list_view.connect("realize", lambda w: w.grab_focus())
 
+        # Keep focus (and therefore the big preview) in sync with the card
+        # the user scrolls to with the mouse wheel or trackpad.
+        self.carousel.scroller.get_hadjustment().connect(
+            "value-changed", self._on_scroll
+        )
+
         return outer
 
     def on_activate(self):
@@ -81,7 +90,6 @@ class SplitScreenLayout(WallLayout):
     def _apply_wallpapers(self, paths: list[str]):
         self.carousel.load_wallpapers(paths)
         if paths:
-            self.preview.set_wallpaper_path(paths[0])
             self._set_focus(0, announce=False)
 
     def select_path(self, path: str) -> bool:
@@ -91,23 +99,41 @@ class SplitScreenLayout(WallLayout):
         except ValueError:
             return False
         self._set_focus(position, announce=False)
-        self.preview.set_wallpaper_path(path)
         return True
 
-    def _set_focus(self, position: int, announce: bool = True):
+    def _set_focus(self, position: int, announce: bool = True, scroll: bool = True):
         n = self.carousel.store.get_n_items()
         if not n:
             return
         position = max(0, min(n - 1, position))
+        item = self.carousel.store.get_item(position)
         self._focus = position
-        try:
-            self.carousel.list_view.scroll_to(position, Gtk.ListScrollFlags.FOCUS, None)
-        except Exception:
-            pass
-        self.carousel.set_focus(self.carousel.store.get_item(position).item_id)
+        if scroll:
+            try:
+                self.carousel.list_view.scroll_to(
+                    position, Gtk.ListScrollFlags.FOCUS, None
+                )
+            except Exception:
+                pass
+        self.carousel.set_focus(item.item_id)
+        # The large preview follows the focused wallpaper, not only the
+        # committed selection. Arrow-key browsing and scrolling now both
+        # update it immediately.
+        self.preview.set_wallpaper_path(item.path)
         if announce:
-            item = self.carousel.store.get_item(position)
             say(f"Focus: {item.path}")
+
+    def _on_scroll(self, adjustment):
+        n = self.carousel.store.get_n_items()
+        viewport_width = self.carousel.scroller.get_width()
+        if not n or viewport_width <= 0:
+            return
+        center = adjustment.get_value() + viewport_width / 2.0
+        position = round(center / CARD_STRIDE - 0.5)
+        position = max(0, min(n - 1, position))
+        if position != self._focus:
+            # Do not scroll back — that would feed back into value-changed.
+            self._set_focus(position, announce=False, scroll=False)
 
     def _on_key_pressed(self, controller, keyval, keycode, state):
         if keyval in (Gdk.KEY_Left, Gdk.KEY_Right):

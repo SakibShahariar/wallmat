@@ -85,6 +85,12 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("MAX_QUEUED_JOBS = 512", source)
         self.assertIn("POOL_SIZE = 6", source)
 
+    def test_split_preview_follows_focus(self):
+        source = (SRC / "layouts" / "split_screen.py").read_text(encoding="utf-8")
+        self.assertIn("self.preview.set_wallpaper_path(item.path)", source)
+        self.assertIn('"value-changed", self._on_scroll', source)
+        self.assertIn("def _on_scroll", source)
+
     def test_focused_glass_card_is_not_dimmed(self):
         source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
         self.assertIn(".glass-card.focused {\n    opacity: 1.0;", source)
