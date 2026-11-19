@@ -32,6 +32,9 @@ from widgets.gsk_utils import (
 )
 
 _GLASS_STRIDE = 180 + 12  # per-item scroll increment (180 card + 6px margins each side)
+# Max small correction applied to the centred frame to align it with the
+# focused card's actual rendered position.
+FRAME_NUDGE_MAX = 16
 
 _HIGH_CONTRAST_CSS = b"""
 .wallmat-glass.high-contrast .glass-card {
@@ -129,12 +132,11 @@ _CSS_TEMPLATE = b"""
 
 
 class _FocusFrame(Gtk.Widget):
-    """A focus frame that can sit anywhere along the strip.
+    """A focus frame pinned near the viewport centre.
 
-    It normally matches the viewport centre (because the focused card is
-    centred there), but at the first/last card GTK clamps scrolling and the
-    frame shifts with the card instead — the user cares about frame/card
-    alignment more than a pixel-perfect centre.
+    It gets a small horizontal nudge (a few pixels) to line up exactly
+    with the focused card, since GTK's row metrics can leave a residual
+    offset. It does not follow the card to the ends of the strip.
     """
 
     __gtype_name__ = "WallmatGlassFocusFrame"
@@ -466,19 +468,40 @@ class GlassmorphismLayout(WallLayout):
         self._update_frame_position()
 
     def _update_frame_position(self):
-        """Place the frame over the focused card's actual on-screen x.
+        """Keep the frame at viewport centre with a small alignment nudge.
 
-        GTK clamps scrolling at the ends, so the first/last card cannot be
-        centred. Moving the frame with the card keeps them aligned; in the
-        middle they still coincide with the viewport centre.
+        The row metrics can be a few pixels off, so measure the focused
+        card's real on-screen position and shift the frame by at most
+        FRAME_NUDGE_MAX to line them up. This is a correction, not the
+        frame following the card to the ends of the strip.
         """
         frame = getattr(self, "_focus_frame", None)
         if frame is None:
             return
-        stride = self._stride()
-        focus = self._focus or 0
-        adjustment = self.scroller.get_hadjustment()
-        frame._center_x = focus * stride + stride / 2.0 + 6.0 - adjustment.get_value()
+        viewport = self.scroller.get_width()
+        if viewport <= 0:
+            return
+        card_x = None
+        item = self.store.get_item(self._focus or 0)
+        picture = self._live_widgets.get(item.path) if item is not None else None
+        if picture is not None:
+            allocation = picture.get_allocation()
+            if allocation.width > 0:
+                try:
+                    x, _y = picture.translate_coordinates(
+                        self.scroller,
+                        allocation.x + allocation.width / 2.0,
+                        allocation.y + allocation.height / 2.0,
+                    )
+                    card_x = x
+                except (TypeError, ValueError):
+                    pass
+        if card_x is None:
+            stride = self._stride()
+            card_x = ((self._focus or 0) * stride + stride / 2.0 + 6.0
+                      - self.scroller.get_hadjustment().get_value())
+        nudge = max(-FRAME_NUDGE_MAX, min(FRAME_NUDGE_MAX, card_x - viewport / 2.0))
+        frame._center_x = viewport / 2.0 + nudge
         frame.queue_draw()
 
     def _on_scroll(self, adjustment):
