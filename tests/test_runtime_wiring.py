@@ -91,19 +91,19 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn('"value-changed", self._on_scroll', source)
         self.assertIn("def _on_scroll", source)
 
-    def test_glassmorphism_has_a_static_center_focus_frame(self):
+    def test_glassmorphism_frame_tracks_the_focused_card(self):
         source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
-        self.assertIn("glass-center-frame", source)
-        self.assertIn("overlay.add_overlay(center_frame)", source)
-        self.assertIn('"value-changed", self._on_scroll', source)
-        # The moving per-card focus ring was replaced by the static frame.
+        self.assertIn("class _FocusFrame", source)
+        self.assertIn("overlay.add_overlay(self._focus_frame)", source)
+        self.assertIn("def _update_frame_position", source)
+        self.assertIn("frame._center_x =", source)
         self.assertNotIn("box-shadow: 0 0 0 3px {ring};", source)
 
     def test_glassmorphism_derives_scroll_stride_from_the_adjustment(self):
         source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
         self.assertIn("def _stride", source)
         self.assertIn("adjustment.get_upper() / n", source)
-        self.assertIn("(position + 2) * stride + stride / 2.0 + 6.0 - viewport_width / 2.0", source)
+        self.assertIn("position * stride + stride / 2.0 + 6.0 - viewport_width / 2.0", source)
 
     def test_glassmorphism_suppresses_the_tall_listitem_focus_outline(self):
         source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
