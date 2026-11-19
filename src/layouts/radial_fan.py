@@ -197,24 +197,16 @@ class _FanWidget(Gtk.Widget):
 
     @staticmethod
     def _card_size_for_radius(radius: float):
-        # Large portrait cards: ~130x174 at the radii used here, matching
-        # the earlier hand-of-cards look while still showing wallpaper.
-        card_w = max(130.0, min(220.0, radius * 0.9))
+        # Card size is decoupled from the (large) arc radius: the pivot now
+        # sits below the widget, so the radius can be big enough to separate
+        # cards without inflating them.
+        card_w = max(130.0, min(160.0, radius * 0.25))
         return card_w, card_w * 1.34
 
     def _radius(self) -> float:
-        """Largest radius that keeps the whole hand inside the widget.
-
-        Deliberately upper-biased: the fan fills more of the window with
-        readable cards. The front card is kept 16px below the top edge.
-        """
+        """Arc radius chosen for card separation, not available height."""
         width = max(1, self.get_width())
-        pivot_y = max(1, self.get_height()) - PIVOT_BOTTOM_MARGIN
-        # Solve directly from the card height; an iterative shrink from a
-        # large radius overshot badly because card size itself depends on
-        # the radius (and collapsed it to ~25px).
-        card_h = self._card_size_for_radius(0.0)[1]
-        return max(0.0, min(width * 0.42, pivot_y - card_h - 16))
+        return max(360.0, min(700.0, width * 0.7))
 
     def _card_size(self):
         """Size cards relative to the fan radius, not the whole widget."""
@@ -225,8 +217,13 @@ class _FanWidget(Gtk.Widget):
         width = self.get_width()
         height = self.get_height()
         pivot_x = width / 2.0
-        pivot_y = height - PIVOT_BOTTOM_MARGIN
         radius = self._radius()
+        # Put the arc centre below the widget so a large radius (good card
+        # separation) can coexist with a vertically centred fan. Only the
+        # card positions are visible; the pivot itself is not drawn.
+        half_arc = math.radians(MAX_FAN_ANGLE_DEG / 2.0)
+        card_h = self._card_size()[1]
+        pivot_y = height / 2.0 + radius * (1.0 + math.cos(half_arc)) / 2.0 + card_h / 2.0
         # Spread the visible window across the arc. With a huge library
         # the old 60/(n-1) step collapsed every card onto the same spot.
         span_cards = min(len(self._paths), FAN_WINDOW)
