@@ -446,29 +446,33 @@ class ParallaxGalleryLayout(WallLayout):
             return True
         return False
 
-    def _scroll_to_index(self, position: int):
-        """Bring an item into view WITHOUT changing selection — visual
-        focus only. Same Gtk.ListView.scroll_to() first / FG_STRIDE
-        fallback pattern as before, but with the FOCUS flag alone: the
-        SELECT flag is what turned arrow navigation into automatic
-        wallpaper-selected emissions, so it's deliberately never used
-        for keyboard movement. Only the foreground position is set
-        directly here — the background follows automatically via
-        _on_fg_scroll, which listens to the foreground adjustment's
-        value-changed signal."""
-        try:
-            flags = Gtk.ListScrollFlags.FOCUS
-            self.fg_view.scroll_to(position, flags, None)
-            return
-        except Exception:
-            pass  # fall through to the manual method below
+    def _stride(self) -> float:
+        """Real per-row width from GtkListView's own measurement.
 
+        The FG_STRIDE estimate (180px card + 12px margins) is wrong; GTK
+        allocates ~204px per row, so the focused card drifted away from
+        the viewport centre more the deeper you scrolled.
+        """
+        n = self.fg_store.get_n_items()
+        if n < 1:
+            return FG_STRIDE
         adjustment = self.fg_scroller.get_hadjustment()
-        target_value = position * FG_STRIDE
+        if adjustment.get_upper() > 0:
+            return adjustment.get_upper() / n
+        return FG_STRIDE
+
+    def _scroll_to_index(self, position: int):
+        """Centre an item WITHOUT changing selection.
+
+        GtkListView.scroll_to() only guarantees visibility, not centring,
+        so set the adjustment directly using GTK's measured row width.
+        The background layer follows via _on_fg_scroll.
+        """
+        adjustment = self.fg_scroller.get_hadjustment()
+        stride = self._stride()
         viewport_width = self.fg_scroller.get_width()
-        if viewport_width > 0:
-            target_value -= (viewport_width - FG_STRIDE) / 2
-        adjustment.set_value(max(0.0, target_value))
+        target = position * stride + stride / 2.0 + 6.0 - viewport_width / 2.0
+        adjustment.set_value(max(0.0, target))
 
     def _apply_focus_to_live(self):
         focus_path = None

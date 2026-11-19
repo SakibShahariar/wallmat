@@ -91,6 +91,12 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn('"value-changed", self._on_scroll', source)
         self.assertIn("def _on_scroll", source)
 
+    def test_parallax_centres_the_focused_card_with_measured_stride(self):
+        source = (SRC / "layouts" / "parallax_gallery.py").read_text(encoding="utf-8")
+        self.assertIn("def _stride", source)
+        self.assertIn("adjustment.get_upper() / n", source)
+        self.assertIn("position * stride + stride / 2.0 + 6.0 - viewport_width / 2.0", source)
+
     def test_parallax_hides_the_tall_row_ring_and_keeps_the_card_ring(self):
         source = (SRC / "layouts" / "parallax_gallery.py").read_text(encoding="utf-8")
         self.assertIn(".wallmat-parallax row:focus", source)
