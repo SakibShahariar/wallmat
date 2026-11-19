@@ -294,7 +294,7 @@ class GlassmorphismLayout(WallLayout):
         """Push the current keyboard-focus ring to the live rows."""
         focus_path = None
         if self._focus is not None:
-            item = self.store.get_item(self._focus)
+            item = self.store.get_item(self._focus + 2)
             if item is not None:
                 focus_path = item.path
         for path, picture in self._live_widgets.items():
@@ -304,7 +304,14 @@ class GlassmorphismLayout(WallLayout):
                 picture.remove_css_class("focused")
 
     def _apply_wallpapers(self, paths: list[str]):
-        items = [_GlassItem(path) for path in paths]
+        # Two duplicate wallpapers at each end give the first/last real
+        # card room to reach the centre frame. GTK forces all ListView
+        # rows to one width, so spacer rows cannot do this; real rows can.
+        items = []
+        if paths:
+            items = ([_GlassItem(paths[-1]), _GlassItem(paths[-1])]
+                     + [_GlassItem(path) for path in paths]
+                     + [_GlassItem(paths[0]), _GlassItem(paths[0])])
         self.store.splice(0, self.store.get_n_items(), items)
         if paths:
             self._set_focus(0, announce=False)
@@ -337,6 +344,7 @@ class GlassmorphismLayout(WallLayout):
     def _on_bind(self, factory, list_item):
         item: _GlassItem = list_item.get_item()
         picture: Gtk.Picture = list_item.get_child()
+
         self._live_widgets[item.path] = picture
 
         # A recycled row must carry the same glow state the row it replaced
@@ -375,6 +383,8 @@ class GlassmorphismLayout(WallLayout):
 
     def _on_selection_changed(self, selection, position, n_items):
         item = self.selection.get_selected_item()
+        if position < 2 or position >= self.store.get_n_items() - 2:
+            return  # a leading/trailing duplicate row was selected
         # Toggle the glow on every currently-live row, not just the newly
         # selected one — the previously-selected row (if still bound/visible)
         # needs its glow cleared too.
@@ -393,7 +403,7 @@ class GlassmorphismLayout(WallLayout):
 
     def _on_key_pressed(self, controller, keyval, keycode, state):
         if keyval in (Gdk.KEY_Left, Gdk.KEY_Right):
-            n = self.store.get_n_items()
+            n = max(0, self.store.get_n_items() - 4)
             if n == 0:
                 return True  # consume the key even if not ready yet
             if self._focus is None:
@@ -405,7 +415,7 @@ class GlassmorphismLayout(WallLayout):
             if self._focus is not None:
                 # Only Enter (or a click) commits selection — which is
                 # what triggers the glow movement + wallpaper-selected.
-                self.selection.set_selected(self._focus)
+                self.selection.set_selected(self._focus + 2)
             return True
         return False
 
@@ -417,11 +427,9 @@ class GlassmorphismLayout(WallLayout):
         further off the focused card the deeper you scrolled.
         """
         n = self.store.get_n_items()
-        if not n:
+        if n < 1:
             return _GLASS_STRIDE
         adjustment = self.scroller.get_hadjustment()
-        # upper is the total content width; page_size is the viewport and
-        # must NOT be added here (that inflated the stride by ~1.8px/row).
         if adjustment.get_upper() > 0:
             return adjustment.get_upper() / n
         return _GLASS_STRIDE
@@ -433,27 +441,25 @@ class GlassmorphismLayout(WallLayout):
         adjustment = self.scroller.get_hadjustment()
         stride = self._stride()
         viewport_width = self.scroller.get_width()
-        # Measured row layout: card centre = row start + stride/2 + 6px
-        # (the card's horizontal margin). Without that 6px the frame sits
-        # a few pixels to the left of the focused card.
-        target = position * stride + stride / 2.0 + 6.0 - viewport_width / 2.0
+        # Two duplicate rows precede the first real wallpaper.
+        target = (position + 2) * stride + stride / 2.0 + 6.0 - viewport_width / 2.0
         adjustment.set_value(max(0.0, target))
 
     def _on_scroll(self, adjustment):
-        n = self.store.get_n_items()
+        n = max(0, self.store.get_n_items() - 4)
         viewport_width = self.scroller.get_width()
-        if not n or viewport_width <= 0:
+        if n < 1 or viewport_width <= 0:
             return
         stride = self._stride()
         center = adjustment.get_value() + viewport_width / 2.0
-        position = round((center - stride / 2.0 - 6.0) / stride)
+        position = round((center - stride / 2.0 - 6.0) / stride) - 2
         position = max(0, min(n - 1, position))
         if position != self._focus:
             # No scroll-back: that would feed into value-changed again.
             self._set_focus(position, announce=False, scroll=False)
 
     def _set_focus(self, position: int, announce: bool = True, scroll: bool = True):
-        n = self.store.get_n_items()
+        n = max(0, self.store.get_n_items() - 4)
         if n == 0:
             return
         position = max(0, min(n - 1, position))
@@ -462,5 +468,5 @@ class GlassmorphismLayout(WallLayout):
             self._scroll_to_index(position)
         self._apply_focus_to_live()
         if announce:
-            item = self.store.get_item(position)
+            item = self.store.get_item(position + 2)
             say(f"Focus: {item.path}")
