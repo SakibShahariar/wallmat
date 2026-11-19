@@ -32,9 +32,6 @@ from widgets.gsk_utils import (
 )
 
 _GLASS_STRIDE = 180 + 12  # per-item scroll increment (180 card + 6px margins each side)
-# Max small correction applied to the centred frame to align it with the
-# focused card's actual rendered position.
-FRAME_NUDGE_MAX = 16
 
 _HIGH_CONTRAST_CSS = b"""
 .wallmat-glass.high-contrast .glass-card {
@@ -132,11 +129,11 @@ _CSS_TEMPLATE = b"""
 
 
 class _FocusFrame(Gtk.Widget):
-    """A focus frame pinned near the viewport centre.
+    """A focus frame drawn over the focused wallpaper card.
 
-    It gets a small horizontal nudge (a few pixels) to line up exactly
-    with the focused card, since GTK's row metrics can leave a residual
-    offset. It does not follow the card to the ends of the strip.
+    It follows the card's real rendered x. In the middle of the library
+    that coincides with the viewport centre; at the ends GTK clamps
+    scrolling and the frame shifts with the card so the two still match.
     """
 
     __gtype_name__ = "WallmatGlassFocusFrame"
@@ -153,7 +150,9 @@ class _FocusFrame(Gtk.Widget):
         width, height = self.get_width(), self.get_height()
         if width <= 0 or height <= 0:
             return
-        frame_w, frame_h = 192.0, 252.0
+        # Exactly the picture's rendered size, so the ring hugs the
+        # wallpaper edge instead of sitting outside its 6px row margins.
+        frame_w, frame_h = 180.0, 240.0
         rect = Graphene.Rect().init(
             self._center_x - frame_w / 2.0,
             (height - frame_h) / 2.0,
@@ -465,16 +464,13 @@ class GlassmorphismLayout(WallLayout):
         viewport_width = self.scroller.get_width()
         target = position * stride + stride / 2.0 + 6.0 - viewport_width / 2.0
         adjustment.set_value(max(0.0, target))
-        self._update_frame_position()
+        # Row allocations update on the next layout cycle; measuring now
+        # would use stale positions and leave the frame off by a few px.
+        GLib.idle_add(self._update_frame_position)
 
     def _update_frame_position(self):
-        """Keep the frame at viewport centre with a small alignment nudge.
+        """Draw the frame exactly over the focused card's rendered x."""
 
-        The row metrics can be a few pixels off, so measure the focused
-        card's real on-screen position and shift the frame by at most
-        FRAME_NUDGE_MAX to line them up. This is a correction, not the
-        frame following the card to the ends of the strip.
-        """
         frame = getattr(self, "_focus_frame", None)
         if frame is None:
             return
@@ -500,8 +496,11 @@ class GlassmorphismLayout(WallLayout):
             stride = self._stride()
             card_x = ((self._focus or 0) * stride + stride / 2.0 + 6.0
                       - self.scroller.get_hadjustment().get_value())
-        nudge = max(-FRAME_NUDGE_MAX, min(FRAME_NUDGE_MAX, card_x - viewport / 2.0))
-        frame._center_x = viewport / 2.0 + nudge
+        # Match the card wherever it actually is. In the middle that is
+        # the viewport centre (plus a few px of row-metric correction); at
+        # the clamped ends it shifts further so frame and wall still line
+        # up. The user cares about alignment over a pixel-perfect centre.
+        frame._center_x = card_x
         frame.queue_draw()
 
     def _on_scroll(self, adjustment):
@@ -516,7 +515,7 @@ class GlassmorphismLayout(WallLayout):
         if position != self._focus:
             # No scroll-back: that would feed into value-changed again.
             self._set_focus(position, announce=False, scroll=False)
-        self._update_frame_position()
+        GLib.idle_add(self._update_frame_position)
 
     def _set_focus(self, position: int, announce: bool = True, scroll: bool = True):
         n = self.store.get_n_items()
@@ -527,7 +526,7 @@ class GlassmorphismLayout(WallLayout):
         if scroll:
             self._scroll_to_index(position)
         else:
-            self._update_frame_position()
+            GLib.idle_add(self._update_frame_position)
         self._apply_focus_to_live()
         if announce:
             item = self.store.get_item(position)
