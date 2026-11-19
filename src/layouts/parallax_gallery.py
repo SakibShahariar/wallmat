@@ -44,6 +44,13 @@ _CSS_TEMPLATE = b"""
    rectangle around the whole row. Suppress it so the only focus ring is
    the one drawn on the wallpaper card (same approach as Glassmorphism).
    GTK 4.24 calls this node "row"; older releases used "listitem". */
+/* Belt-and-braces: GTK/themes have used several node names for the row
+   focus outline, and it is always an "outline", never our box-shadow
+   ring. Kill every outline under this layout. */
+.wallmat-parallax * {
+    outline: none;
+}
+
 .wallmat-parallax row,
 .wallmat-parallax row:focus,
 .wallmat-parallax row:hover,
