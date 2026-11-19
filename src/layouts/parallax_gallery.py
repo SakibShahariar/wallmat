@@ -29,7 +29,9 @@ from .base import WallLayout
 from announce import say
 from widgets.thumbnail_loader import ThumbnailLoader
 from widgets.accessibility import wallpaper_accessible_name
-from widgets.gsk_utils import hide_scrollbars, register_css_once
+from widgets.gsk_utils import (
+    hide_scrollbars, register_css_once, enable_vertical_wheel_scroll,
+)
 
 PARALLAX_RATIO = 0.3
 FG_ITEM_WIDTH = 180
@@ -88,16 +90,17 @@ class ParallaxGalleryLayout(WallLayout):
         self._focus = None
         self._live_fg: dict[str, Gtk.Picture] = {}  # path -> currently-bound fg picture
         self._live_bg: dict[str, Gtk.Picture] = {}  # path -> currently-bound bg picture
+        # A single decode per path is shared by both layers. The two layers
+        # previously used separate 640px/480px loaders, decoding every
+        # wallpaper twice from the full-resolution source with no texture
+        # sharing. 360px covers the 180x240 foreground card at 2x and is
+        # already the size Masonry Grid caches, improving cross-layout reuse.
+        self._textures: dict[str, object] = {}
+        self._requested: set[str] = set()
+        self._item_cache: dict[str, _ParallaxItem] = {}
 
     def build(self) -> Gtk.Widget:
-        # Two separate loader instances, not one shared — the same path
-        # appears in BOTH bg_store and fg_store, and ThumbnailLoader.
-        # request() cancels any prior pending request sharing the same
-        # item_id. A single shared loader keyed by plain path would let a
-        # foreground request silently cancel the background request for
-        # that same image (or vice versa), leaving one layer stuck blank.
-        self.bg_loader = ThumbnailLoader(thumb_size=640)  # bg cards render at 320x400
-        self.fg_loader = ThumbnailLoader(thumb_size=480)  # fg cards render at 180x240
+        self.loader = ThumbnailLoader(thumb_size=360)
 
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         outer.set_vexpand(True)
@@ -194,6 +197,7 @@ class ParallaxGalleryLayout(WallLayout):
             )
 
         self.fg_scroller.connect("realize", register_css)
+        enable_vertical_wheel_scroll(self.fg_scroller)
         outer.append(overlay)
 
         hint = Gtk.Label(label="← / → to browse, Enter or click to select")
@@ -206,11 +210,61 @@ class ParallaxGalleryLayout(WallLayout):
     def on_activate(self):
         self.fg_view.grab_focus()
 
+    def _paint_path(self, path: str, texture):
+        bg = self._live_bg.get(path)
+        if bg is not None and bg.get_paintable() is not texture:
+            bg.set_paintable(texture)
+        fg = self._live_fg.get(path)
+        if fg is not None and fg.get_paintable() is not texture:
+            fg.set_paintable(texture)
+
+    def _ensure_thumbnail(self, path: str):
+        """One decode per path, shared by the foreground and background layers."""
+        texture = self._textures.get(path)
+        if texture is not None:
+            self._paint_path(path, texture)
+            return
+        if path in self._requested:
+            return
+        self._requested.add(path)
+
+        def on_ready(item_id, decoded):
+            self._requested.discard(item_id)
+            self._textures[item_id] = decoded
+            self._paint_path(item_id, decoded)
+
+        self.loader.request(path, path, on_ready)
+
+    def _release_path_if_unused(self, path: str):
+        if path in self._live_bg or path in self._live_fg:
+            return
+        if path in self._requested:
+            self.loader.cancel(path)
+            self._requested.discard(path)
+        self._textures.pop(path, None)
+
     def _apply_wallpapers(self, paths: list[str]):
-        bg_items = [_ParallaxItem(path) for path in paths]
-        fg_items = [_ParallaxItem(path) for path in paths]
-        self.bg_store.splice(0, self.bg_store.get_n_items(), bg_items)
-        self.fg_store.splice(0, self.fg_store.get_n_items(), fg_items)
+        # Share the same item objects between both layers — no 2N allocation
+        # on every filter change — and drop state for paths no longer shown.
+        items = []
+        live = set()
+        for path in paths:
+            item = self._item_cache.get(path)
+            if item is None:
+                item = _ParallaxItem(path)
+                self._item_cache[path] = item
+            items.append(item)
+            live.add(path)
+        self.bg_store.splice(0, self.bg_store.get_n_items(), items)
+        self.fg_store.splice(0, self.fg_store.get_n_items(), items)
+        self._item_cache = {p: i for p, i in self._item_cache.items() if p in live}
+        for path in list(self._requested):
+            if path not in live:
+                self.loader.cancel(path)
+                self._requested.discard(path)
+        for path in list(self._textures):
+            if path not in live:
+                self._textures.pop(path, None)
         self._n_items = len(paths)
 
         if paths:
@@ -241,25 +295,16 @@ class ParallaxGalleryLayout(WallLayout):
         picture: Gtk.Picture = list_item.get_child()
         picture.set_paintable(None)  # clear stale content while loading
         self._live_bg[item.path] = picture
-
-        def on_ready(item_id, texture, picture=picture):
-            # Ignore a completion for a picture that has been recycled.
-            # This must check the BACKGROUND widgets: _live_fg holds the
-            # foreground layer and never contains this picture, so the
-            # previous check here made the entire parallax background blank.
-            if self._live_bg.get(item_id) is picture:
-                picture.set_paintable(texture)
-
-        # item_id doesn't need to be unique the way the carousel's
-        # duplicated-path case required — bg_loader is a separate loader
-        # instance from fg_loader, so path alone is a safe key here.
-        self.bg_loader.request(item.path, item.path, on_ready)
+        texture = self._textures.get(item.path)
+        if texture is not None:
+            picture.set_paintable(texture)
+        self._ensure_thumbnail(item.path)
 
     def _on_bg_unbind(self, factory, list_item):
         item: _ParallaxItem = list_item.get_item()
         if item is not None:
-            self.bg_loader.cancel(item.path)
             self._live_bg.pop(item.path, None)
+            self._release_path_if_unused(item.path)
         picture: Gtk.Picture = list_item.get_child()
         picture.set_paintable(None)
 
@@ -311,19 +356,16 @@ class ParallaxGalleryLayout(WallLayout):
         else:
             picture.remove_css_class("focused")
 
-        def on_ready(item_id, texture, picture=picture):
-            # A decode delivered from a worker can land after the row was
-            # rebound to a different wallpaper; never paint into that row.
-            if self._live_fg.get(item_id) is picture:
-                picture.set_paintable(texture)
-
-        self.fg_loader.request(item.path, item.path, on_ready)
+        texture = self._textures.get(item.path)
+        if texture is not None:
+            picture.set_paintable(texture)
+        self._ensure_thumbnail(item.path)
 
     def _on_fg_unbind(self, factory, list_item):
         item: _ParallaxItem = list_item.get_item()
         if item is not None:
-            self.fg_loader.cancel(item.path)
             self._live_fg.pop(item.path, None)
+            self._release_path_if_unused(item.path)
         picture: Gtk.Picture = list_item.get_child()
         picture.set_paintable(None)
         picture.update_property(

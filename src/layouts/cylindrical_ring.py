@@ -264,15 +264,15 @@ class _RingWidget(Gtk.Widget):
     def _on_click(self, gesture, n_press, x, y):
         if not self._paths:
             return
-        # Convert the click point back into a ring angle: the card at
-        # theta has screen x = width/2 + R*sin(theta), so invert that for
-        # the nearest integer card. The y axis is ignored (full height hit box).
+        # Hit-test against the same projected card positions that are
+        # drawn. Inverting the unprojected sin(theta) formula no longer
+        # matches once perspective is correctly centered on the ring.
         width = self.get_width()
-        radius = self._radius()
-        dx_from_center = x - width / 2.0
-        rel_units = math.asin(max(-1.0, min(1.0, dx_from_center / max(1.0, radius)))) / self._card_angle()
-        clicked_index = round(self._center_unit + rel_units)
-        idx = clicked_index % len(self._paths)
+        candidates = self._candidates(width)
+        if not candidates:
+            return
+        best = min(candidates, key=lambda c: abs(c[2] - x))
+        idx = best[3]
         # Click = intent to select: center the card and commit.
         self._center_on(idx)
         self._commit_selection()
@@ -288,6 +288,38 @@ class _RingWidget(Gtk.Widget):
     def _depth_z(self, theta: float):
         return -self._radius() * (1.0 - math.cos(theta))
 
+    @staticmethod
+    def _project_x(screen_x: float, z: float, width: float) -> float:
+        """X after the centered perspective camera.
+
+        GSK's perspective() is anchored at (0,0), so without rebasing it
+        the right side of the ring compressed toward the top-left while the
+        left side spread out, making the middle/right cards overlap.
+        """
+        scale = CAMERA_DEPTH / (CAMERA_DEPTH - z)
+        center = width / 2.0
+        return center + (screen_x - center) * scale
+
+    def _candidates(self, width: float):
+        radius = self._radius()
+        card_angle = self._card_angle()
+        center_i = round(self._center_unit)
+        span = int(math.ceil(MAX_SURFACE_ANGLE_RAD / card_angle)) + 1
+        n = len(self._paths)
+        result = []
+        for rel in range(-span, span + 1):
+            index = center_i + rel
+            theta = (index - self._center_unit) * card_angle
+            if abs(theta) > MAX_SURFACE_ANGLE_RAD:
+                continue
+            screen_x = width / 2.0 + radius * math.sin(theta)
+            z = self._depth_z(theta)
+            result.append((
+                z, screen_x, self._project_x(screen_x, z, width),
+                index % n, theta,
+            ))
+        return result
+
     # -- sizing --
 
     def do_measure(self, orientation, for_size):
@@ -301,46 +333,42 @@ class _RingWidget(Gtk.Widget):
         if width <= 0 or height <= 0 or not self._paths:
             return
 
-        radius = self._radius()
-        card_angle = self._card_angle()
-        center_i = round(self._center_unit)
-        span = int(math.ceil(MAX_SURFACE_ANGLE_RAD / card_angle)) + 1
-        n = len(self._paths)
-
         # Collect the (few) cards near the viewport with their depth, so
-        # we can paint deepest-first.
-        visible = []
-        for rel in range(-span, span + 1):
-            index = center_i + rel
-            theta = (index - self._center_unit) * card_angle
-            if abs(theta) > MAX_SURFACE_ANGLE_RAD:
-                continue
-            screen_x = width / 2.0 + radius * math.sin(theta)
-            if screen_x < -CARD_WIDTH or screen_x > width + CARD_WIDTH:
-                continue
-            path_idx = index % n
-            visible.append((self._depth_z(theta), screen_x, path_idx, theta))
+        # we can paint deepest-first. Cull on the projected x position:
+        # the unprojected x can be far off-screen when perspective is on.
+        visible = [
+            entry for entry in self._candidates(width)
+            if -CARD_WIDTH <= entry[2] <= width + CARD_WIDTH
+        ]
         if not visible:
             for stale in self._requested:
                 self._loader.cancel(stale)
             self._requested.clear()
             return
 
-        visible_paths = {self._paths[entry[2]] for entry in visible}
+        visible_paths = {self._paths[entry[3]] for entry in visible}
         for stale in self._requested - visible_paths:
             self._loader.cancel(stale)
         self._requested.intersection_update(visible_paths)
 
         visible.sort(key=lambda v: v[0])  # most negative z first -> deepest drawn first
 
-        cy = height / 2.0
+        cx, cy = width / 2.0, height / 2.0
 
-        camera = Gsk.Transform.new().perspective(CAMERA_DEPTH)
+        # Rebase the perspective camera on the ring center. A bare
+        # perspective() is anchored at the widget origin, which compressed
+        # the right-hand cards toward the top-left and made them overlap.
+        camera = (
+            Gsk.Transform.new()
+            .translate_3d(Graphene.Point3D().init(cx, cy, 0.0))
+            .perspective(CAMERA_DEPTH)
+            .translate_3d(Graphene.Point3D().init(-cx, -cy, 0.0))
+        )
         snapshot.save()
         snapshot.transform(camera)
 
         axis_y = Graphene.Vec3().init(0.0, 1.0, 0.0)
-        for z, screen_x, path_idx, theta in visible:
+        for z, screen_x, _projected_x, path_idx, theta in visible:
             path = self._paths[path_idx]
             self._ensure_thumbnail(path)
             texture = self._textures.get(path)

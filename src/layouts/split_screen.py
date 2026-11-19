@@ -68,7 +68,15 @@ class SplitScreenLayout(WallLayout):
         hint.set_margin_bottom(6)
         outer.append(hint)
 
+        # Without a focus grab the Left/Right controller above never sees
+        # keystrokes until the user happens to click a card, which made the
+        # strip look stuck on its first few items.
+        self.carousel.list_view.connect("realize", lambda w: w.grab_focus())
+
         return outer
+
+    def on_activate(self):
+        self.carousel.list_view.grab_focus()
 
     def _apply_wallpapers(self, paths: list[str]):
         self.carousel.load_wallpapers(paths)

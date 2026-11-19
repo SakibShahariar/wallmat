@@ -33,6 +33,30 @@ def widget_has_keyboard_focus(widget) -> bool:
     return True
 
 
+def enable_vertical_wheel_scroll(scroller) -> None:
+    """Let a normal mouse wheel scroll a horizontal-only ScrolledWindow.
+
+    GTK does not translate vertical wheel events into horizontal adjustment
+    changes when the vertical policy is NEVER, so with hidden scrollbars the
+    user had no obvious way to reach wallpapers beyond the first screenful.
+    """
+    controller = Gtk.EventControllerScroll.new(
+        Gtk.EventControllerScrollFlags.VERTICAL
+    )
+
+    def on_scroll(_controller, _dx, dy):
+        adjustment = scroller.get_hadjustment()
+        if adjustment is None:
+            return False
+        page = adjustment.get_page_size()
+        step = (page * 0.12) if page > 0 else 80.0
+        adjustment.set_value(adjustment.get_value() + dy * step)
+        return True
+
+    controller.connect("scroll", on_scroll)
+    scroller.add_controller(controller)
+
+
 _registered_css: dict[str, set] = {}
 
 

@@ -21,7 +21,7 @@ from .skewed_card import SkewedCard, natural_width
 from .thumbnail_loader import ThumbnailLoader
 from .gsk_utils import (
     hide_scrollbars, get_animations_enabled, watch_animations_enabled,
-    register_css_once,
+    register_css_once, enable_vertical_wheel_scroll,
 )
 from announce import say
 
@@ -174,6 +174,7 @@ class WallpaperCarousel(Gtk.Box):
         self.append(self.scroller)
 
         self.scroller.connect("realize", self._register_css)
+        enable_vertical_wheel_scroll(self.scroller)
 
         # Center-active scaling: react to horizontal scroll position.
         self._hadjustment = self.scroller.get_hadjustment()
@@ -317,8 +318,11 @@ class WallpaperCarousel(Gtk.Box):
         viewport_width = self.scroller.get_width()
         if viewport_width <= 0:
             return
-        scroll_x = self._hadjustment.get_value()
-        viewport_center = scroll_x + viewport_width / 2.0
+        # A card's allocation.x is relative to the ListView viewport, NOT
+        # the scrolled content. Adding scroll_x here (or to the card) used
+        # to mix the two coordinate spaces, so the centred card was not the
+        # one getting prominence and the "active" card drifted with scroll.
+        viewport_center = viewport_width / 2.0
 
         for item_id, card in self._live_widgets.items():
             allocation = card.get_allocation()

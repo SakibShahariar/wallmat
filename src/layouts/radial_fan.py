@@ -177,15 +177,24 @@ class _FanWidget(Gtk.Widget):
         height = self.get_height()
         pivot_x = width / 2.0
         pivot_y = height - PIVOT_BOTTOM_MARGIN
-        # Reserve room for the entire front card above the arc. Using
-        # only a small fixed margin lets the card's top edge fall outside
-        # the widget at ordinary window heights.
-        available_radius = max(
-            0, height - PIVOT_BOTTOM_MARGIN - CARD_HEIGHT - 16
-        )
-        radius = min(width * 0.55, available_radius)
         n = len(self._paths)
         step = math.radians(MAX_FAN_ANGLE_DEG / max(1, n - 1)) if n > 1 else 0.0
+
+        # Center the whole fan vertically instead of pinning the front
+        # card near the top edge. The old formula made the front card's
+        # top a constant 16px regardless of window height, leaving up to
+        # half the widget empty below the arc.
+        max_rel = max(n // 2, n - 1 - n // 2) if n else 0
+        max_angle = step * max_rel
+        vertical_room = max(0.0, pivot_y - CARD_HEIGHT / 2.0 - height / 2.0)
+        radius_by_height = vertical_room * 2.0 / max(
+            0.35, 1.0 + math.cos(max_angle)
+        )
+        radius = min(
+            width * 0.45,
+            max(0.0, pivot_y - CARD_HEIGHT - 16),
+            radius_by_height,
+        )
         # start_angle=0, NOT -MAX_FAN_ANGLE_DEG/2: `rel` (used everywhere
         # this return value feeds into) is a SIGNED offset from the front
         # card, already centered at 0 by construction (see the `rels`

@@ -29,6 +29,7 @@ from .base import WallLayout
 from announce import say
 from widgets.wallpaper_carousel import WallpaperCarousel, CARD_WIDTH
 from widgets.skewed_card import natural_width
+from widgets.gsk_utils import register_css_once
 
 # CARD_WIDTH alone significantly undercounts the actual per-item scroll
 # increment — two things were missing:
@@ -43,6 +44,17 @@ from widgets.skewed_card import natural_width
 #    with the real do_measure() calculation rather than a second,
 #    independently-guessed formula that can silently drift out of sync.
 CARD_STRIDE = natural_width(CARD_WIDTH, int(CARD_WIDTH * 1.3)) + 12
+
+# A static frame pinned at the viewport centre. Wallpapers scroll through
+# it; unlike the card-level focus ring it never moves with the current card.
+_CENTER_RING_CSS = b"""
+.ribbon-center-ring {
+    border: 2px solid alpha(currentColor, 0.45);
+    border-radius: 14px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+"""
 
 
 class InfiniteRibbonLayout(WallLayout):
@@ -94,6 +106,24 @@ class InfiniteRibbonLayout(WallLayout):
         hint.set_halign(Gtk.Align.CENTER)
         hint.set_margin_bottom(8)
         overlay.add_overlay(hint)
+
+        center_ring = Gtk.Box()
+        center_ring.set_can_target(False)
+        center_ring.set_halign(Gtk.Align.CENTER)
+        center_ring.set_valign(Gtk.Align.FILL)
+        center_ring.set_vexpand(True)
+        center_ring.set_size_request(
+            natural_width(CARD_WIDTH, int(CARD_WIDTH * 1.3)) + 28, 10
+        )
+        center_ring.add_css_class("ribbon-center-ring")
+        center_ring.connect(
+            "realize",
+            lambda w: register_css_once(
+                "ribbon-center-ring", w.get_display(), _CENTER_RING_CSS,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+            ),
+        )
+        overlay.add_overlay(center_ring)
 
         return overlay
 

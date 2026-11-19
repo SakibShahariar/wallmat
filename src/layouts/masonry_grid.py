@@ -118,6 +118,8 @@ class MasonryGridLayout(WallLayout):
         scroller.set_hexpand(True)
         scroller.set_child(self.grid_view)
         scroller.connect("realize", self._register_css)
+        # GridView's native arrow navigation only works once it owns focus.
+        self.grid_view.connect("realize", lambda w: w.grab_focus())
         outer.append(scroller)
 
         hint = Gtk.Label(label="Click a wallpaper to select it")
@@ -133,6 +135,9 @@ class MasonryGridLayout(WallLayout):
             register_css_once(
                 "masonry-grid", display, _CSS, Gtk.STYLE_PROVIDER_PRIORITY_USER
             )
+
+    def on_activate(self):
+        self.grid_view.grab_focus()
 
     def _apply_wallpapers(self, paths: list[str]):
         # A single model splice avoids rebuilding a widget for every path.

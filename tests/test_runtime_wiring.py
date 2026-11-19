@@ -69,6 +69,38 @@ class RuntimeWiringTests(unittest.TestCase):
             self.assertIn("register_css_once", source, name)
             self.assertNotIn("Gtk.StyleContext.add_provider_for_display", source, name)
 
+    def test_horizontal_layouts_can_scroll_with_a_mouse_wheel(self):
+        for name in ("wallpaper_carousel", "glassmorphism", "parallax_gallery"):
+            path = (
+                SRC / "widgets" / f"{name}.py" if name == "wallpaper_carousel"
+                else SRC / "layouts" / f"{name}.py"
+            )
+            source = path.read_text(encoding="utf-8")
+            self.assertIn("enable_vertical_wheel_scroll", source, name)
+        gsk = (SRC / "widgets" / "gsk_utils.py").read_text(encoding="utf-8")
+        self.assertIn("def enable_vertical_wheel_scroll", gsk)
+
+    def test_focused_glass_card_is_not_dimmed(self):
+        source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
+        self.assertIn(".glass-card.focused {\n    opacity: 1.0;", source)
+
+    def test_radial_fan_centers_its_fan_vertically(self):
+        source = (SRC / "layouts" / "radial_fan.py").read_text(encoding="utf-8")
+        self.assertIn("radius_by_height", source)
+        self.assertNotIn("radius = min(width * 0.55, available_radius)", source)
+
+    def test_ring_perspective_is_centered(self):
+        source = (SRC / "layouts" / "cylindrical_ring.py").read_text(encoding="utf-8")
+        self.assertIn(".perspective(CAMERA_DEPTH)", source)
+        self.assertIn("translate_3d(Graphene.Point3D().init(cx, cy, 0.0))", source)
+        self.assertIn("translate_3d(Graphene.Point3D().init(-cx, -cy, 0.0))", source)
+        self.assertIn("def _project_x", source)
+
+    def test_carousel_prominence_uses_viewport_coordinates(self):
+        source = (SRC / "widgets" / "wallpaper_carousel.py").read_text(encoding="utf-8")
+        self.assertIn("viewport_center = viewport_width / 2.0", source)
+        self.assertNotIn("scroll_x = self._hadjustment.get_value()", source)
+
     def test_carousel_reuses_items_across_rebuilds(self):
         source = (SRC / "widgets" / "wallpaper_carousel.py").read_text(encoding="utf-8")
         self.assertIn("self._item_cache", source)
@@ -87,11 +119,14 @@ class RuntimeWiringTests(unittest.TestCase):
         }
         bg_bind = ast.get_source_segment(source, functions["_on_bg_bind"])
         fg_bind = ast.get_source_segment(source, functions["_on_fg_bind"])
-        # The background completion guard must consult the background map;
-        # the foreground one must consult the foreground map.
-        self.assertIn("if self._live_bg.get(item_id) is picture", bg_bind)
-        self.assertNotIn("if self._live_fg.get(item_id) is picture", bg_bind)
-        self.assertIn("if self._live_fg.get(item_id) is picture", fg_bind)
+        # Both layers register in their own map and use one shared decode
+        # path; the old per-layer map mix-up must not come back.
+        self.assertIn("self._live_bg[item.path] = picture", bg_bind)
+        self.assertIn("self._live_fg[item.path] = picture", fg_bind)
+        self.assertIn("self._ensure_thumbnail(item.path)", bg_bind)
+        self.assertIn("self._ensure_thumbnail(item.path)", fg_bind)
+        self.assertNotIn("bg_loader", source)
+        self.assertNotIn("fg_loader", source)
 
 
 if __name__ == "__main__":

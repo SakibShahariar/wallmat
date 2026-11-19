@@ -25,7 +25,9 @@ from .base import WallLayout
 from announce import say
 from widgets.thumbnail_loader import ThumbnailLoader
 from widgets.accessibility import wallpaper_accessible_name
-from widgets.gsk_utils import hide_scrollbars, register_css_once
+from widgets.gsk_utils import (
+    hide_scrollbars, register_css_once, enable_vertical_wheel_scroll,
+)
 
 _GLASS_STRIDE = 180 + 12  # per-item scroll increment (180 card + 6px margins each side)
 
@@ -65,9 +67,11 @@ _CSS_TEMPLATE = b"""
     box-shadow: 0 0 24px 4px {glow};
 }
 .glass-card.focused {
+    opacity: 1.0;
     box-shadow: 0 0 0 3px {ring};
 }
 .glass-card.active.focused {
+    opacity: 1.0;
     box-shadow: 0 0 24px 4px {glow}, 0 0 0 3px {ring};
 }
 .glass-card.hovered {
@@ -226,6 +230,7 @@ class GlassmorphismLayout(WallLayout):
                     pass
 
         self.scroller.connect("realize", register_css)
+        enable_vertical_wheel_scroll(self.scroller)
         outer.append(self.scroller)
 
         hint = Gtk.Label(label="← / → to browse, Enter or click to select")
