@@ -91,14 +91,13 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn('"value-changed", self._on_scroll', source)
         self.assertIn("def _on_scroll", source)
 
-    def test_glassmorphism_frame_matches_the_focused_card(self):
+    def test_glassmorphism_focus_ring_is_drawn_on_the_card(self):
         source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
-        self.assertIn("class _FocusFrame", source)
-        self.assertIn("overlay.add_overlay(self._focus_frame)", source)
-        self.assertIn("def _update_frame_position", source)
-        self.assertIn("frame._center_x = card_x", source)
-        self.assertIn("frame_w, frame_h = 180.0, 240.0", source)
-        self.assertNotIn("box-shadow: 0 0 0 3px {ring};", source)
+        self.assertNotIn("_FocusFrame", source)
+        self.assertNotIn("_focus_frame", source)
+        self.assertIn(".glass-card.focused {\n    opacity: 1.0;\n    box-shadow: 0 0 0 3px {ring};", source)
+        # The tall GTK row outline stays suppressed so only one ring shows.
+        self.assertIn(".wallmat-glass row:focus", source)
 
     def test_glassmorphism_derives_scroll_stride_from_the_adjustment(self):
         source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
