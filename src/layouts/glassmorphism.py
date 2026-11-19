@@ -409,24 +409,40 @@ class GlassmorphismLayout(WallLayout):
             return True
         return False
 
+    def _stride(self) -> float:
+        """Actual per-row width, from GtkListView's own measurement.
+
+        The 192px estimate (180px card + 12px margins) was wrong: GTK adds
+        row spacing, so the error grew with the index and the frame drifted
+        further off the focused card the deeper you scrolled.
+        """
+        n = self.store.get_n_items()
+        if not n:
+            return _GLASS_STRIDE
+        adjustment = self.scroller.get_hadjustment()
+        total = adjustment.get_upper() + adjustment.get_page_size()
+        if total > 0:
+            return total / n
+        return _GLASS_STRIDE
+
     def _scroll_to_index(self, position: int):
         """Centre an item under the static frame WITHOUT changing selection.
         GtkListView.scroll_to() only guarantees visibility, not centering.
         """
         adjustment = self.scroller.get_hadjustment()
-        target_value = position * _GLASS_STRIDE
+        stride = self._stride()
         viewport_width = self.scroller.get_width()
-        if viewport_width > 0:
-            target_value -= (viewport_width - _GLASS_STRIDE) / 2.0
-        adjustment.set_value(max(0.0, target_value))
+        target = position * stride + stride / 2.0 - viewport_width / 2.0
+        adjustment.set_value(max(0.0, target))
 
     def _on_scroll(self, adjustment):
         n = self.store.get_n_items()
         viewport_width = self.scroller.get_width()
         if not n or viewport_width <= 0:
             return
+        stride = self._stride()
         center = adjustment.get_value() + viewport_width / 2.0
-        position = round(center / _GLASS_STRIDE - 0.5)
+        position = round((center - stride / 2.0) / stride)
         position = max(0, min(n - 1, position))
         if position != self._focus:
             # No scroll-back: that would feed into value-changed again.
