@@ -736,10 +736,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         )
         self.more_menu_button.set_visible(not self._plain)
         layout_row.append(self.more_menu_button)
-        self.shortcuts_button = Gtk.Button(label="Shortcuts")
-        self.shortcuts_button.set_tooltip_text("Show keyboard shortcuts")
-        self.shortcuts_button.connect("clicked", self._show_shortcuts)
-        layout_row.append(self.shortcuts_button)
+        # Shortcut help stays available via '?' only; no button needed.
         content.append(layout_row)
 
         self.set_wallpaper_button = Gtk.Button(label="Set as wallpaper")

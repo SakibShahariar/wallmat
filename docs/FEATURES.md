@@ -60,7 +60,7 @@ focus.
 - **Folder menu → Choose wallpaper folder / Ctrl + O** — open a local folder picker, then confirm before replacing the collection. The last chosen folder is restored on the next normal UI launch when no directory is supplied on the command line.
 - **Drag and drop** — drop a local folder onto the window and confirm before replacing the collection. Invalid drops leave the current folder unchanged.
 - **Escape** — clear the filter, or close the window when the filter is hidden.
-- **? / Shortcuts** — open the keyboard shortcut cheatsheet.
+- **?** — open the keyboard shortcut cheatsheet.
 - **Ctrl + 1…8** — switch layouts without restarting (in the registry order shown by `--help`/settings). The startup layout can also be chosen in Wallmat Settings.
 
 Exact controls vary by layout. Wallpaper action buttons wrap onto additional rows when the window is too narrow.

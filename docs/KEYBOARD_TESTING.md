@@ -52,7 +52,7 @@ For every layout, also check:
 - [ ] Ctrl+O opens the folder chooser; Escape/cancel leaves the current folder
   unchanged.
 - [ ] Escape clears and hides a visible filter; a second Escape closes Wallmat.
-- [ ] `?` and the Shortcuts button open the shortcut help dialog.
+- [ ] `?` opens the shortcut help dialog.
 - [ ] The shortcut dialog can be dismissed with its close action and focus
   returns to a usable part of the window.
 
