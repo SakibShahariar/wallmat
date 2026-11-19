@@ -64,5 +64,21 @@
       <summary>Recently selected wallpaper paths</summary>
       <description>Up to eight recently selected existing wallpaper paths, shown when they belong to the currently opened folder.</description>
     </key>
+    <key name="matugen-args" type="s">
+      <default>'--type scheme-smart --mode dark'</default>
+      <summary>Arguments passed to Matugen</summary>
+      <description>Arguments appended after 'matugen image PATH' for preview and apply actions.</description>
+    </key>
+    <key name="wallpaper-target" type="s">
+      <default>'desktop'</default>
+      <summary>Wallpaper application target</summary>
+      <description>Requested target: desktop, lock, or both. Only desktop is applied until a desktop exposes a supported lock-screen interface.</description>
+    </key>
+    <key name="thumbnail-cache-limit-mb" type="i">
+      <range min="64" max="4096"/>
+      <default>512</default>
+      <summary>Thumbnail cache size limit in MiB</summary>
+      <description>Maximum size of the on-disk thumbnail cache before old files are pruned.</description>
+    </key>
   </schema>
 </schemalist>

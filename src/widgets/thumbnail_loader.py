@@ -33,7 +33,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import GLib, Gdk, GdkPixbuf
 
-from cache_utils import DEFAULT_CACHE_LIMIT_BYTES, prune_cache_directory
+from cache_utils import get_cache_limit_bytes, prune_cache_directory
 
 
 CACHE_DIR = os.path.expanduser("~/.cache/wallpaper-chooser/thumbs")
@@ -173,7 +173,7 @@ class ThumbnailLoader:
 
     def _prune_cache(self):
         with _CACHE_MAINTENANCE_LOCK:
-            prune_cache_directory(CACHE_DIR, DEFAULT_CACHE_LIMIT_BYTES)
+            prune_cache_directory(CACHE_DIR, get_cache_limit_bytes())
 
     def _note_cache_write(self):
         self._cache_writes += 1

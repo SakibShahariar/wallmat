@@ -16,12 +16,15 @@ _STRING_SETTINGS = {
     "sort-mode",
     "last-wallpaper-folder",
     "selected-wallpaper",
+    "matugen-args",
+    "wallpaper-target",
 }
 _BOOLEAN_SETTINGS = {"favorites-only"}
 _INTEGER_SETTINGS = {
     "auto-rotate-interval": (60, 1800),
     "random-history-limit": (0, 20),
     "scan-depth": (0, 20),
+    "thumbnail-cache-limit-mb": (64, 4096),
 }
 _STRING_LIST_SETTINGS = {
     "recent-random-wallpapers",
@@ -33,6 +36,7 @@ _ALLOWED_LAYOUTS = {
     "glassmorphism", "parallax_gallery", "radial_fan", "cylindrical_ring",
 }
 _ALLOWED_SORTS = {"name", "newest", "oldest", "resolution", "random", "folder"}
+_ALLOWED_TARGETS = {"desktop", "lock", "both"}
 
 
 def validate_preferences(preferences):
@@ -59,6 +63,8 @@ def validate_preferences(preferences):
                 raise ValueError("selected-layout is not a supported layout")
             if key == "sort-mode" and value not in _ALLOWED_SORTS:
                 raise ValueError("sort-mode is not supported")
+            if key == "wallpaper-target" and value not in _ALLOWED_TARGETS:
+                raise ValueError("wallpaper-target is not supported")
         elif key in _BOOLEAN_SETTINGS:
             if type(value) is not bool:
                 raise ValueError(f"{key} must be a boolean")

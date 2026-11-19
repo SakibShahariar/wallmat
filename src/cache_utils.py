@@ -5,6 +5,17 @@ import os
 
 DEFAULT_CACHE_LIMIT_BYTES = 512 * 1024 * 1024
 CACHE_EXTENSIONS = (".png", ".webp")
+_current_limit_bytes = DEFAULT_CACHE_LIMIT_BYTES
+
+
+def set_cache_limit_mb(megabytes):
+    """Set the cache limit used by future prune passes."""
+    global _current_limit_bytes
+    _current_limit_bytes = max(64, min(4096, int(megabytes))) * 1024 * 1024
+
+
+def get_cache_limit_bytes():
+    return _current_limit_bytes
 
 
 def prune_cache_directory(directory, max_bytes=DEFAULT_CACHE_LIMIT_BYTES):

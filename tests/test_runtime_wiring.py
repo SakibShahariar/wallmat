@@ -91,6 +91,23 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn('"value-changed", self._on_scroll', source)
         self.assertIn("def _on_scroll", source)
 
+    def test_settings_app_and_shared_preferences(self):
+        schema = (Path(__file__).resolve().parents[1] / "data"
+                  / "dev.sakib.Wallmat.gschema.xml").read_text(encoding="utf-8")
+        for key in ("matugen-args", "wallpaper-target", "thumbnail-cache-limit-mb"):
+            self.assertIn(f'name="{key}"', schema)
+        settings_src = (SRC / "settings.py").read_text(encoding="utf-8")
+        self.assertIn("Adw.PreferencesWindow", settings_src)
+        self.assertIn("def _browsing_page", settings_src)
+        self.assertIn("def _wallpaper_page", settings_src)
+        self.assertIn("def _storage_page", settings_src)
+        backup = (SRC / "backup_storage.py").read_text(encoding="utf-8")
+        self.assertIn('"wallpaper-target"', backup)
+        self.assertIn('"thumbnail-cache-limit-mb": (64, 4096)', backup)
+        window_src = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn("def connect_changed", window_src)
+        self.assertIn("def _connect_setting_changes", window_src)
+
     def test_parallax_centres_the_focused_card_with_measured_stride(self):
         source = (SRC / "layouts" / "parallax_gallery.py").read_text(encoding="utf-8")
         self.assertIn("def _stride", source)

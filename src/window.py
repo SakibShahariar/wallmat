@@ -19,6 +19,7 @@ persisted across restarts.
 import os
 import sys
 import json
+import shlex
 import shutil
 import subprocess
 import threading
@@ -47,6 +48,7 @@ from random_selection import (
     choose_next,
     shuffle_with_recent_last,
 )
+from cache_utils import set_cache_limit_mb
 from wallpaper_scan import (
     MAX_SCAN_DEPTH, ScanCancelled, scan_wallpapers, scan_wallpaper_metadata,
 )
@@ -81,6 +83,9 @@ SCAN_DEPTH_KEY = "scan-depth"
 DEFAULT_SCAN_DEPTH = 0
 APPLIED_HISTORY_KEY = "applied-wallpaper-history"
 LAST_FOLDER_KEY = "last-wallpaper-folder"
+MATUGEN_ARGS_KEY = "matugen-args"
+WALLPAPER_TARGET_KEY = "wallpaper-target"
+CACHE_LIMIT_KEY = "thumbnail-cache-limit-mb"
 DEFAULT_WALLPAPER_DIR = "/usr/share/backgrounds"
 MAX_RECENT_WALLPAPERS = 8
 DEFAULT_LAYOUT_ID = "split_screen"
@@ -134,6 +139,7 @@ class _LayoutPreference:
 
     def __init__(self):
         self._settings = None
+        self._memory_callbacks = {}
         self._memory_values = {
             SETTINGS_KEY: DEFAULT_LAYOUT_ID,
             FILTER_KEY: "",
@@ -147,6 +153,9 @@ class _LayoutPreference:
             SCAN_DEPTH_KEY: DEFAULT_SCAN_DEPTH,
             APPLIED_HISTORY_KEY: [],
             LAST_FOLDER_KEY: "",
+            MATUGEN_ARGS_KEY: "--type scheme-smart --mode dark",
+            WALLPAPER_TARGET_KEY: "desktop",
+            CACHE_LIMIT_KEY: 512,
         }
         try:
             schema_source = Gio.SettingsSchemaSource.get_default()
@@ -156,10 +165,17 @@ class _LayoutPreference:
             self._settings = None
 
     def _has_key(self, key: str) -> bool:
-        return (
-            self._settings is not None
-            and self._settings.get_settings_schema().has_key(key)
-        )
+        if self._settings is None:
+            return False
+        # Gio.Settings has no get_settings_schema() binding in PyGObject;
+        # use the properties form (or list_keys as a fallback).
+        try:
+            schema = self._settings.get_property("settings-schema")
+            if schema is not None:
+                return schema.has_key(key)
+        except (AttributeError, TypeError, GLib.Error):
+            pass
+        return key in self._settings.list_keys()
 
     def get_string(self, key: str, default: str) -> str:
         if self._has_key(key):
@@ -171,6 +187,7 @@ class _LayoutPreference:
             self._settings.set_string(key, value)
         else:
             self._memory_values[key] = value
+            self._notify_memory(key)
 
     def get_strv(self, key: str) -> list[str]:
         if self._has_key(key):
@@ -183,6 +200,23 @@ class _LayoutPreference:
             self._settings.set_strv(key, value)
         else:
             self._memory_values[key] = list(value)
+            self._notify_memory(key)
+
+    def connect_changed(self, key: str, callback):
+        """Notify `callback` when `key` changes, in either backend.
+
+        The standalone settings app may be a separate process, so GSettings
+        changes arrive through the normal signal. The in-memory fallback is
+        for running the two scripts without an installed schema.
+        """
+        if self._has_key(key):
+            return self._settings.connect(f"changed::{key}", lambda *_: callback())
+        self._memory_callbacks.setdefault(key, []).append(callback)
+        return None
+
+    def _notify_memory(self, key: str):
+        for callback in list(self._memory_callbacks.get(key, [])):
+            callback()
 
     def get_boolean(self, key: str, default: bool = False) -> bool:
         if self._has_key(key):
@@ -194,6 +228,7 @@ class _LayoutPreference:
             self._settings.set_boolean(key, value)
         else:
             self._memory_values[key] = value
+            self._notify_memory(key)
 
     def get_int(self, key: str, default: int = 0) -> int:
         if self._has_key(key):
@@ -205,6 +240,7 @@ class _LayoutPreference:
             self._settings.set_int(key, value)
         else:
             self._memory_values[key] = value
+            self._notify_memory(key)
 
     def get(self) -> str:
         return self.get_string(SETTINGS_KEY, DEFAULT_LAYOUT_ID)
@@ -235,6 +271,10 @@ class _LayoutPreference:
             LAST_FOLDER_KEY: self.get_string(LAST_FOLDER_KEY, ""),
             SELECTED_PATH_KEY: self.get_string(SELECTED_PATH_KEY, ""),
             RECENT_PATHS_KEY: self.get_strv(RECENT_PATHS_KEY),
+            MATUGEN_ARGS_KEY: self.get_string(MATUGEN_ARGS_KEY,
+                                              "--type scheme-smart --mode dark"),
+            WALLPAPER_TARGET_KEY: self.get_string(WALLPAPER_TARGET_KEY, "desktop"),
+            CACHE_LIMIT_KEY: self.get_int(CACHE_LIMIT_KEY, 512),
         }
 
     def import_values(self, values: dict):
@@ -242,13 +282,14 @@ class _LayoutPreference:
         for key, value in values.items():
             if key in {
                 SETTINGS_KEY, FILTER_KEY, SORT_KEY, LAST_FOLDER_KEY,
-                SELECTED_PATH_KEY,
+                SELECTED_PATH_KEY, MATUGEN_ARGS_KEY, WALLPAPER_TARGET_KEY,
             }:
                 self.set_string(key, value)
             elif key == FAVORITES_ONLY_KEY:
                 self.set_boolean(key, value)
             elif key in {
                 AUTO_ROTATE_INTERVAL_KEY, RANDOM_HISTORY_LIMIT_KEY, SCAN_DEPTH_KEY,
+                CACHE_LIMIT_KEY,
             }:
                 self.set_int(key, value)
             elif key in {
@@ -268,6 +309,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._matugen_args = list(
             matugen_args or ["--type", "scheme-smart", "--mode", "dark"]
         )
+        self._matugen_args_explicit = bool(matugen_args) and self._matugen_args != [
+            "--type", "scheme-smart", "--mode", "dark"
+        ]
         self._preference = _LayoutPreference()
         initial_directory = wallpaper_dir
         if initial_directory is None:
@@ -882,6 +926,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             folder_drop.connect("drop", self._on_folder_drop)
             self.add_controller(folder_drop)
 
+        self._connect_setting_changes()
+
         self._wallpaper_dir = os.path.abspath(wallpaper_dir)
         self._scan_and_load(self._wallpaper_dir)
         self._refresh_tag_filter()
@@ -1287,6 +1333,61 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if not self._plain:
             self._preference.set_string(SORT_KEY, new_mode)
         self._refresh_filtered_paths()
+
+    def _connect_setting_changes(self):
+        """Apply settings changed by the standalone settings app live."""
+        self._preference.connect_changed(SORT_KEY, self._external_sort_changed)
+        self._preference.connect_changed(
+            FAVORITES_ONLY_KEY, self._external_favorites_changed
+        )
+        self._preference.connect_changed(SCAN_DEPTH_KEY, self._external_scan_depth_changed)
+        self._preference.connect_changed(
+            AUTO_ROTATE_INTERVAL_KEY, self._external_interval_changed
+        )
+        self._preference.connect_changed(
+            MATUGEN_ARGS_KEY, self._external_matugen_changed
+        )
+        self._preference.connect_changed(CACHE_LIMIT_KEY, self._external_cache_limit)
+        self._external_cache_limit()
+        if not self._matugen_args_explicit:
+            self._external_matugen_changed()
+
+    def _external_sort_changed(self):
+        mode = self._preference.get_string(SORT_KEY, "name")
+        modes = ("name", "newest", "oldest", "resolution", "random", "folder")
+        if mode not in modes:
+            return
+        self._sort_mode = mode
+        self.sort_selector.set_selected(modes.index(mode))
+        self._refresh_filtered_paths()
+
+    def _external_favorites_changed(self):
+        active = self._preference.get_boolean(FAVORITES_ONLY_KEY, False)
+        self._favorites_only = active
+        self.favorites_filter.set_active(active)
+        self._refresh_filtered_paths()
+
+    def _external_scan_depth_changed(self):
+        # The depth is read at scan time; rescan the current folder.
+        self._scan_and_load(self._wallpaper_dir)
+
+    def _external_interval_changed(self):
+        seconds = self._preference.get_int(
+            AUTO_ROTATE_INTERVAL_KEY, DEFAULT_ROTATION_INTERVAL
+        )
+        if seconds in ROTATION_INTERVALS:
+            self.rotation_interval.set_selected(ROTATION_INTERVALS.index(seconds))
+
+    def _external_matugen_changed(self):
+        if self._matugen_args_explicit:
+            return  # --matugen-args on the command line wins
+        self._matugen_args = shlex.split(
+            self._preference.get_string(MATUGEN_ARGS_KEY,
+                                        "--type scheme-smart --mode dark")
+        )
+
+    def _external_cache_limit(self):
+        set_cache_limit_mb(self._preference.get_int(CACHE_LIMIT_KEY, 512))
 
     def _on_search_changed(self, entry):
         if not self._plain:

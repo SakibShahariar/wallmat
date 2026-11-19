@@ -6,7 +6,7 @@ Wallmat scans PNG and JPEG images when their GdkPixbuf loaders are enabled. WebP
 
 ## Thumbnail cache
 
-Thumbnails are stored in `~/.cache/wallpaper-chooser/thumbs`. Decoding uses a fixed worker pool and a bounded pending queue. The disk cache is pruned to a 512 MiB limit. Cache keys include source file size and nanosecond modification time so changed images are regenerated.
+Thumbnails are stored in `~/.cache/wallpaper-chooser/thumbs`. Decoding uses a fixed worker pool and a bounded pending queue. The disk cache is pruned to a 512 MiB limit by default; change `thumbnail-cache-limit-mb` (64–4096) in `python3 src/settings.py` or with `gsettings`. Cache keys include source file size and nanosecond modification time so changed images are regenerated.
 
 ## Directory scanning
 
@@ -35,6 +35,11 @@ Restart Wallmat after installing or updating the schema. If `glib-compile-schema
 - `random-history-limit`: 0–20 recently selected wallpapers excluded from random selection; default 5. Set to 0 to disable the exclusion window.
 - `scan-depth`: 0–20 directory depth; default 0 (unlimited).
 - `applied-wallpaper-history`: up to 50 recently applied paths. Use the in-app **Clear history** action to clear it and the Recent list.
+- `matugen-args`: arguments passed to Matugen after `matugen image PATH`; an explicit `--matugen-args` value on the command line takes priority.
+- `wallpaper-target`: `desktop`, `lock`, or `both`. Only the desktop background is applied today; other values need a supported desktop interface.
+- `thumbnail-cache-limit-mb`: 64–4096 MiB; default 512.
+
+Use `python3 src/settings.py` for a GUI covering these and the browsing settings.
 
 Favorites are stored in `~/.config/wallmat/favorites.json`. Wallpaper tags are stored separately in `~/.config/wallmat/tags.json`; assignments are relative to the selected folder where possible, while paths outside it remain absolute. Named wallpaper collections are stored in `~/.config/wallmat/collections.json` as ordered lists of absolute file paths. New favorite saves use a versioned format with paths relative to the selected wallpaper folder; favorites outside that folder remain absolute. When the selected wallpaper folder has moved and old favorite paths no longer exist, matching relative paths are resolved under the new folder. Existing legacy arrays of absolute paths remain readable and are migrated the next time favorites are saved.
 

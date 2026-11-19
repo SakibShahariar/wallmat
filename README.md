@@ -76,6 +76,20 @@ python3 src/main.py ~/Pictures/Wallpapers --layout infinite_ribbon
 
 Optional WebP support: install `webp-pixbuf-loader`.
 
+## Settings
+
+A standalone GUI for Wallmat's preferences:
+
+```sh
+python3 src/settings.py
+```
+
+It edits the same GSettings keys as the main app. Browsing, sort, scan depth,
+rotation interval, Matugen arguments and the thumbnail-cache limit apply
+immediately; startup layout, default folder and wallpaper target take effect
+on the next launch. Lock-screen targeting is shown but is not applied until a
+supported desktop interface exists.
+
 ## Matugen and CLI
 
 Use the selected wallpaper path in scripts:
