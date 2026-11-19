@@ -80,6 +80,11 @@ class RuntimeWiringTests(unittest.TestCase):
         gsk = (SRC / "widgets" / "gsk_utils.py").read_text(encoding="utf-8")
         self.assertIn("def enable_vertical_wheel_scroll", gsk)
 
+    def test_thumbnail_queue_handles_a_large_visible_page(self):
+        source = (SRC / "widgets" / "thumbnail_loader.py").read_text(encoding="utf-8")
+        self.assertIn("MAX_QUEUED_JOBS = 512", source)
+        self.assertIn("POOL_SIZE = 6", source)
+
     def test_focused_glass_card_is_not_dimmed(self):
         source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
         self.assertIn(".glass-card.focused {\n    opacity: 1.0;", source)

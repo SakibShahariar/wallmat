@@ -38,9 +38,15 @@ from cache_utils import DEFAULT_CACHE_LIMIT_BYTES, prune_cache_directory
 
 CACHE_DIR = os.path.expanduser("~/.cache/wallpaper-chooser/thumbs")
 DEFAULT_THUMB_SIZE = 480
-DEBOUNCE_MS = 100
-POOL_SIZE = 3
-MAX_QUEUED_JOBS = 128
+DEBOUNCE_MS = 60
+POOL_SIZE = 6
+# A large folder binds far more than 128 thumbnails at once (GTK's
+# virtualized views request the viewport plus an overscan buffer). With
+# the old 128-slot queue and 3 workers, requests were dropped as soon as
+# the queue filled and those cards stayed blank permanently. Keep enough
+# slots for a whole visible page plus buffer; workers remain the real
+# concurrency limit.
+MAX_QUEUED_JOBS = 512
 CACHE_PRUNE_EVERY = 16
 _CACHE_MAINTENANCE_LOCK = threading.Lock()
 
