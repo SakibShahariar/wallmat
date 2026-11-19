@@ -195,20 +195,39 @@ class _FanWidget(Gtk.Widget):
         self._update_accessible_summary()
         self.emit_selection()
 
+    @staticmethod
+    def _card_size_for_radius(radius: float):
+        card_w = max(90.0, min(180.0, radius * 0.36))
+        return card_w, card_w * 1.34
+
     def _radius(self) -> float:
-        """Use the space above the pivot; independent of library size."""
+        """Radius that centres the fan vertically and keeps it in view.
+
+        The old radius (pivot_y - small margin) pushed the front card's
+        top above the widget, so most of the hand was clipped. Solve for
+        the radius that puts the fan's vertical midpoint at the widget's
+        midpoint, then shrink if the front card would still overflow.
+        """
         width = max(1, self.get_width())
-        pivot_y = max(1, self.get_height()) - PIVOT_BOTTOM_MARGIN
-        return min(width * 0.42, max(0.0, pivot_y - 24))
+        height = max(1, self.get_height())
+        pivot_y = height - PIVOT_BOTTOM_MARGIN
+        half_arc = math.radians(MAX_FAN_ANGLE_DEG / 2.0)
+        # card_h ~= 1.34 * 0.36 * radius = 0.4824 * radius (before clamping)
+        centered = (pivot_y - height / 2.0) * 2.0 / (
+            1.0 + math.cos(half_arc) + 1.34 * 0.36
+        )
+        radius = max(0.0, min(width * 0.42, centered))
+        for _ in range(6):
+            card_h = self._card_size_for_radius(radius)[1]
+            limit = max(0.0, pivot_y - card_h - 16)
+            if radius <= limit:
+                break
+            radius = limit
+        return radius
 
     def _card_size(self):
-        """Size cards relative to the fan radius.
-
-        Tying card size to the widget made cards overlap into a solid disc:
-        both grew together, so their spacing/width ratio never improved.
-        """
-        card_w = max(90.0, min(180.0, self._radius() * 0.36))
-        return card_w, card_w * 1.34
+        """Size cards relative to the fan radius, not the whole widget."""
+        return self._card_size_for_radius(self._radius())
 
     def _geometry(self):
         """Returns (pivot_x, pivot_y, radius, angle_step, start_angle)."""
