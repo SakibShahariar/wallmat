@@ -18,8 +18,9 @@ _STRING_SETTINGS = {
     "selected-wallpaper",
     "matugen-args",
     "wallpaper-target",
+    "seamless-backdrop",
 }
-_BOOLEAN_SETTINGS = {"favorites-only"}
+_BOOLEAN_SETTINGS = {"favorites-only", "seamless-mode"}
 _INTEGER_SETTINGS = {
     "auto-rotate-interval": (60, 1800),
     "random-history-limit": (0, 20),
@@ -37,6 +38,7 @@ _ALLOWED_LAYOUTS = {
 }
 _ALLOWED_SORTS = {"name", "newest", "oldest", "resolution", "random", "folder"}
 _ALLOWED_TARGETS = {"desktop", "lock", "both"}
+_ALLOWED_BACKDROPS = {"transparent", "blurred"}
 
 
 def validate_preferences(preferences):
@@ -65,6 +67,8 @@ def validate_preferences(preferences):
                 raise ValueError("sort-mode is not supported")
             if key == "wallpaper-target" and value not in _ALLOWED_TARGETS:
                 raise ValueError("wallpaper-target is not supported")
+            if key == "seamless-backdrop" and value not in _ALLOWED_BACKDROPS:
+                raise ValueError("seamless-backdrop is not supported")
         elif key in _BOOLEAN_SETTINGS:
             if type(value) is not bool:
                 raise ValueError(f"{key} must be a boolean")

@@ -160,6 +160,30 @@ class WallmatSettingsApp(Adw.Application):
         group.add(history)
 
         page.add(group)
+
+        display = Adw.PreferencesGroup()
+        display.set_title("Seamless view")
+        display.set_description("Show only wallpapers; Ctrl+Shift+S toggles in the app.")
+        seamless = Adw.SwitchRow()
+        seamless.set_title("Seamless wallpaper view")
+        seamless.set_subtitle("Hide all controls and use a transparent or blurred backdrop")
+        seamless.set_active(self.preference.get_boolean("seamless-mode", False))
+        seamless.connect("notify::active", self._on_seamless)
+        display.add(seamless)
+
+        backdrops = (("transparent", "Transparent"), ("blurred", "Blurred"))
+        backdrop_row, self.backdrop_keys = _combo(
+            backdrops, self.preference.get_string("seamless-backdrop", "blurred")
+        )
+        backdrop_row.set_title("Backdrop")
+        backdrop_row.set_sensitive(seamless.get_active())
+        backdrop_row.connect("notify::selected", self._on_seamless_backdrop)
+        self.backdrop_row = backdrop_row
+        seamless.connect("notify::active", lambda row, _pspec:
+                         backdrop_row.set_sensitive(row.get_active()))
+        display.add(backdrop_row)
+
+        page.add(display)
         return page
 
     def _wallpaper_page(self):
@@ -288,6 +312,13 @@ class WallmatSettingsApp(Adw.Application):
 
     def _on_history(self, row, _pspec):
         self.preference.set_int("random-history-limit", int(row.get_value()))
+
+    def _on_seamless(self, row, _pspec):
+        self.preference.set_boolean("seamless-mode", row.get_active())
+
+    def _on_seamless_backdrop(self, row, _pspec):
+        self.preference.set_string("seamless-backdrop",
+                                   self.backdrop_keys[row.get_selected()])
 
     def _on_choose_folder(self, _button, row):
         dialog = Gtk.FileDialog()

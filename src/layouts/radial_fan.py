@@ -409,6 +409,7 @@ class RadialFanLayout(WallLayout):
 
         hint = Gtk.Label(label="Scroll or press ← / → to browse the fan; click a card to select")
         hint.add_css_class("dim-label")
+        self.hint_label = hint
         outer.append(hint)
 
         return outer

@@ -228,6 +228,7 @@ class StackedDeckLayout(WallLayout):
 
         hint = Gtk.Label(label="Swipe, click, or press ← / → to browse")
         hint.add_css_class("dim-label")
+        self.hint_label = hint
         outer.append(hint)
 
         select_button = Gtk.Button(label="Use this wallpaper")

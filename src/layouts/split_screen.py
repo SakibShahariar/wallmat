@@ -69,6 +69,7 @@ class SplitScreenLayout(WallLayout):
         hint.add_css_class("dim-label")
         hint.set_margin_top(4)
         hint.set_margin_bottom(6)
+        self.hint_label = hint
         outer.append(hint)
 
         # Without a focus grab the Left/Right controller above never sees

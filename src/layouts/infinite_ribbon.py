@@ -93,6 +93,7 @@ class InfiniteRibbonLayout(WallLayout):
         hint.set_valign(Gtk.Align.END)
         hint.set_halign(Gtk.Align.CENTER)
         hint.set_margin_bottom(8)
+        self.hint_label = hint
         overlay.add_overlay(hint)
 
         return overlay

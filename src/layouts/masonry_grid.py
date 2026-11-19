@@ -125,6 +125,7 @@ class MasonryGridLayout(WallLayout):
         hint = Gtk.Label(label="Click a wallpaper to select it")
         hint.add_css_class("dim-label")
         hint.set_margin_bottom(6)
+        self.hint_label = hint
         outer.append(hint)
         return outer
 

@@ -80,5 +80,15 @@
       <summary>Thumbnail cache size limit in MiB</summary>
       <description>Maximum size of the on-disk thumbnail cache before old files are pruned.</description>
     </key>
+    <key name="seamless-mode" type="b">
+      <default>false</default>
+      <summary>Seamless wallpaper-only view</summary>
+      <description>Hide all controls and show only the wallpaper view with a transparent or blurred background.</description>
+    </key>
+    <key name="seamless-backdrop" type="s">
+      <default>'blurred'</default>
+      <summary>Seamless mode backdrop</summary>
+      <description>What the area around the wallpaper looks like in seamless mode: transparent or blurred.</description>
+    </key>
   </schema>
 </schemalist>

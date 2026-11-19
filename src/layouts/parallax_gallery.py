@@ -234,6 +234,7 @@ class ParallaxGalleryLayout(WallLayout):
         hint = Gtk.Label(label="← / → to browse, Enter or click to select")
         hint.add_css_class("dim-label")
         hint.set_margin_bottom(6)
+        self.hint_label = hint
         outer.append(hint)
 
         return outer

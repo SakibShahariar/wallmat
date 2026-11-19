@@ -41,7 +41,7 @@ from layouts.parallax_gallery import ParallaxGalleryLayout
 from layouts.masonry_grid import MasonryGridLayout
 from layouts.radial_fan import RadialFanLayout
 
-from widgets.gsk_utils import register_focus_colors
+from widgets.gsk_utils import register_focus_colors, register_css_once
 from announce import say, set_quiet
 from random_selection import (
     MAX_RANDOM_HISTORY,
@@ -86,6 +86,29 @@ LAST_FOLDER_KEY = "last-wallpaper-folder"
 MATUGEN_ARGS_KEY = "matugen-args"
 WALLPAPER_TARGET_KEY = "wallpaper-target"
 CACHE_LIMIT_KEY = "thumbnail-cache-limit-mb"
+SEAMLESS_KEY = "seamless-mode"
+SEAMLESS_BACKDROP_KEY = "seamless-backdrop"
+
+# Seamless mode: only the wallpaper stack is visible, with a see-through
+# or blurred window background. GTK4's CSS parser accepts backdrop-filter;
+# compositors without support simply show the transparent background.
+_SEAMLESS_CSS = b"""
+window.wallmat-seamless,
+window.wallmat-seamless > *,
+window.wallmat-seamless toolbarview {
+    background: transparent;
+}
+window.wallmat-seamless {
+    box-shadow: none;
+}
+window.wallmat-seamless.wallmat-backdrop-blurred {
+    backdrop-filter: blur(18px);
+}
+window.wallmat-seamless.wallmat-backdrop-transparent {
+    backdrop-filter: none;
+}
+"""
+
 DEFAULT_WALLPAPER_DIR = "/usr/share/backgrounds"
 MAX_RECENT_WALLPAPERS = 8
 DEFAULT_LAYOUT_ID = "split_screen"
@@ -156,6 +179,8 @@ class _LayoutPreference:
             MATUGEN_ARGS_KEY: "--type scheme-smart --mode dark",
             WALLPAPER_TARGET_KEY: "desktop",
             CACHE_LIMIT_KEY: 512,
+            SEAMLESS_KEY: False,
+            SEAMLESS_BACKDROP_KEY: "blurred",
         }
         try:
             schema_source = Gio.SettingsSchemaSource.get_default()
@@ -275,6 +300,8 @@ class _LayoutPreference:
                                               "--type scheme-smart --mode dark"),
             WALLPAPER_TARGET_KEY: self.get_string(WALLPAPER_TARGET_KEY, "desktop"),
             CACHE_LIMIT_KEY: self.get_int(CACHE_LIMIT_KEY, 512),
+            SEAMLESS_KEY: self.get_boolean(SEAMLESS_KEY, False),
+            SEAMLESS_BACKDROP_KEY: self.get_string(SEAMLESS_BACKDROP_KEY, "blurred"),
         }
 
     def import_values(self, values: dict):
@@ -283,9 +310,10 @@ class _LayoutPreference:
             if key in {
                 SETTINGS_KEY, FILTER_KEY, SORT_KEY, LAST_FOLDER_KEY,
                 SELECTED_PATH_KEY, MATUGEN_ARGS_KEY, WALLPAPER_TARGET_KEY,
+                SEAMLESS_BACKDROP_KEY,
             }:
                 self.set_string(key, value)
-            elif key == FAVORITES_ONLY_KEY:
+            elif key in (FAVORITES_ONLY_KEY, SEAMLESS_KEY):
                 self.set_boolean(key, value)
             elif key in {
                 AUTO_ROTATE_INTERVAL_KEY, RANDOM_HISTORY_LIMIT_KEY, SCAN_DEPTH_KEY,
@@ -900,6 +928,14 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._update_missing_favorites_action()
         toolbar_view.set_content(content)
 
+        # Remember which chrome was visible so seamless mode can restore it.
+        self._wallpaper_overlay = content_overlay
+        self._chrome_visibility = {
+            child: child.get_visible()
+            for child in list(content)
+            if child is not content_overlay
+        }
+
         self.set_content(toolbar_view)
         if self._favorites_load_warning and not self._plain:
             GLib.idle_add(self._show_favorites_load_warning)
@@ -1335,7 +1371,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             MATUGEN_ARGS_KEY, self._external_matugen_changed
         )
         self._preference.connect_changed(CACHE_LIMIT_KEY, self._external_cache_limit)
+        self._preference.connect_changed(SEAMLESS_KEY, self._external_seamless_changed)
+        self._preference.connect_changed(
+            SEAMLESS_BACKDROP_KEY, self._external_seamless_changed
+        )
         self._external_cache_limit()
+        self._apply_seamless()
         if not self._matugen_args_explicit:
             self._external_matugen_changed()
 
@@ -1375,6 +1416,38 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
     def _external_cache_limit(self):
         set_cache_limit_mb(self._preference.get_int(CACHE_LIMIT_KEY, 512))
+
+    def _external_seamless_changed(self):
+        self._apply_seamless()
+        say("Seamless mode "
+            + ("enabled" if self._preference.get_boolean(SEAMLESS_KEY, False)
+               else "disabled"))
+
+    def _apply_seamless(self):
+        enabled = self._preference.get_boolean(SEAMLESS_KEY, False)
+        backdrop = self._preference.get_string(SEAMLESS_BACKDROP_KEY, "blurred")
+        if backdrop not in ("transparent", "blurred"):
+            backdrop = "blurred"
+        for css_class in ("wallmat-seamless", "wallmat-backdrop-blurred",
+                          "wallmat-backdrop-transparent"):
+            if css_class in self.get_css_classes():
+                self.remove_css_class(css_class)
+        if enabled:
+            self.add_css_class("wallmat-seamless")
+            self.add_css_class(f"wallmat-backdrop-{backdrop}")
+        for widget, was_visible in self._chrome_visibility.items():
+            widget.set_visible(was_visible and not enabled)
+        self._apply_hint_visibility()
+        if enabled:
+            # Keep keyboard focus inside the wallpaper view.
+            self.stack.grab_focus()
+
+    def _apply_hint_visibility(self):
+        enabled = self._preference.get_boolean(SEAMLESS_KEY, False)
+        for layout in self._layouts.values():
+            hint = getattr(layout, "hint_label", None)
+            if hint is not None:
+                hint.set_visible(not enabled)
 
     def _on_search_changed(self, entry):
         if not self._plain:
@@ -1611,12 +1684,16 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         self.stack.set_visible_child_name(layout_id)
         layout.on_activate()
+        self._apply_hint_visibility()
         self._current_layout_id = layout_id
         if not self._plain:
             self._preference.set(layout_id)
 
     def _register_focus_colors(self, window):
-        register_focus_colors(self.get_display())
+        display = self.get_display()
+        register_focus_colors(display)
+        register_css_once("wallmat-seamless", display, _SEAMLESS_CSS,
+                          Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
     def _on_wallpaper_selected(self, layout, path):
         if self._plain:
@@ -3046,7 +3123,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             ("Show wallpaper filter", "<Control>F"),
             ("Choose wallpaper folder", "<Control>O"),
             ("Show keyboard help", "question"),
-            ("Clear filter / close window", "Escape"),
+            ("Toggle seamless wallpaper view", "<Control><Shift>s"),
+            ("Exit seamless mode / clear filter / close", "Escape"),
         ):
             general.add(Adw.ShortcutsItem.new(title, accelerator))
         dialog.add(general)
@@ -3071,6 +3149,14 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         dialog.present(self)
 
     def _on_key_pressed(self, controller, keyval, keycode, state):
+        if (state & Gdk.ModifierType.CONTROL_MASK
+                and state & Gdk.ModifierType.SHIFT_MASK
+                and keyval in (Gdk.KEY_s, Gdk.KEY_S)):
+            enabled = not self._preference.get_boolean(SEAMLESS_KEY, False)
+            self._preference.set_boolean(SEAMLESS_KEY, enabled)
+            if not self._preference.persistent:
+                self._apply_seamless()  # fallback backend has no change signal
+            return True
         if state & Gdk.ModifierType.CONTROL_MASK:
             layout_keys = (
                 Gdk.KEY_1, Gdk.KEY_2, Gdk.KEY_3, Gdk.KEY_4,
@@ -3092,7 +3178,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self._on_choose_folder(None)
             return True
         if keyval == Gdk.KEY_Escape:
-            if self.search_entry.get_visible():
+            if self._preference.get_boolean(SEAMLESS_KEY, False):
+                self._preference.set_boolean(SEAMLESS_KEY, False)
+                if not self._preference.persistent:
+                    self._apply_seamless()
+            elif self.search_entry.get_visible():
                 self.search_entry.set_text("")
                 self.search_entry.set_visible(False)
                 self.stack.grab_focus()

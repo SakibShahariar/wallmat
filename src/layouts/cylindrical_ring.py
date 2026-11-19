@@ -387,6 +387,7 @@ class CylindricalRingLayout(WallLayout):
             label="Scroll / ← / → to browse (shifts focus) — Enter or click to select"
         )
         hint.add_css_class("dim-label")
+        self.hint_label = hint
         outer.append(hint)
 
         return outer

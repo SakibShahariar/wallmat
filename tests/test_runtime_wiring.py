@@ -91,6 +91,19 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn('"value-changed", self._on_scroll', source)
         self.assertIn("def _on_scroll", source)
 
+    def test_seamless_mode_wiring(self):
+        schema = (Path(__file__).resolve().parents[1] / "data"
+                  / "dev.sakib.Wallmat.gschema.xml").read_text(encoding="utf-8")
+        self.assertIn('name="seamless-mode"', schema)
+        self.assertIn('name="seamless-backdrop"', schema)
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn("def _apply_seamless", source)
+        self.assertIn("Gdk.KEY_s, Gdk.KEY_S", source)
+        self.assertIn("_SEAMLESS_CSS", source)
+        settings_src = (SRC / "settings.py").read_text(encoding="utf-8")
+        self.assertIn("seamless-mode", settings_src)
+        self.assertIn("seamless-backdrop", settings_src)
+
     def test_layout_selector_removed_with_keyboard_shortcuts(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertNotIn("layout_selector", source)

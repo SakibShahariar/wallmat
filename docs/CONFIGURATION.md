@@ -38,6 +38,8 @@ Restart Wallmat after installing or updating the schema. If `glib-compile-schema
 - `matugen-args`: arguments passed to Matugen after `matugen image PATH`; an explicit `--matugen-args` value on the command line takes priority.
 - `wallpaper-target`: `desktop`, `lock`, or `both`. Only the desktop background is applied today; other values need a supported desktop interface.
 - `thumbnail-cache-limit-mb`: 64–4096 MiB; default 512.
+- `seamless-mode`: hide all controls and show only the wallpaper view; toggle with Ctrl+Shift+S in the app.
+- `seamless-backdrop`: `transparent` or `blurred` (default); applies in seamless mode. Blur requires a compositor that supports GTK's backdrop filter.
 
 Use `python3 src/settings.py` for a GUI covering these and the browsing settings.
 
