@@ -93,7 +93,8 @@ class RuntimeWiringTests(unittest.TestCase):
 
     def test_glassmorphism_suppresses_the_tall_listitem_focus_outline(self):
         source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
-        self.assertIn(".wallmat-glass:not(.high-contrast) listitem:focus", source)
+        self.assertIn(".wallmat-glass row:focus", source)
+        self.assertIn(".wallmat-glass listitem:focus", source)
         self.assertIn(".glass-card.focused", source)
 
     def test_focused_glass_card_is_not_dimmed(self):
