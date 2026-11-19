@@ -420,9 +420,10 @@ class GlassmorphismLayout(WallLayout):
         if not n:
             return _GLASS_STRIDE
         adjustment = self.scroller.get_hadjustment()
-        total = adjustment.get_upper() + adjustment.get_page_size()
-        if total > 0:
-            return total / n
+        # upper is the total content width; page_size is the viewport and
+        # must NOT be added here (that inflated the stride by ~1.8px/row).
+        if adjustment.get_upper() > 0:
+            return adjustment.get_upper() / n
         return _GLASS_STRIDE
 
     def _scroll_to_index(self, position: int):
@@ -432,7 +433,10 @@ class GlassmorphismLayout(WallLayout):
         adjustment = self.scroller.get_hadjustment()
         stride = self._stride()
         viewport_width = self.scroller.get_width()
-        target = position * stride + stride / 2.0 - viewport_width / 2.0
+        # Measured row layout: card centre = row start + stride/2 + 6px
+        # (the card's horizontal margin). Without that 6px the frame sits
+        # a few pixels to the left of the focused card.
+        target = position * stride + stride / 2.0 + 6.0 - viewport_width / 2.0
         adjustment.set_value(max(0.0, target))
 
     def _on_scroll(self, adjustment):
@@ -442,7 +446,7 @@ class GlassmorphismLayout(WallLayout):
             return
         stride = self._stride()
         center = adjustment.get_value() + viewport_width / 2.0
-        position = round((center - stride / 2.0) / stride)
+        position = round((center - stride / 2.0 - 6.0) / stride)
         position = max(0, min(n - 1, position))
         if position != self._focus:
             # No scroll-back: that would feed into value-changed again.

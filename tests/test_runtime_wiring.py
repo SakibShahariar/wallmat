@@ -102,8 +102,8 @@ class RuntimeWiringTests(unittest.TestCase):
     def test_glassmorphism_derives_scroll_stride_from_the_adjustment(self):
         source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
         self.assertIn("def _stride", source)
-        self.assertIn("adjustment.get_upper() + adjustment.get_page_size()", source)
-        self.assertIn("position * stride + stride / 2.0 - viewport_width / 2.0", source)
+        self.assertIn("adjustment.get_upper() / n", source)
+        self.assertIn("position * stride + stride / 2.0 + 6.0 - viewport_width / 2.0", source)
 
     def test_glassmorphism_suppresses_the_tall_listitem_focus_outline(self):
         source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
