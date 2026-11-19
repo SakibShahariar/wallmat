@@ -91,6 +91,22 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn('"value-changed", self._on_scroll', source)
         self.assertIn("def _on_scroll", source)
 
+    def test_desktop_launcher_templates_and_installer(self):
+        root = Path(__file__).resolve().parents[1]
+        desktop = (root / "data" / "dev.sakib.Wallmat.desktop").read_text(encoding="utf-8")
+        self.assertIn("[Desktop Entry]", desktop)
+        self.assertIn("Exec=@WALLMAT_EXEC@", desktop)
+        self.assertIn("Icon=dev.sakib.Wallmat", desktop)
+        self.assertIn("StartupWMClass=wallmat", desktop)
+        settings = (root / "data" / "dev.sakib.Wallmat.Settings.desktop").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Exec=@SETTINGS_EXEC@", settings)
+        self.assertTrue((root / "data" / "dev.sakib.Wallmat.svg").exists())
+        installer = (root / "install.sh").read_text(encoding="utf-8")
+        self.assertIn("--uninstall", installer)
+        self.assertIn("glib-compile-schemas", installer)
+
     def test_settings_app_and_shared_preferences(self):
         schema = (Path(__file__).resolve().parents[1] / "data"
                   / "dev.sakib.Wallmat.gschema.xml").read_text(encoding="utf-8")

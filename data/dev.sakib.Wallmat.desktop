@@ -1,0 +1,20 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Wallmat
+GenericName=Wallpaper Chooser
+Comment=Browse, preview and apply wallpapers
+Exec=@WALLMAT_EXEC@
+TryExec=@WALLMAT_EXEC@
+Icon=dev.sakib.Wallmat
+Terminal=false
+Categories=Graphics;Viewer;
+Keywords=wallpaper;background;image;photo;
+MimeType=image/png;image/jpeg;image/webp;inode/directory;
+StartupWMClass=wallmat
+Actions=settings;
+
+[Desktop Action settings]
+Name=Preferences
+Icon=dev.sakib.Wallmat
+Exec=@SETTINGS_EXEC@

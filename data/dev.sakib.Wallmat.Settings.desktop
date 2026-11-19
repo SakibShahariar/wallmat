@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Wallmat Settings
+GenericName=Wallpaper Chooser Settings
+Comment=Configure Wallmat preferences
+Exec=@SETTINGS_EXEC@
+TryExec=@SETTINGS_EXEC@
+Icon=dev.sakib.Wallmat
+Terminal=false
+Categories=Settings;
+Keywords=wallpaper;background;settings;preferences;
+StartupWMClass=wallmat-settings

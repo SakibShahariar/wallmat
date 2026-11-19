@@ -76,6 +76,19 @@ python3 src/main.py ~/Pictures/Wallpapers --layout infinite_ribbon
 
 Optional WebP support: install `webp-pixbuf-loader`.
 
+### Application launcher
+
+To add Wallmat and Wallmat Settings to your application menu, run:
+
+```sh
+./install.sh
+```
+
+This installs desktop entries, an app icon and the GSettings schema under
+`$XDG_DATA_HOME` (`~/.local/share` by default), so preferences persist. Use
+`./install.sh --uninstall` to remove them. Log out and back in if the launcher
+does not appear immediately.
+
 ## Settings
 
 A standalone GUI for Wallmat's preferences:

@@ -18,6 +18,8 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk, Gio, GLib
 
+GLib.set_prgname("wallmat-settings")
+
 sys.path.insert(0, os.path.dirname(__file__))
 
 from window import (

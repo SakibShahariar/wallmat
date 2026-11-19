@@ -31,7 +31,10 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw
+from gi.repository import Adw, GLib
+
+# Match StartupWMClass in the desktop entry so launchers/grouping find us.
+GLib.set_prgname("wallmat")
 
 sys.path.insert(0, os.path.dirname(__file__))
 from window import WallpaperChooserWindow, LAYOUT_REGISTRY
