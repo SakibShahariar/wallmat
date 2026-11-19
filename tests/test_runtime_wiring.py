@@ -96,6 +96,10 @@ class RuntimeWiringTests(unittest.TestCase):
         desktop = (root / "data" / "dev.sakib.Wallmat.desktop").read_text(encoding="utf-8")
         self.assertIn("[Desktop Entry]", desktop)
         self.assertIn("Exec=@WALLMAT_EXEC@", desktop)
+        # TryExec must be a bare executable; a full command with arguments
+        # makes GDesktopAppInfo reject the entry and hides it from search.
+        self.assertIn("TryExec=python3", desktop)
+        self.assertNotIn("TryExec=@WALLMAT_EXEC@", desktop)
         self.assertIn("Icon=dev.sakib.Wallmat", desktop)
         self.assertIn("StartupWMClass=wallmat", desktop)
         settings = (root / "data" / "dev.sakib.Wallmat.Settings.desktop").read_text(
