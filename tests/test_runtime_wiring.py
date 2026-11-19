@@ -91,6 +91,14 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn('"value-changed", self._on_scroll', source)
         self.assertIn("def _on_scroll", source)
 
+    def test_glassmorphism_has_a_static_center_focus_frame(self):
+        source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
+        self.assertIn("glass-center-frame", source)
+        self.assertIn("overlay.add_overlay(center_frame)", source)
+        self.assertIn('"value-changed", self._on_scroll', source)
+        # The moving per-card focus ring was replaced by the static frame.
+        self.assertNotIn("box-shadow: 0 0 0 3px {ring};", source)
+
     def test_glassmorphism_suppresses_the_tall_listitem_focus_outline(self):
         source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
         self.assertIn(".wallmat-glass row:focus", source)

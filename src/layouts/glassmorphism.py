@@ -92,11 +92,16 @@ _CSS_TEMPLATE = b"""
 }
 .glass-card.focused {
     opacity: 1.0;
-    box-shadow: 0 0 0 3px {ring};
 }
 .glass-card.active.focused {
     opacity: 1.0;
-    box-shadow: 0 0 24px 4px {glow}, 0 0 0 3px {ring};
+    box-shadow: 0 0 24px 4px {glow};
+}
+
+/* Static focus frame. Wallpapers scroll through it; it never moves. */
+.glass-center-frame {
+    border: 3px solid {ring};
+    border-radius: 16px;
 }
 .glass-card.hovered {
     background-color: rgba(255,255,255,0.12);
@@ -191,6 +196,9 @@ class GlassmorphismLayout(WallLayout):
         key_controller.connect("key-pressed", self._on_key_pressed)
         self.list_view.add_controller(key_controller)
         self.list_view.connect("realize", lambda w: w.grab_focus())
+        # Keep the focused (and therefore centred) card in sync with
+        # mouse-wheel/trackpad scrolling.
+        self.scroller.get_hadjustment().connect("value-changed", self._on_scroll)
 
         # Register the CSS provider once a real Gdk.Display is available
         # (i.e. once this widget is attached to a realized window), rather
@@ -255,7 +263,22 @@ class GlassmorphismLayout(WallLayout):
 
         self.scroller.connect("realize", register_css)
         enable_vertical_wheel_scroll(self.scroller)
-        outer.append(self.scroller)
+
+        overlay = Gtk.Overlay()
+        overlay.set_vexpand(True)
+        overlay.set_hexpand(True)
+        overlay.set_child(self.scroller)
+
+        center_frame = Gtk.Box()
+        center_frame.set_can_target(False)
+        center_frame.set_halign(Gtk.Align.CENTER)
+        center_frame.set_valign(Gtk.Align.CENTER)
+        # 180x240 card plus its 6px side margins.
+        center_frame.set_size_request(192, 252)
+        center_frame.add_css_class("glass-center-frame")
+        overlay.add_overlay(center_frame)
+
+        outer.append(overlay)
 
         hint = Gtk.Label(label="← / → to browse, Enter or click to select")
         hint.add_css_class("dim-label")
@@ -387,33 +410,36 @@ class GlassmorphismLayout(WallLayout):
         return False
 
     def _scroll_to_index(self, position: int):
-        """Bring an item into view WITHOUT changing selection — visual
-        focus only. Same Gtk.ListView.scroll_to() first / _GLASS_STRIDE
-        fallback pattern as before, but with the FOCUS flag alone: the
-        SELECT flag is what turned arrow navigation into automatic
-        wallpaper-selected emissions, so it's never used for keyboard
-        movement here."""
-        try:
-            flags = Gtk.ListScrollFlags.FOCUS
-            self.list_view.scroll_to(position, flags, None)
-            return
-        except Exception:
-            pass  # fall through to the manual method below
-
+        """Centre an item under the static frame WITHOUT changing selection.
+        GtkListView.scroll_to() only guarantees visibility, not centering.
+        """
         adjustment = self.scroller.get_hadjustment()
         target_value = position * _GLASS_STRIDE
         viewport_width = self.scroller.get_width()
         if viewport_width > 0:
-            target_value -= (viewport_width - _GLASS_STRIDE) / 2
+            target_value -= (viewport_width - _GLASS_STRIDE) / 2.0
         adjustment.set_value(max(0.0, target_value))
 
-    def _set_focus(self, position: int, announce: bool = True):
+    def _on_scroll(self, adjustment):
+        n = self.store.get_n_items()
+        viewport_width = self.scroller.get_width()
+        if not n or viewport_width <= 0:
+            return
+        center = adjustment.get_value() + viewport_width / 2.0
+        position = round(center / _GLASS_STRIDE - 0.5)
+        position = max(0, min(n - 1, position))
+        if position != self._focus:
+            # No scroll-back: that would feed into value-changed again.
+            self._set_focus(position, announce=False, scroll=False)
+
+    def _set_focus(self, position: int, announce: bool = True, scroll: bool = True):
         n = self.store.get_n_items()
         if n == 0:
             return
         position = max(0, min(n - 1, position))
         self._focus = position
-        self._scroll_to_index(position)
+        if scroll:
+            self._scroll_to_index(position)
         self._apply_focus_to_live()
         if announce:
             item = self.store.get_item(position)
