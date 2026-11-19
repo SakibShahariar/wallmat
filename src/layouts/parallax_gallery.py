@@ -39,10 +39,33 @@ FG_ITEM_MARGIN = 12  # 6px each side
 FG_STRIDE = FG_ITEM_WIDTH + FG_ITEM_MARGIN  # per-item scroll increment, an estimate
 
 _CSS_TEMPLATE = b"""
+/* The theme draws a focus outline on the focused ListView row itself.
+   Rows fill the scroller height, so that outline shows up as a tall
+   rectangle around the whole row. Suppress it so the only focus ring is
+   the one drawn on the wallpaper card (same approach as Glassmorphism).
+   GTK 4.24 calls this node "row"; older releases used "listitem". */
+.wallmat-parallax row,
+.wallmat-parallax row:focus,
+.wallmat-parallax row:hover,
+.wallmat-parallax row:selected,
+.wallmat-parallax row:active,
+.wallmat-parallax listitem,
+.wallmat-parallax listitem:focus,
+.wallmat-parallax listitem:hover,
+.wallmat-parallax listitem:selected,
+.wallmat-parallax listitem:active {
+    outline: none;
+    box-shadow: none;
+    background: none;
+    background-image: none;
+    border: none;
+}
+
 .parallax-fg {
     border-radius: 12px;
 }
 .parallax-fg.focused {
+    opacity: 1.0;
     box-shadow: 0 0 0 3px {ring};
 }
 .parallax-fg.hovered {
@@ -105,6 +128,7 @@ class ParallaxGalleryLayout(WallLayout):
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         outer.set_vexpand(True)
         outer.set_hexpand(True)
+        outer.add_css_class("wallmat-parallax")
 
         overlay = Gtk.Overlay()
         overlay.set_vexpand(True)

@@ -91,6 +91,12 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn('"value-changed", self._on_scroll', source)
         self.assertIn("def _on_scroll", source)
 
+    def test_parallax_hides_the_tall_row_ring_and_keeps_the_card_ring(self):
+        source = (SRC / "layouts" / "parallax_gallery.py").read_text(encoding="utf-8")
+        self.assertIn(".wallmat-parallax row:focus", source)
+        self.assertIn(".wallmat-parallax listitem:focus", source)
+        self.assertIn(".parallax-fg.focused {\n    opacity: 1.0;\n    box-shadow: 0 0 0 3px {ring};", source)
+
     def test_glassmorphism_focus_ring_is_drawn_on_the_card(self):
         source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
         self.assertNotIn("_FocusFrame", source)
