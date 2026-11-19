@@ -89,12 +89,12 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("radius_by_height", source)
         self.assertNotIn("radius = min(width * 0.55, available_radius)", source)
 
-    def test_ring_perspective_is_centered(self):
+    def test_ring_cards_scale_with_cosine_to_avoid_overlap(self):
         source = (SRC / "layouts" / "cylindrical_ring.py").read_text(encoding="utf-8")
-        self.assertIn(".perspective(CAMERA_DEPTH)", source)
-        self.assertIn("translate_3d(Graphene.Point3D().init(cx, cy, 0.0))", source)
-        self.assertIn("translate_3d(Graphene.Point3D().init(-cx, -cy, 0.0))", source)
-        self.assertIn("def _project_x", source)
+        self.assertIn("def _card_scale", source)
+        self.assertIn("return max(0.35, math.cos(theta))", source)
+        self.assertIn("snapshot.scale(scale, scale)", source)
+        self.assertNotIn(".perspective(CAMERA_DEPTH)", source)
 
     def test_carousel_prominence_uses_viewport_coordinates(self):
         source = (SRC / "widgets" / "wallpaper_carousel.py").read_text(encoding="utf-8")

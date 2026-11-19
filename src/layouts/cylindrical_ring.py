@@ -1,20 +1,18 @@
 """
 Layout #1: Cylindrical Ring Carousel (spec-ranked 8/8 — slowest, "Hard")
 
-The spec's design calls for a genuine 3D cylinder with per-card Y-axis
-rotation and perspective foreshortening. That's now implemented here:
+Cards are laid out on a virtual cylinder: each card's horizontal offset
+is R*sin(theta) and its width is scaled by cos(theta). Scaling *both* the
+card and the gap by the same factor keeps neighbours from overlapping on
+the compressed sides of the ring.
 
-- Cards travel along the surface of a virtual cylinder: each card's
-  horizontal offset is R*sin(theta) and its depth is -R*(1-cos(theta)),
-  so side cards rotate away from the viewer around the Y axis
-  (Gsk.Transform.rotate_3d) and recede.
-- A single Gsk.Transform.perspective() at the start of the snapshot
-  gives real perspective projection instead of a flat scale — GTK's GL
-  renderer handles the 3D; the Cairo/software fallback flattens
-  gracefully (still scaled/shifted correctly, just not foreshortened).
-- Depth order is handled by painting back-to-front: each visible card's
-  z is computed, the set is sorted deepest-first, and the front (center)
-  card is painted last. GTK has no z-buffer, so this manual sort is the
+- The first attempt used GSK 3D transforms with a perspective camera, but
+  the renderer/soft-fallback disagreement made side cards render at full
+  width on the compressed arc, so they overlapped. The 2D cos projection
+  is deterministic across renderers.
+- Depth order is handled by painting back-to-front: cards with the
+  smallest scale (furthest around the cylinder) paint first, the front
+  (center) card last. GTK has no z-buffer, so this manual sort is the
   required substitute — exactly what the spec warned about.
 - Only cards whose projected position intersects the viewport are
   drawn at all (no ListView, but virtualization of the same kind: N
@@ -31,8 +29,7 @@ import math
 import gi
 
 gi.require_version("Gtk", "4.0")
-gi.require_version("Gsk", "4.0")
-from gi.repository import Gtk, Gdk, Graphene, Gsk, GLib
+from gi.repository import Gtk, Gdk, Graphene, GLib
 
 from .base import WallLayout
 from announce import say
@@ -50,7 +47,6 @@ CARD_GAP = 1.18
 # Radians of surface angle occupied by one card. Kept roughly proportional
 # to CARD_WIDTH/R so the wafer sits correctly on the ring at any size.
 MAX_SURFACE_ANGLE_RAD = 1.15  # hard cut-off: past here a card is edge-on
-CAMERA_DEPTH = 1200.0  # GSK perspective() camera distance
 
 EASE_MS = 160  # center-snap animation length
 
@@ -271,8 +267,8 @@ class _RingWidget(Gtk.Widget):
         candidates = self._candidates(width)
         if not candidates:
             return
-        best = min(candidates, key=lambda c: abs(c[2] - x))
-        idx = best[3]
+        best = min(candidates, key=lambda c: abs(c[1] - x))
+        idx = best[2]
         # Click = intent to select: center the card and commit.
         self._center_on(idx)
         self._commit_selection()
@@ -285,20 +281,12 @@ class _RingWidget(Gtk.Widget):
     def _card_angle(self):
         return (CARD_WIDTH * CARD_GAP) / self._radius()
 
-    def _depth_z(self, theta: float):
-        return -self._radius() * (1.0 - math.cos(theta))
-
     @staticmethod
-    def _project_x(screen_x: float, z: float, width: float) -> float:
-        """X after the centered perspective camera.
-
-        GSK's perspective() is anchored at (0,0), so without rebasing it
-        the right side of the ring compressed toward the top-left while the
-        left side spread out, making the middle/right cards overlap.
-        """
-        scale = CAMERA_DEPTH / (CAMERA_DEPTH - z)
-        center = width / 2.0
-        return center + (screen_x - center) * scale
+    def _card_scale(theta: float) -> float:
+        """Size a card by cos(theta), matching the cylinder's horizontal
+        compression. Because both the gap between cards and the card width
+        scale the same way, neighbours can never overlap."""
+        return max(0.35, math.cos(theta))
 
     def _candidates(self, width: float):
         radius = self._radius()
@@ -312,12 +300,8 @@ class _RingWidget(Gtk.Widget):
             theta = (index - self._center_unit) * card_angle
             if abs(theta) > MAX_SURFACE_ANGLE_RAD:
                 continue
-            screen_x = width / 2.0 + radius * math.sin(theta)
-            z = self._depth_z(theta)
-            result.append((
-                z, screen_x, self._project_x(screen_x, z, width),
-                index % n, theta,
-            ))
+            x = width / 2.0 + radius * math.sin(theta)
+            result.append((self._card_scale(theta), x, index % n, theta))
         return result
 
     # -- sizing --
@@ -333,12 +317,12 @@ class _RingWidget(Gtk.Widget):
         if width <= 0 or height <= 0 or not self._paths:
             return
 
-        # Collect the (few) cards near the viewport with their depth, so
-        # we can paint deepest-first. Cull on the projected x position:
-        # the unprojected x can be far off-screen when perspective is on.
+        # Collect the few cards near the viewport. scale == cos(theta) is
+        # also the depth ordering: smaller (further around the cylinder)
+        # paints first, the front card last.
         visible = [
             entry for entry in self._candidates(width)
-            if -CARD_WIDTH <= entry[2] <= width + CARD_WIDTH
+            if -CARD_WIDTH <= entry[1] <= width + CARD_WIDTH
         ]
         if not visible:
             for stale in self._requested:
@@ -346,59 +330,35 @@ class _RingWidget(Gtk.Widget):
             self._requested.clear()
             return
 
-        visible_paths = {self._paths[entry[3]] for entry in visible}
+        visible_paths = {self._paths[entry[2]] for entry in visible}
         for stale in self._requested - visible_paths:
             self._loader.cancel(stale)
         self._requested.intersection_update(visible_paths)
 
-        visible.sort(key=lambda v: v[0])  # most negative z first -> deepest drawn first
+        visible.sort(key=lambda v: v[0])
+        cy = height / 2.0
 
-        cx, cy = width / 2.0, height / 2.0
-
-        # Rebase the perspective camera on the ring center. A bare
-        # perspective() is anchored at the widget origin, which compressed
-        # the right-hand cards toward the top-left and made them overlap.
-        camera = (
-            Gsk.Transform.new()
-            .translate_3d(Graphene.Point3D().init(cx, cy, 0.0))
-            .perspective(CAMERA_DEPTH)
-            .translate_3d(Graphene.Point3D().init(-cx, -cy, 0.0))
-        )
-        snapshot.save()
-        snapshot.transform(camera)
-
-        axis_y = Graphene.Vec3().init(0.0, 1.0, 0.0)
-        for z, screen_x, _projected_x, path_idx, theta in visible:
+        for scale, x, path_idx, _theta in visible:
             path = self._paths[path_idx]
             self._ensure_thumbnail(path)
             texture = self._textures.get(path)
             selected = path_idx == self._selection
             focused = path_idx == self._focus and not selected and widget_has_keyboard_focus(self)
 
-            card_transform = Gsk.Transform.new()
-            card_transform = card_transform.translate_3d(
-                Graphene.Point3D().init(screen_x, cy, z)
-            )
-            card_transform = card_transform.rotate_3d(theta, axis_y)
-
             snapshot.save()
-            snapshot.transform(card_transform)
+            snapshot.translate(Graphene.Point().init(x, cy))
+            snapshot.scale(scale, scale)
             draw_card(snapshot, -CARD_WIDTH / 2.0, -CARD_HEIGHT / 2.0,
                       CARD_WIDTH, CARD_HEIGHT, texture, selected, focused,
                       self.get_style_context())
-            # Approximate hover cue: brighten the front card while the
-            # mouse is anywhere over the widget. Precise per-card hit
-            # testing on mouse-move would need the same geometry math as
-            # _on_click; brightening the one card a click would actually
-            # act on is a reasonable stand-in without duplicating that.
             if self._hovered and path_idx == self._focus and not selected:
-                hover_rect = Graphene.Rect().init(-CARD_WIDTH / 2.0, -CARD_HEIGHT / 2.0, CARD_WIDTH, CARD_HEIGHT)
+                hover_rect = Graphene.Rect().init(
+                    -CARD_WIDTH / 2.0, -CARD_HEIGHT / 2.0, CARD_WIDTH, CARD_HEIGHT
+                )
                 hover_overlay = Gdk.RGBA()
                 hover_overlay.parse("rgba(255,255,255,0.10)")
                 snapshot.append_color(hover_overlay, hover_rect)
             snapshot.restore()
-
-        snapshot.restore()
 
 
 try:

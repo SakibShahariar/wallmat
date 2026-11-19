@@ -171,10 +171,19 @@ class _FanWidget(Gtk.Widget):
         self._update_accessible_summary()
         self.emit_selection()
 
+    def _card_size(self):
+        """Scale the cards with the widget so the fan fills a large window."""
+        width = max(1, self.get_width())
+        height = max(1, self.get_height())
+        scale = min(width / 600.0, height / 260.0)
+        scale = max(1.0, min(2.2, scale))
+        return CARD_WIDTH * scale, CARD_HEIGHT * scale
+
     def _geometry(self):
         """Returns (pivot_x, pivot_y, radius, angle_step, start_angle)."""
         width = self.get_width()
         height = self.get_height()
+        _card_w, card_h = self._card_size()
         pivot_x = width / 2.0
         pivot_y = height - PIVOT_BOTTOM_MARGIN
         n = len(self._paths)
@@ -186,13 +195,13 @@ class _FanWidget(Gtk.Widget):
         # half the widget empty below the arc.
         max_rel = max(n // 2, n - 1 - n // 2) if n else 0
         max_angle = step * max_rel
-        vertical_room = max(0.0, pivot_y - CARD_HEIGHT / 2.0 - height / 2.0)
+        vertical_room = max(0.0, pivot_y - card_h / 2.0 - height / 2.0)
         radius_by_height = vertical_room * 2.0 / max(
             0.35, 1.0 + math.cos(max_angle)
         )
         radius = min(
             width * 0.45,
-            max(0.0, pivot_y - CARD_HEIGHT - 16),
+            max(0.0, pivot_y - card_h - 16),
             radius_by_height,
         )
         # start_angle=0, NOT -MAX_FAN_ANGLE_DEG/2: `rel` (used everywhere
@@ -241,6 +250,7 @@ class _FanWidget(Gtk.Widget):
         if not self._paths:
             return
         pivot_x, pivot_y, radius, step, start_angle = self._geometry()
+        card_w, card_h = self._card_size()
         # Find the card whose fanned rect contains the click. Most cards
         # overlap; the topmost (smallest |rel|) match wins — walk the SAME
         # order do_snapshot paints in (outermost first, front/rel=0 last)
@@ -261,7 +271,7 @@ class _FanWidget(Gtk.Widget):
             rx, ry = x - bx, y - by
             local_x = rx * cos_a - ry * sin_a
             local_y = rx * sin_a + ry * cos_a
-            if -CARD_WIDTH / 2 <= local_x <= CARD_WIDTH / 2 and -CARD_HEIGHT <= local_y <= 0:
+            if -card_w / 2 <= local_x <= card_w / 2 and -card_h <= local_y <= 0:
                 hit = idx
         if hit is not None:
             # Click = intent to select: make clicked card front + commit.
@@ -287,6 +297,7 @@ class _FanWidget(Gtk.Widget):
             return
 
         pivot_x, pivot_y, radius, step, start_angle = self._geometry()
+        card_w, card_h = self._card_size()
         n = len(self._paths)
 
         # Paint order: angularly-outermost first, front (rel=0) last, so
@@ -298,8 +309,8 @@ class _FanWidget(Gtk.Widget):
             bx, by, angle = self._card_rect(pivot_x, pivot_y, radius, start_angle, step, rel)
 
             # Virtualization: skip cards entirely off-screen.
-            if bx < -CARD_WIDTH or bx > width + CARD_WIDTH or \
-               by < -CARD_HEIGHT or by > height + CARD_HEIGHT:
+            if bx < -card_w or bx > width + card_w or \
+               by < -card_h or by > height + card_h:
                 continue
 
             path = self._paths[idx]
@@ -314,7 +325,7 @@ class _FanWidget(Gtk.Widget):
 
             snapshot.save()
             snapshot.transform(transform)
-            draw_card(snapshot, -CARD_WIDTH / 2.0, -CARD_HEIGHT, CARD_WIDTH, CARD_HEIGHT,
+            draw_card(snapshot, -card_w / 2.0, -card_h, card_w, card_h,
                       self._textures.get(path), selected, focused,
                       self.get_style_context())
             # Approximate hover cue on the front card, same reasoning as
@@ -323,7 +334,7 @@ class _FanWidget(Gtk.Widget):
             # mouse-move, so this brightens the one card a click would
             # actually act on instead.
             if self._hovered and idx == self._front and not selected:
-                hover_rect = Graphene.Rect().init(-CARD_WIDTH / 2.0, -CARD_HEIGHT, CARD_WIDTH, CARD_HEIGHT)
+                hover_rect = Graphene.Rect().init(-card_w / 2.0, -card_h, card_w, card_h)
                 hover_overlay = Gdk.RGBA()
                 hover_overlay.parse("rgba(255,255,255,0.10)")
                 snapshot.append_color(hover_overlay, hover_rect)
