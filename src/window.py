@@ -709,12 +709,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             "Radial Fan",
             "Cylindrical Ring",
         ]
-        self.layout_selector = Gtk.DropDown.new_from_strings(self._layout_labels)
-        self.layout_selector.set_tooltip_text("Switch wallpaper layout")
-        self.layout_selector.connect(
-            "notify::selected", self._on_layout_selected
-        )
-        layout_row.append(self.layout_selector)
+        # Layouts are chosen at startup (settings app or --layout) or with
+        # Ctrl+1..Ctrl+8; no dropdown clutters the wallpaper view.
         self.folder_menu_button = Gtk.MenuButton()
         self.folder_menu_button.set_label("Folder")
         self.folder_menu_button.set_tooltip_text("Wallpaper folder actions")
@@ -947,7 +943,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             if initial_id not in LAYOUT_REGISTRY:
                 initial_id = DEFAULT_LAYOUT_ID
         self._switch_to(initial_id)
-        self.layout_selector.set_selected(self._layout_ids.index(initial_id))
 
         # Restore selection only when the saved file still exists and is
         # visible under the restored folder and filters. Never let stale
@@ -1063,11 +1058,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # Keep the current collection visible until the replacement scan
         # succeeds. Starting another scan also cancels any older request.
         self._scan_and_load(os.path.abspath(path))
-
-    def _on_layout_selected(self, dropdown, _pspec):
-        selected = dropdown.get_selected()
-        if selected < len(self._layout_ids):
-            self._switch_to(self._layout_ids[selected])
 
     def _scan_and_load(self, directory: str):
         """Scan a folder in a worker; apply its result only on the GTK thread."""
@@ -3043,6 +3033,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             "Global shortcuts\n"
             "Ctrl + F — show and focus the wallpaper filter\n"
             "Ctrl + O — choose a wallpaper folder\n"
+            "Ctrl + 1…8 — switch wallpaper layout\n"
             "Escape — clear and hide the filter; press again to close\n"
             "Enter — select the focused wallpaper where the active layout supports it\n"
             "← / → — move focus in layouts that support keyboard navigation\n\n"
@@ -3058,6 +3049,16 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         dialog.present()
 
     def _on_key_pressed(self, controller, keyval, keycode, state):
+        if state & Gdk.ModifierType.CONTROL_MASK:
+            layout_keys = (
+                Gdk.KEY_1, Gdk.KEY_2, Gdk.KEY_3, Gdk.KEY_4,
+                Gdk.KEY_5, Gdk.KEY_6, Gdk.KEY_7, Gdk.KEY_8,
+            )
+            if keyval in layout_keys:
+                index = layout_keys.index(keyval)
+                if index < len(self._layout_ids):
+                    self._switch_to(self._layout_ids[index])
+                    return True
         if keyval == Gdk.KEY_question:
             self._show_shortcuts()
             return True

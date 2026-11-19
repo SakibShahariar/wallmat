@@ -91,6 +91,12 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn('"value-changed", self._on_scroll', source)
         self.assertIn("def _on_scroll", source)
 
+    def test_layout_selector_removed_with_keyboard_shortcuts(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertNotIn("layout_selector", source)
+        self.assertIn("Gdk.KEY_1, Gdk.KEY_2, Gdk.KEY_3, Gdk.KEY_4,", source)
+        self.assertIn("Ctrl + 1…8 — switch wallpaper layout", source)
+
     def test_desktop_launcher_templates_and_installer(self):
         root = Path(__file__).resolve().parents[1]
         desktop = (root / "data" / "dev.sakib.Wallmat.desktop").read_text(encoding="utf-8")

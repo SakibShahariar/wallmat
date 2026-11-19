@@ -36,8 +36,9 @@ the issue complete.
   wallpaper is not a favorite.
 - [ ] After favoriting, the control announces **Remove favorite**; removing it
   changes the label back.
-- [ ] The Tag dropdown, Collection dropdown, filter entry, layout selector,
-  folder chooser, and backup/restore actions have useful accessible names.
+- [ ] The Tag dropdown, Collection dropdown, filter entry, folder chooser, and
+  backup/restore actions have useful accessible names. Layout switching is via
+  Ctrl + 1…8 (or the startup setting), so there is no layout selector widget.
 - [ ] Arrow keys move focus without committing a wallpaper where the layout
   separates focus from selection.
 - [ ] Enter commits the focused wallpaper and the screen reader can identify
