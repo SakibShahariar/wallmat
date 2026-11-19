@@ -91,6 +91,11 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn('"value-changed", self._on_scroll', source)
         self.assertIn("def _on_scroll", source)
 
+    def test_glassmorphism_suppresses_the_tall_listitem_focus_outline(self):
+        source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
+        self.assertIn(".wallmat-glass:not(.high-contrast) listitem:focus", source)
+        self.assertIn(".glass-card.focused", source)
+
     def test_focused_glass_card_is_not_dimmed(self):
         source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
         self.assertIn(".glass-card.focused {\n    opacity: 1.0;", source)

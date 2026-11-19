@@ -56,6 +56,24 @@ _HIGH_CONTRAST_CSS = b"""
 """
 
 _CSS_TEMPLATE = b"""
+/* The theme draws a focus outline on the focused Gtk.ListItem itself.
+   ListView rows fill the full scroller height, so that outline appears as
+   a tall rectangle around the row, on top of our card-border ring. Our
+   .glass-card.focused ring is the intended focus indicator; remove the
+   row-level one in the normal theme. High-contrast keeps its own explicit
+   outline rule on .glass-card (see _HIGH_CONTRAST_CSS). */
+.wallmat-glass:not(.high-contrast) listitem,
+.wallmat-glass:not(.high-contrast) listitem:focus,
+.wallmat-glass:not(.high-contrast) listitem:hover,
+.wallmat-glass:not(.high-contrast) listitem:selected,
+.wallmat-glass:not(.high-contrast) listitem:active {
+    outline: none;
+    box-shadow: none;
+    background: none;
+    background-image: none;
+    border: none;
+}
+
 .glass-card {
     background-color: rgba(255,255,255,0.06);
     border-radius: 16px;
