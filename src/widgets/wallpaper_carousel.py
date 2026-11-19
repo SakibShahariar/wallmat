@@ -19,7 +19,10 @@ from gi.repository import Gtk, Gio, GObject, Gdk
 
 from .skewed_card import SkewedCard, natural_width
 from .thumbnail_loader import ThumbnailLoader
-from .gsk_utils import hide_scrollbars, get_animations_enabled, watch_animations_enabled
+from .gsk_utils import (
+    hide_scrollbars, get_animations_enabled, watch_animations_enabled,
+    register_css_once,
+)
 from announce import say
 
 _item_id_counter = itertools.count()
@@ -142,6 +145,12 @@ class WallpaperCarousel(Gtk.Box):
         # ring on the live card) — separate from _live_widgets selection.
         self._focused_item: str | None = None
 
+        # Reuse items across model rebuilds. Infinite Ribbon deliberately
+        # repeats every path three times, so key by (path, occurrence) to
+        # keep each copy's item_id unique while still preserving the GObject
+        # (and its decoded texture) when a filter changes and then reverts.
+        self._item_cache: dict[tuple[str, int], WallpaperItem] = {}
+
         factory = Gtk.SignalListItemFactory()
         factory.connect("setup", self._on_setup)
         factory.connect("bind", self._on_bind)
@@ -174,16 +183,14 @@ class WallpaperCarousel(Gtk.Box):
 
     def _register_css(self, widget):
         display = widget.get_display()
-        if display is not None:
-            hide_scrollbars(self.scroller)
-            provider = Gtk.CssProvider()
-            provider.load_from_data(_CSS)
-            Gtk.StyleContext.add_provider_for_display(
-                display, provider, Gtk.STYLE_PROVIDER_PRIORITY_USER
-            )
-            say("[wallpaper_carousel] row-selection CSS registered")
-        else:
+        if display is None:
             say("[wallpaper_carousel] WARNING: no display available, CSS not registered")
+            return
+        hide_scrollbars(self.scroller)
+        if register_css_once(
+            "wallpaper-carousel", display, _CSS, Gtk.STYLE_PROVIDER_PRIORITY_USER
+        ):
+            say("[wallpaper_carousel] row-selection CSS registered")
 
     # -- public API --
 
@@ -192,8 +199,23 @@ class WallpaperCarousel(Gtk.Box):
         # loop fires a separate items-changed (and, with autoselect on,
         # a selection-changed) for every single item, which is what
         # caused "wallpaper-selected" to spam for the whole folder on load.
-        items = [WallpaperItem(path) for path in paths]
+        # Items are reused from the previous model so a filter round-trip
+        # does not reallocate 3 x N GObjects or lose their textures.
+        occurrences: dict[str, int] = {}
+        items = []
+        live_keys = set()
+        for path in paths:
+            occurrence = occurrences.get(path, 0)
+            occurrences[path] = occurrence + 1
+            key = (path, occurrence)
+            live_keys.add(key)
+            item = self._item_cache.get(key)
+            if item is None:
+                item = WallpaperItem(path)
+                self._item_cache[key] = item
+            items.append(item)
         self.store.splice(0, self.store.get_n_items(), items)
+        self._item_cache = {key: self._item_cache[key] for key in live_keys}
 
     # -- factory callbacks --
 

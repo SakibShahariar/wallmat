@@ -38,7 +38,7 @@ from .base import WallLayout
 from announce import say
 from widgets.thumbnail_loader import ThumbnailLoader
 from widgets.accessibility import wallpaper_accessible_name
-from widgets.gsk_utils import draw_card
+from widgets.gsk_utils import draw_card, widget_has_keyboard_focus
 
 CARD_WIDTH = 120
 CARD_HEIGHT = 160
@@ -297,7 +297,7 @@ class _FanWidget(Gtk.Widget):
             visible_paths.add(path)
             self._ensure_thumbnail(path)
             selected = idx == self._selection
-            focused = idx == self._front and not selected
+            focused = idx == self._front and not selected and widget_has_keyboard_focus(self)
 
             transform = Gsk.Transform.new()
             transform = transform.translate(Graphene.Point().init(bx, by))

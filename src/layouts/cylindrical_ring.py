@@ -38,7 +38,7 @@ from .base import WallLayout
 from announce import say
 from widgets.thumbnail_loader import ThumbnailLoader
 from widgets.accessibility import wallpaper_accessible_name
-from widgets.gsk_utils import draw_card, get_animations_enabled
+from widgets.gsk_utils import draw_card, get_animations_enabled, widget_has_keyboard_focus
 
 CARD_WIDTH = 180
 CARD_HEIGHT = 240
@@ -345,7 +345,7 @@ class _RingWidget(Gtk.Widget):
             self._ensure_thumbnail(path)
             texture = self._textures.get(path)
             selected = path_idx == self._selection
-            focused = path_idx == self._focus and not selected
+            focused = path_idx == self._focus and not selected and widget_has_keyboard_focus(self)
 
             card_transform = Gsk.Transform.new()
             card_transform = card_transform.translate_3d(

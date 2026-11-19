@@ -16,7 +16,7 @@ from gi.repository import Gtk, Gio, GObject
 from .base import WallLayout
 from widgets.skewed_card import SkewedCard
 from widgets.thumbnail_loader import ThumbnailLoader
-from widgets.gsk_utils import hide_scrollbars
+from widgets.gsk_utils import hide_scrollbars, register_css_once
 
 CELL_SKEW_DEG = -6.0
 _item_id_counter = itertools.count()
@@ -130,10 +130,8 @@ class MasonryGridLayout(WallLayout):
         display = widget.get_display()
         if display is not None:
             hide_scrollbars(widget)
-            provider = Gtk.CssProvider()
-            provider.load_from_data(_CSS)
-            Gtk.StyleContext.add_provider_for_display(
-                display, provider, Gtk.STYLE_PROVIDER_PRIORITY_USER
+            register_css_once(
+                "masonry-grid", display, _CSS, Gtk.STYLE_PROVIDER_PRIORITY_USER
             )
 
     def _apply_wallpapers(self, paths: list[str]):

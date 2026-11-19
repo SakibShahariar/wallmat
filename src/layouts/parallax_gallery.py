@@ -29,7 +29,7 @@ from .base import WallLayout
 from announce import say
 from widgets.thumbnail_loader import ThumbnailLoader
 from widgets.accessibility import wallpaper_accessible_name
-from widgets.gsk_utils import hide_scrollbars
+from widgets.gsk_utils import hide_scrollbars, register_css_once
 
 PARALLAX_RATIO = 0.3
 FG_ITEM_WIDTH = 180
@@ -188,10 +188,9 @@ class ParallaxGalleryLayout(WallLayout):
             ring = base.copy()
             ring.alpha = 0.55
             css = _CSS_TEMPLATE.replace(b"{ring}", ring.to_string().encode())
-            provider = Gtk.CssProvider()
-            provider.load_from_data(css)
-            Gtk.StyleContext.add_provider_for_display(
-                display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            register_css_once(
+                "parallax-gallery", display, css,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
             )
 
         self.fg_scroller.connect("realize", register_css)

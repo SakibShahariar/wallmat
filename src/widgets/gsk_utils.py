@@ -18,6 +18,42 @@ gi.require_version("Gsk", "4.0")
 from gi.repository import Gtk, Gdk, Graphene, Gsk, Gio, GLib
 
 
+def widget_has_keyboard_focus(widget) -> bool:
+    """True only when this widget owns focus in an active window.
+
+    Custom-drawn layouts used to paint a focus ring on their front card
+    unconditionally, so the ring stayed visible while focus was in the
+    search box, a dropdown, or a dialog — or while the window was inactive.
+    """
+    if not widget.has_focus():
+        return False
+    root = widget.get_root()
+    if root is not None and hasattr(root, "is_active") and not root.is_active():
+        return False
+    return True
+
+
+_registered_css: dict[str, set] = {}
+
+
+def register_css_once(name: str, display, css: bytes, priority) -> bool:
+    """Add a display-wide CSS provider at most once per named stylesheet.
+
+    Layout ``realize`` handlers can fire more than once during a session;
+    adding the same provider each time stacked duplicate rules globally.
+    """
+    if display is None:
+        return False
+    registered = _registered_css.setdefault(name, set())
+    if display in registered:
+        return False
+    registered.add(display)
+    provider = Gtk.CssProvider()
+    provider.load_from_data(css)
+    Gtk.StyleContext.add_provider_for_display(display, provider, priority)
+    return True
+
+
 def hide_scrollbars(scroller):
     """Hide a ScrolledWindow's scrollbars deterministically.
 

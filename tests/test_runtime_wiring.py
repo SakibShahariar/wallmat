@@ -51,6 +51,28 @@ class RuntimeWiringTests(unittest.TestCase):
         names = module_level_names(SRC / "layouts" / "stacked_deck.py")
         self.assertIn("wallpaper_accessible_name", names)
 
+    def test_custom_layout_focus_rings_are_gated_on_real_focus(self):
+        for name in ("stacked_deck", "radial_fan", "cylindrical_ring"):
+            source = (SRC / "layouts" / f"{name}.py").read_text(encoding="utf-8")
+            self.assertIn("widget_has_keyboard_focus", source, name)
+        gsk = (SRC / "widgets" / "gsk_utils.py").read_text(encoding="utf-8")
+        self.assertIn("def widget_has_keyboard_focus", gsk)
+
+    def test_layout_css_uses_display_wide_dedup(self):
+        for name in ("wallpaper_carousel", "masonry_grid", "glassmorphism",
+                     "parallax_gallery"):
+            path = (
+                SRC / "widgets" / f"{name}.py" if name == "wallpaper_carousel"
+                else SRC / "layouts" / f"{name}.py"
+            )
+            source = path.read_text(encoding="utf-8")
+            self.assertIn("register_css_once", source, name)
+            self.assertNotIn("Gtk.StyleContext.add_provider_for_display", source, name)
+
+    def test_carousel_reuses_items_across_rebuilds(self):
+        source = (SRC / "widgets" / "wallpaper_carousel.py").read_text(encoding="utf-8")
+        self.assertIn("self._item_cache", source)
+
     def test_parallax_tracks_background_widgets_separately(self):
         path = SRC / "layouts" / "parallax_gallery.py"
         source = path.read_text(encoding="utf-8")

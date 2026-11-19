@@ -25,7 +25,7 @@ from .base import WallLayout
 from announce import say
 from widgets.thumbnail_loader import ThumbnailLoader
 from widgets.accessibility import wallpaper_accessible_name
-from widgets.gsk_utils import hide_scrollbars
+from widgets.gsk_utils import hide_scrollbars, register_css_once
 
 _GLASS_STRIDE = 180 + 12  # per-item scroll increment (180 card + 6px margins each side)
 
@@ -188,10 +188,9 @@ class GlassmorphismLayout(WallLayout):
             glow.alpha = 0.6
             css = _CSS_TEMPLATE.replace(b"{ring}", ring.to_string().encode())
             css = css.replace(b"{glow}", glow.to_string().encode())
-            provider = Gtk.CssProvider()
-            provider.load_from_data(css)
-            Gtk.StyleContext.add_provider_for_display(
-                display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            register_css_once(
+                "glassmorphism", display, css,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
             )
 
             def theme_color(name, fallback):
@@ -208,10 +207,9 @@ class GlassmorphismLayout(WallLayout):
             high_contrast_css = high_contrast_css.replace(
                 b"{selected}", theme_color("theme_selected_bg_color", b"#ffffff")
             )
-            high_contrast_provider = Gtk.CssProvider()
-            high_contrast_provider.load_from_data(high_contrast_css)
-            Gtk.StyleContext.add_provider_for_display(
-                display, high_contrast_provider, Gtk.STYLE_PROVIDER_PRIORITY_USER
+            register_css_once(
+                "glassmorphism-high-contrast", display, high_contrast_css,
+                Gtk.STYLE_PROVIDER_PRIORITY_USER,
             )
 
             style_manager = Adw.StyleManager.get_default()

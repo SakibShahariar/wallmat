@@ -42,7 +42,10 @@ from gi.repository import Gtk, Gdk, Graphene, Gsk, GLib
 
 from .base import WallLayout
 from announce import say
-from widgets.gsk_utils import draw_texture_cover, get_focus_ring_rgba, draw_focus_ring, get_animations_enabled
+from widgets.gsk_utils import (
+    draw_texture_cover, get_focus_ring_rgba, draw_focus_ring,
+    get_animations_enabled, widget_has_keyboard_focus,
+)
 from widgets.thumbnail_loader import ThumbnailLoader
 from widgets.accessibility import wallpaper_accessible_name
 
@@ -163,7 +166,7 @@ class _DeckWidget(Gtk.Widget):
             # committed selection by a thinner, semi-transparent stroke.
             # draw_focus_ring adds a dark backing stroke so the ring stays
             # legible over light/busy wallpaper content.
-            if is_front:
+            if is_front and widget_has_keyboard_focus(self):
                 ring_color = get_focus_ring_rgba(self.get_style_context())
                 ring_rect = Gsk.RoundedRect()
                 ring_rect.init_from_rect(
