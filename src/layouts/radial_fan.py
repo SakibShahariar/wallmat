@@ -7,13 +7,12 @@ angular offset from the "front" (top, angle=0) card.
 
 Completed prototype (previous version deferred to Rust):
 
-- Fully virtualized: this is a single custom Gtk.Widget that paints only
-  the cards whose fanned rect intersects the viewport, instead of creating
-  one Gtk.Fixed child per wallpaper. N wallpapers in a folder now cost at
-  most ~8 painted cards per frame regardless of folder size — the old
-  40-second launch freeze on ~47 images came from N synchronous main-thread
-  decodes + N widgets; both are gone (async via ThumbnailLoader + draw-only-
-  visible painting).
+- Bounded window: this is a single custom Gtk.Widget that paints at most
+  FAN_WINDOW cards (a fixed window around the front card) regardless of
+  library size. The angular step is decoupled from N, so a 10,000-image
+  folder is as cheap to draw as an 8-image one; scrolling/keyboard wrap
+  around the whole library via modulo. Thumbnails are requested only for
+  the visible window and cached in a small LRU.
 - Re-flows on resize: positions are recomputed every snapshot from the
   widget's live width/height, so the fan re-centers and rescales instead
   of pegging to a hardcoded point as Gtk.Fixed did.
@@ -27,6 +26,7 @@ Images route through ThumbnailLoader (async, downscaled, cached).
 """
 
 import math
+from collections import OrderedDict
 
 import gi
 
@@ -42,16 +42,32 @@ from widgets.gsk_utils import draw_card, widget_has_keyboard_focus
 
 CARD_WIDTH = 120
 CARD_HEIGHT = 160
-MAX_FAN_ANGLE_DEG = 60  # total arc span across all cards
+MAX_FAN_ANGLE_DEG = 60  # total arc span across the visible fan
 PIVOT_BOTTOM_MARGIN = 44
+# Only this many cards are ever drawn at once. Dividing the arc by the
+# whole library made cards overlap into a single stack on large folders;
+# a fixed window keeps them readable and makes per-frame work O(1).
+FAN_WINDOW = 7
+# Keep only a small LRU of decoded textures. Scrolling through a 10,000
+# image library must not accumulate 10,000 textures in memory.
+MAX_TEXTURES = 64
 
 
-def _signed_rel(n: int, front: int, target: int) -> int:
-    """Signed card offset from `front` around the ring, shortest way round."""
-    rel = (target - front) % n
-    if rel > n // 2:
-        rel -= n
-    return rel
+def _fan_rels(n: int) -> list[int]:
+    """Paint offsets for a library of n cards, outermost first.
+
+    For small libraries every card fits in the fan. Beyond FAN_WINDOW we
+    draw only a fixed window around the front card; scrolling still wraps
+    through the whole library via modulo indexing.
+    """
+    if n <= 0:
+        return []
+    if n <= FAN_WINDOW:
+        rels = list(range(-(n // 2), n - (n // 2)))
+    else:
+        half = FAN_WINDOW // 2
+        rels = list(range(-half, half + 1))
+    return sorted(rels, key=lambda r: -abs(r))
 
 
 class _FanWidget(Gtk.Widget):
@@ -66,12 +82,13 @@ class _FanWidget(Gtk.Widget):
         self.set_size_request(560, 380)
 
         self._paths: list[str] = []
-        self._textures: dict[str, Gdk.Texture] = {}
+        self._textures: OrderedDict[str, Gdk.Texture] = OrderedDict()
         # Paths with an outstanding debounce/decode. Only the handful of
         # on-screen cards are ever requested (see do_snapshot); the previous
         # eager per-path loop scheduled one GLib timeout for every wallpaper
         # in the library on every filter refresh.
         self._requested: set[str] = set()
+        self._rels: list[int] = []
         self._loader = ThumbnailLoader(thumb_size=320)  # cards render at 120x160
         self._front = 0
         self._selection = 0  # path index last explicitly selected
@@ -129,6 +146,7 @@ class _FanWidget(Gtk.Widget):
 
     def set_paths(self, paths: list[str]):
         self._paths = list(paths)
+        self._rels = _fan_rels(len(paths))
         self._textures.clear()
         for path in self._requested:
             self._loader.cancel(path)
@@ -140,13 +158,19 @@ class _FanWidget(Gtk.Widget):
 
     def _ensure_thumbnail(self, path: str):
         """Request a thumbnail only for a card that is actually on screen."""
-        if path in self._textures or path in self._requested:
+        if path in self._textures:
+            self._textures.move_to_end(path)
+            return
+        if path in self._requested:
             return
         self._requested.add(path)
 
         def on_ready(item_id, texture):
             self._requested.discard(item_id)
             self._textures[item_id] = texture
+            self._textures.move_to_end(item_id)
+            while len(self._textures) > MAX_TEXTURES:
+                self._textures.popitem(last=False)
             self.queue_draw()
 
         self._loader.request(path, path, on_ready)
@@ -171,39 +195,34 @@ class _FanWidget(Gtk.Widget):
         self._update_accessible_summary()
         self.emit_selection()
 
-    def _card_size(self):
-        """Scale the cards with the widget so the fan fills a large window."""
+    def _radius(self) -> float:
+        """Use the space above the pivot; independent of library size."""
         width = max(1, self.get_width())
-        height = max(1, self.get_height())
-        scale = min(width / 600.0, height / 260.0)
-        scale = max(1.0, min(2.2, scale))
-        return CARD_WIDTH * scale, CARD_HEIGHT * scale
+        pivot_y = max(1, self.get_height()) - PIVOT_BOTTOM_MARGIN
+        return min(width * 0.42, max(0.0, pivot_y - 24))
+
+    def _card_size(self):
+        """Size cards relative to the fan radius.
+
+        Tying card size to the widget made cards overlap into a solid disc:
+        both grew together, so their spacing/width ratio never improved.
+        """
+        card_w = max(90.0, min(180.0, self._radius() * 0.36))
+        return card_w, card_w * 1.34
 
     def _geometry(self):
         """Returns (pivot_x, pivot_y, radius, angle_step, start_angle)."""
         width = self.get_width()
         height = self.get_height()
-        _card_w, card_h = self._card_size()
         pivot_x = width / 2.0
         pivot_y = height - PIVOT_BOTTOM_MARGIN
-        n = len(self._paths)
-        step = math.radians(MAX_FAN_ANGLE_DEG / max(1, n - 1)) if n > 1 else 0.0
+        radius = self._radius()
+        # Spread the visible window across the arc. With a huge library
+        # the old 60/(n-1) step collapsed every card onto the same spot.
+        span_cards = min(len(self._paths), FAN_WINDOW)
+        step = (math.radians(MAX_FAN_ANGLE_DEG / max(1, span_cards - 1))
+                if span_cards > 1 else 0.0)
 
-        # Center the whole fan vertically instead of pinning the front
-        # card near the top edge. The old formula made the front card's
-        # top a constant 16px regardless of window height, leaving up to
-        # half the widget empty below the arc.
-        max_rel = max(n // 2, n - 1 - n // 2) if n else 0
-        max_angle = step * max_rel
-        vertical_room = max(0.0, pivot_y - card_h / 2.0 - height / 2.0)
-        radius_by_height = vertical_room * 2.0 / max(
-            0.35, 1.0 + math.cos(max_angle)
-        )
-        radius = min(
-            width * 0.45,
-            max(0.0, pivot_y - card_h - 16),
-            radius_by_height,
-        )
         # start_angle=0, NOT -MAX_FAN_ANGLE_DEG/2: `rel` (used everywhere
         # this return value feeds into) is a SIGNED offset from the front
         # card, already centered at 0 by construction (see the `rels`
@@ -235,11 +254,25 @@ class _FanWidget(Gtk.Widget):
         return True
 
     def _on_key_pressed(self, controller, keyval, keycode, state):
+        n = len(self._paths)
         if keyval in (Gdk.KEY_Left, Gdk.KEY_Right):
-            if not self._paths:
+            if not n:
                 return True
             step = 1 if keyval == Gdk.KEY_Right else -1
             self._cycle_front(step, announce=True)
+            return True
+        if keyval in (Gdk.KEY_Page_Up, Gdk.KEY_Page_Down):
+            # Jump a whole visible window so huge libraries are navigable.
+            if not n:
+                return True
+            step = FAN_WINDOW if keyval == Gdk.KEY_Page_Down else -FAN_WINDOW
+            self._cycle_front(step, announce=True)
+            return True
+        if keyval in (Gdk.KEY_Home, Gdk.KEY_End):
+            if not n:
+                return True
+            target = n - 1 if keyval == Gdk.KEY_End else 0
+            self._cycle_front(target - self._front, announce=True)
             return True
         if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
             self._commit_selection()
@@ -262,8 +295,7 @@ class _FanWidget(Gtk.Widget):
         # other than the one visibly under the cursor.
         hit = None
         n = len(self._paths)
-        rels = sorted(range(-(n // 2), n - (n // 2)), key=lambda r: -abs(r))
-        for rel in rels:
+        for rel in self._rels:
             idx = (self._front + rel) % n
             bx, by, angle = self._card_rect(pivot_x, pivot_y, radius, start_angle, step, rel)
             # Point in unrotated card space (card drawn at -w/2..w/2, -h..0)
@@ -301,8 +333,9 @@ class _FanWidget(Gtk.Widget):
         n = len(self._paths)
 
         # Paint order: angularly-outermost first, front (rel=0) last, so
-        # the top card is drawn on top and stays readable.
-        rels = sorted(range(-(n // 2), n - (n // 2)), key=lambda r: -abs(r))
+        # the top card is drawn on top and stays readable. The offsets are
+        # precomputed in set_paths and bounded by FAN_WINDOW.
+        rels = self._rels
         visible_paths = set()
         for rel in rels:
             idx = (self._front + rel) % n
@@ -316,6 +349,8 @@ class _FanWidget(Gtk.Widget):
             path = self._paths[idx]
             visible_paths.add(path)
             self._ensure_thumbnail(path)
+            if path in self._textures:
+                self._textures.move_to_end(path)
             selected = idx == self._selection
             focused = idx == self._front and not selected and widget_has_keyboard_focus(self)
 

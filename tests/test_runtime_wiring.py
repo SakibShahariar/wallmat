@@ -127,10 +127,14 @@ class RuntimeWiringTests(unittest.TestCase):
         source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
         self.assertIn(".glass-card.focused {\n    opacity: 1.0;", source)
 
-    def test_radial_fan_centers_its_fan_vertically(self):
+    def test_radial_fan_uses_a_bounded_window(self):
         source = (SRC / "layouts" / "radial_fan.py").read_text(encoding="utf-8")
-        self.assertIn("radius_by_height", source)
-        self.assertNotIn("radius = min(width * 0.55, available_radius)", source)
+        self.assertIn("FAN_WINDOW =", source)
+        self.assertIn("def _fan_rels", source)
+        self.assertIn("self._rels = _fan_rels(len(paths))", source)
+        self.assertIn("rels = self._rels", source)
+        self.assertIn("MAX_TEXTURES =", source)
+        self.assertNotIn("sorted(range(-(n // 2)", source)
 
     def test_ring_cards_scale_with_cosine_to_avoid_overlap(self):
         source = (SRC / "layouts" / "cylindrical_ring.py").read_text(encoding="utf-8")
