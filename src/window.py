@@ -95,10 +95,16 @@ SEAMLESS_BACKDROP_KEY = "seamless-backdrop"
 _SEAMLESS_CSS = b"""
 window.wallmat-backdrop-transparent,
 window.wallmat-backdrop-blurred,
+window.wallmat-backdrop-transparent > *,
+window.wallmat-backdrop-blurred > *,
 window.wallmat-backdrop-transparent toolbarview,
-window.wallmat-backdrop-blurred toolbarview {
-    background: transparent;
+window.wallmat-backdrop-blurred toolbarview,
+window.wallmat-backdrop-transparent stack,
+window.wallmat-backdrop-blurred stack {
+    background-color: transparent;
+    background-image: none;
     box-shadow: none;
+    border: none;
 }
 window.wallmat-backdrop-blurred {
     backdrop-filter: blur(18px);
@@ -1702,8 +1708,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if display is None:
             return
         register_focus_colors(display)
+        # USER priority so a custom gtk.css with an opaque window
+        # background cannot override the transparent backdrop.
         register_css_once("wallmat-seamless", display, _SEAMLESS_CSS,
-                          Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+                          Gtk.STYLE_PROVIDER_PRIORITY_USER)
 
     def _register_focus_colors(self, window):
         display = self.get_display()
@@ -1711,12 +1719,17 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # GTK may mark the toplevel as fully opaque, which makes the
         # compositor ignore our transparent CSS background. Clearing the
         # opaque region lets the desktop show through.
+        for delay in (0, 100, 500, 1500):
+            GLib.timeout_add(delay, self._clear_opaque_region)
+
+    def _clear_opaque_region(self):
         surface = self.get_surface()
         if surface is not None:
             try:
                 surface.set_opaque_region(None)
             except (AttributeError, TypeError, GLib.Error):
                 pass
+        return GLib.SOURCE_REMOVE
 
     def _on_wallpaper_selected(self, layout, path):
         if self._plain:
