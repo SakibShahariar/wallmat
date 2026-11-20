@@ -2829,6 +2829,13 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
     def _on_window_close_request(self, *_args):
         """Cancel background work and stop session-only rotation."""
+        # Switching layouts saves the outgoing position; a direct close must
+        # do the same or the last position is lost on restart.
+        current = self._layouts.get(self._current_layout_id)
+        if current is not None:
+            position = current.get_position()
+            if position is not None:
+                self._save_layout_position(self._current_layout_id, position)
         if self._scan_cancel_event is not None:
             self._scan_cancel_event.set()
         self._scan_generation += 1

@@ -143,6 +143,21 @@ class RuntimeWiringTests(unittest.TestCase):
             self.assertIn("def get_position", layout, name)
             self.assertIn("def restore_position", layout, name)
 
+    def test_close_saves_current_layout_position(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        tree = ast.parse(source, filename="window.py")
+        close_fn = next(
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "_on_window_close_request"
+        )
+        calls = {
+            getattr(node.func, "attr", None)
+            for node in ast.walk(close_fn)
+            if isinstance(node, ast.Call)
+        }
+        self.assertIn("_save_layout_position", calls)
+
     def test_daemon_scans_library_for_period_candidates(self):
         source = (SRC / "schedule_daemon.py").read_text(encoding="utf-8")
         tree = ast.parse(source, filename="schedule_daemon.py")
