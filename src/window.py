@@ -49,6 +49,7 @@ from random_selection import (
     shuffle_with_recent_last,
 )
 from cache_utils import set_cache_limit_mb
+from color_palette import PaletteCache, extract_families, FAMILIES
 from wallpaper_scan import (
     MAX_SCAN_DEPTH, ScanCancelled, scan_wallpapers, scan_wallpaper_metadata,
 )
@@ -528,6 +529,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         ):
             saved_sort_mode = "name"
         self._sort_mode = saved_sort_mode
+        self._color_filter: str | None = None
+        self._palette_cache = PaletteCache()
+        self._palette_generation = 0
         self._random_order: list[str] = []
         self._layouts_populated = False
         self._search_timeout_id = None
@@ -574,6 +578,23 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         tag_row.append(self.tag_filter)
         tag_row.set_visible(not self._plain)
 
+        color_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        color_row.set_halign(Gtk.Align.CENTER)
+        color_row.set_margin_start(12)
+        color_row.set_margin_end(12)
+        color_row.set_margin_bottom(6)
+        color_row.append(Gtk.Label(label="Color"))
+        self._color_families = [None, *FAMILIES]
+        self.color_filter = Gtk.DropDown.new_from_strings(
+            ["All colors", *[name.title() for name in FAMILIES]]
+        )
+        self.color_filter.set_tooltip_text(
+            "Filter wallpapers by dominant color family"
+        )
+        self.color_filter.connect("notify::selected", self._on_color_filter_changed)
+        color_row.append(self.color_filter)
+        color_row.set_visible(not self._plain)
+
         collection_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         collection_row.set_halign(Gtk.Align.CENTER)
         collection_row.set_margin_start(12)
@@ -606,6 +627,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         content.append(self.sort_selector)
         content.append(self.favorites_filter)
         content.append(tag_row)
+        content.append(color_row)
         content.append(collection_row)
 
         recent_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -1292,6 +1314,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             for scan_error in scan_errors:
                 print(f"Wallpaper scan warning: {scan_error}", file=sys.stderr)
 
+        if self._color_filter:
+            self._start_palette_scan()
         self._refresh_filtered_paths()
         if not self._plain:
             self._refresh_recent_selector()
@@ -1551,6 +1575,62 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if not self._updating_tag_filter:
             self._refresh_filtered_paths()
 
+    def _on_color_filter_changed(self, dropdown, _pspec):
+        selected = dropdown.get_selected()
+        self._color_filter = (
+            self._color_families[selected]
+            if selected < len(self._color_families) else None
+        )
+        if self._color_filter:
+            self._start_palette_scan()
+        self._refresh_filtered_paths()
+
+    def _start_palette_scan(self):
+        """Compute palettes for uncached files in a worker thread."""
+        stats = {}
+        for path in self._all_paths:
+            try:
+                stat = os.stat(path)
+            except OSError:
+                continue
+            fingerprint = (stat.st_mtime_ns, stat.st_size)
+            if self._palette_cache.get(path, fingerprint) is None:
+                stats[path] = fingerprint
+        if not stats:
+            return
+        self._palette_generation += 1
+        generation = self._palette_generation
+
+        def work():
+            batch = []
+            for path, fingerprint in stats.items():
+                if generation != self._palette_generation:
+                    break
+                try:
+                    families = extract_families(path)
+                except Exception:
+                    # A single unreadable or unsupported image must not
+                    # abort the whole palette scan.
+                    families = frozenset()
+                batch.append((path, fingerprint, families))
+                if len(batch) >= 25:
+                    GLib.idle_add(self._palettes_ready, generation, batch)
+                    batch = []
+            if batch:
+                GLib.idle_add(self._palettes_ready, generation, batch)
+
+        threading.Thread(
+            target=work, daemon=True, name=f"wallmat-palette-{generation}"
+        ).start()
+
+    def _palettes_ready(self, generation, batch):
+        if generation != self._palette_generation:
+            return GLib.SOURCE_REMOVE
+        for path, fingerprint, families in batch:
+            self._palette_cache.put(path, fingerprint, families)
+        self._refresh_filtered_paths()
+        return GLib.SOURCE_REMOVE
+
     def _refresh_tag_filter(self):
         if not hasattr(self, "tag_filter"):
             return
@@ -1623,6 +1703,17 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 if any(tag.casefold() == selected_tag_key
                        for tag in self._tags.get(path, set()))
             ]
+        if self._color_filter:
+            family = self._color_filter
+
+            def has_family(path):
+                fingerprint = self._mtime_index.get(path)
+                if fingerprint is None:
+                    return False
+                families = self._palette_cache.get(path, fingerprint)
+                return families is not None and family in families
+
+            paths = [path for path in paths if has_family(path)]
         if query:
             # Match both the basename and its path within the selected root.
             # The basename keeps the common filename-search behavior while

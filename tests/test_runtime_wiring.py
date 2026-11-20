@@ -115,6 +115,14 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("Adw.ShortcutsItem.new", source)
         self.assertNotIn("shortcuts_button", source)
 
+    def test_color_filter_wiring(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn("from color_palette import PaletteCache", source)
+        self.assertIn("self.color_filter = Gtk.DropDown.new_from_strings", source)
+        self.assertIn("def _start_palette_scan", source)
+        self.assertIn("def _palettes_ready", source)
+        self.assertTrue((SRC / "color_palette.py").exists())
+
     def test_desktop_launcher_templates_and_installer(self):
         root = Path(__file__).resolve().parents[1]
         desktop = (root / "data" / "dev.sakib.Wallmat.desktop").read_text(encoding="utf-8")
