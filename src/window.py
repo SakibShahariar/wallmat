@@ -133,20 +133,6 @@ window.wallmat-backdrop-blurred {
 window.wallmat-backdrop-transparent {
     backdrop-filter: none;
 }
-/* Use Adwaita-style typography and foregrounds instead of the user's
-   global theme (monospace fonts, tinted text) inside Wallmat. */
-window.wallmat-backdrop-transparent,
-window.wallmat-backdrop-blurred {
-    font-family: "Adwaita Sans", "Inter", system-ui, sans-serif;
-    color: @window_fg_color;
-}
-window.wallmat-backdrop-transparent label,
-window.wallmat-backdrop-blurred label,
-window.wallmat-backdrop-transparent button,
-window.wallmat-backdrop-blurred button {
-    font-family: inherit;
-    color: inherit;
-}
 """
 
 DEFAULT_WALLPAPER_DIR = "/usr/share/backgrounds"
@@ -1899,7 +1885,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         register_focus_colors(display)
         # APPLICATION priority outranks the user's global gtk.css, so a
         # custom theme with an opaque window background cannot override
-        # Wallmat's transparent backdrop or its Adwaita-style typography.
+        # Wallmat's transparent backdrop.
         register_css_once("wallmat-seamless", display, _SEAMLESS_CSS,
                           Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
