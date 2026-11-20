@@ -51,6 +51,7 @@ from random_selection import (
 )
 from cache_utils import set_cache_limit_mb
 from color_palette import PaletteCache, extract_families, FAMILIES
+from filtering import apply_filters
 from placement import apply_gnome_placement, supported_modes, MODES
 from schedule import (
     parse_schedule, active_period, SchedulePeriod, serialize_schedule,
@@ -1721,42 +1722,28 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             paths = sorted(self._all_paths, key=folder_key)
         else:
             paths = sorted(self._all_paths, key=lambda path: path.casefold())
-        if self._favorites_only:
-            paths = [path for path in paths if path in self._favorites]
         selected_tag_index = self.tag_filter.get_selected()
         selected_tag = (
             self._tag_filter_values[selected_tag_index]
             if selected_tag_index < len(self._tag_filter_values) else None
         )
-        if selected_tag:
-            selected_tag_key = selected_tag.casefold()
-            paths = [
-                path for path in paths
-                if any(tag.casefold() == selected_tag_key
-                       for tag in self._tags.get(path, set()))
-            ]
-        if self._color_filter:
-            family = self._color_filter
 
-            def has_family(path):
-                fingerprint = self._mtime_index.get(path)
-                if fingerprint is None:
-                    return False
-                families = self._palette_cache.get(path, fingerprint)
-                return families is not None and family in families
+        def palette_for(path):
+            fingerprint = self._mtime_index.get(path)
+            if fingerprint is None:
+                return None
+            return self._palette_cache.get(path, fingerprint)
 
-            paths = [path for path in paths if has_family(path)]
-        if query:
-            # Match both the basename and its path within the selected root.
-            # The basename keeps the common filename-search behavior while
-            # relative paths make nested wallpaper folders discoverable.
-            root = self._wallpaper_dir
-            paths = [
-                path for path in paths
-                if query in os.path.basename(path).casefold()
-                or query in os.path.relpath(path, root).casefold()
-                or any(query in tag.casefold() for tag in self._tags.get(path, set()))
-            ]
+        paths = apply_filters(
+            paths,
+            favorites=self._favorites if self._favorites_only else (),
+            tags=self._tags,
+            tag=selected_tag,
+            color_family=self._color_filter,
+            palette_for=palette_for,
+            query=query,
+            root=self._wallpaper_dir,
+        )
         new_paths = list(paths)
         paths_changed = not getattr(self, "_layouts_populated", False) or new_paths != self._paths
         self._paths = new_paths
