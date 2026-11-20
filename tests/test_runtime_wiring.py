@@ -152,6 +152,8 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("self.set_content(self._toolbar_view)", source)
         self.assertIn('self._header_bar.set_visible(not self._plain and not enabled)', source)
         self.assertIn("headerbar.background", source)
+        self.assertIn("Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION", source)
+        self.assertIn('font-family: "Adwaita Sans"', source)
 
     def test_optional_catalog_wiring(self):
         window_src = (SRC / "window.py").read_text(encoding="utf-8")
