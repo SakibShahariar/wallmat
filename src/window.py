@@ -548,10 +548,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # taking space away from the wallpaper layouts.
         self.search_entry = Gtk.SearchEntry()
         self.search_entry.set_placeholder_text("Filter wallpapers by filename or folder…")
-        self.search_entry.set_margin_start(12)
-        self.search_entry.set_margin_end(12)
-        self.search_entry.set_margin_top(8)
-        self.search_entry.set_margin_bottom(8)
+        self.search_entry.set_hexpand(True)
         self.search_entry.set_visible(False)
         self.search_entry.connect("search-changed", self._on_search_changed)
 
@@ -592,40 +589,46 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             )
         )
         self.sort_selector.set_tooltip_text("Sort wallpapers")
-        self.sort_selector.set_margin_start(12)
-        self.sort_selector.set_margin_end(12)
-        self.sort_selector.set_margin_bottom(6)
-        self.sort_selector.set_visible(not self._plain)
         self.sort_selector.connect("notify::selected", self._on_sort_selected)
 
-        self.favorites_filter = Gtk.CheckButton(label="Favorites only")
-        self.favorites_filter.set_active(self._favorites_only)
-        self.favorites_filter.set_margin_start(12)
-        self.favorites_filter.set_margin_end(12)
-        self.favorites_filter.set_margin_bottom(6)
-        self.favorites_filter.set_visible(not self._plain)
-        self.favorites_filter.connect("toggled", self._on_favorites_filter_toggled)
+        # One compact, wrapping toolbar instead of a column of loose rows.
+        filter_bar = Gtk.FlowBox()
+        filter_bar.set_orientation(Gtk.Orientation.HORIZONTAL)
+        filter_bar.set_selection_mode(Gtk.SelectionMode.NONE)
+        filter_bar.set_max_children_per_line(24)
+        filter_bar.set_min_children_per_line(1)
+        filter_bar.set_row_spacing(6)
+        filter_bar.set_column_spacing(6)
+        filter_bar.set_margin_start(12)
+        filter_bar.set_margin_end(12)
+        filter_bar.set_margin_top(6)
+        filter_bar.set_margin_bottom(6)
+        filter_bar.set_hexpand(True)
+        filter_bar.set_visible(not plain)
 
-        tag_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        tag_row.set_halign(Gtk.Align.CENTER)
-        tag_row.set_margin_start(12)
-        tag_row.set_margin_end(12)
-        tag_row.set_margin_bottom(6)
-        tag_row.append(Gtk.Label(label="Tag"))
+        def filter_chip(label, widget):
+            chip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+            chip.append(Gtk.Label(label=label))
+            chip.append(widget)
+            chip.add_css_class("wallmat-filter-chip")
+            return chip
+
+        filter_bar.append(self.search_entry)
+        filter_bar.append(filter_chip("Sort", self.sort_selector))
+
+        self.favorites_filter = Gtk.ToggleButton(label="★ Favorites")
+        self.favorites_filter.set_active(self._favorites_only)
+        self.favorites_filter.set_tooltip_text("Show only favorite wallpapers")
+        self.favorites_filter.connect("toggled", self._on_favorites_filter_toggled)
+        filter_bar.append(self.favorites_filter)
+
         self._tag_filter_values = [None]
         self._updating_tag_filter = False
         self.tag_filter = Gtk.DropDown.new_from_strings(["All tags"])
         self.tag_filter.set_tooltip_text("Filter wallpapers by tag")
         self.tag_filter.connect("notify::selected", self._on_tag_filter_changed)
-        tag_row.append(self.tag_filter)
-        tag_row.set_visible(not self._plain)
+        filter_bar.append(filter_chip("Tag", self.tag_filter))
 
-        color_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        color_row.set_halign(Gtk.Align.CENTER)
-        color_row.set_margin_start(12)
-        color_row.set_margin_end(12)
-        color_row.set_margin_bottom(6)
-        color_row.append(Gtk.Label(label="Color"))
         self._color_families = [None, *FAMILIES]
         self.color_filter = Gtk.DropDown.new_from_strings(
             ["All colors", *[name.title() for name in FAMILIES]]
@@ -634,22 +637,14 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             "Filter wallpapers by dominant color family"
         )
         self.color_filter.connect("notify::selected", self._on_color_filter_changed)
-        color_row.append(self.color_filter)
-        color_row.set_visible(not self._plain)
+        filter_bar.append(filter_chip("Color", self.color_filter))
 
-        collection_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        collection_row.set_halign(Gtk.Align.CENTER)
-        collection_row.set_margin_start(12)
-        collection_row.set_margin_end(12)
-        collection_row.set_margin_bottom(6)
-        collection_row.append(Gtk.Label(label="Collection"))
         self._collection_selector_values = [None]
         self._updating_collection_selector = False
         self.collection_selector = Gtk.DropDown.new_from_strings(["Current folder"])
         self.collection_selector.set_tooltip_text("Switch between saved wallpaper collections")
         self.collection_selector.connect("notify::selected", self._on_collection_selected)
-        collection_row.append(self.collection_selector)
-        collection_row.set_visible(not self._plain)
+        filter_bar.append(filter_chip("Collection", self.collection_selector))
 
         # Empty-state message covers both an empty directory and a filter
         # with no matching filenames.
@@ -665,28 +660,14 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         content_overlay.add_overlay(self._empty_state)
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        content.append(self.search_entry)
-        content.append(self.sort_selector)
-        content.append(self.favorites_filter)
-        content.append(tag_row)
-        content.append(color_row)
-        content.append(collection_row)
+        content.append(filter_bar)
 
-        recent_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        recent_row.set_halign(Gtk.Align.CENTER)
-        recent_row.set_margin_start(12)
-        recent_row.set_margin_end(12)
-        recent_row.set_margin_bottom(6)
-        recent_label = Gtk.Label(label="Recent")
-        recent_row.append(recent_label)
         self._recent_paths: list[str] = []
         self._recent_selector = Gtk.DropDown.new_from_strings(["No recent wallpapers"])
         self._recent_selector.set_sensitive(False)
         self._recent_selector.set_tooltip_text("Reopen a recently selected wallpaper")
         self._recent_selector.connect("notify::selected", self._on_recent_selected)
-        recent_row.append(self._recent_selector)
-        recent_row.set_visible(not plain)
-        content.append(recent_row)
+        filter_bar.append(filter_chip("Recent", self._recent_selector))
 
         self._metadata_row = Gtk.Box(
             orientation=Gtk.Orientation.HORIZONTAL, spacing=8

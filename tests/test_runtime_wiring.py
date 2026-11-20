@@ -143,6 +143,17 @@ class RuntimeWiringTests(unittest.TestCase):
             self.assertIn("def get_position", layout, name)
             self.assertIn("def restore_position", layout, name)
 
+    def test_compact_filter_bar_wiring(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn("filter_bar = Gtk.FlowBox()", source)
+        self.assertIn('filter_bar.append(filter_chip("Sort", self.sort_selector))', source)
+        self.assertIn('filter_bar.append(filter_chip("Tag", self.tag_filter))', source)
+        self.assertIn('filter_bar.append(filter_chip("Color", self.color_filter))', source)
+        self.assertIn('filter_bar.append(filter_chip("Collection", self.collection_selector))', source)
+        self.assertIn('filter_bar.append(filter_chip("Recent", self._recent_selector))', source)
+        self.assertIn('Gtk.ToggleButton(label="★ Favorites")', source)
+        self.assertIn("content.append(filter_bar)", source)
+
     def test_adwaita_chrome_with_transparent_backdrop(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         for name in ("Adw.WindowTitle", "Adw.HeaderBar", "Adw.ToolbarView",
