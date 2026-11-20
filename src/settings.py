@@ -162,8 +162,11 @@ class WallmatSettingsApp(Adw.Application):
         page.add(group)
 
         display = Adw.PreferencesGroup()
-        display.set_title("Seamless view")
-        display.set_description("Show only wallpapers; Ctrl+Shift+S toggles in the app.")
+        display.set_title("Window backdrop")
+        display.set_description(
+            "The app never uses a solid background. Seamless mode additionally "
+            "hides the controls; Ctrl+Shift+S toggles it in the app."
+        )
         seamless = Adw.SwitchRow()
         seamless.set_title("Seamless wallpaper view")
         seamless.set_subtitle("Hide all controls and use a transparent or blurred backdrop")
@@ -176,11 +179,8 @@ class WallmatSettingsApp(Adw.Application):
             backdrops, self.preference.get_string("seamless-backdrop", "blurred")
         )
         backdrop_row.set_title("Backdrop")
-        backdrop_row.set_sensitive(seamless.get_active())
         backdrop_row.connect("notify::selected", self._on_seamless_backdrop)
         self.backdrop_row = backdrop_row
-        seamless.connect("notify::active", lambda row, _pspec:
-                         backdrop_row.set_sensitive(row.get_active()))
         display.add(backdrop_row)
 
         page.add(display)

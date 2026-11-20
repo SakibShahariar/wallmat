@@ -93,18 +93,17 @@ SEAMLESS_BACKDROP_KEY = "seamless-backdrop"
 # or blurred window background. GTK4's CSS parser accepts backdrop-filter;
 # compositors without support simply show the transparent background.
 _SEAMLESS_CSS = b"""
-window.wallmat-seamless,
-window.wallmat-seamless > *,
-window.wallmat-seamless toolbarview {
+window.wallmat-backdrop-transparent,
+window.wallmat-backdrop-blurred,
+window.wallmat-backdrop-transparent toolbarview,
+window.wallmat-backdrop-blurred toolbarview {
     background: transparent;
-}
-window.wallmat-seamless {
     box-shadow: none;
 }
-window.wallmat-seamless.wallmat-backdrop-blurred {
+window.wallmat-backdrop-blurred {
     backdrop-filter: blur(18px);
 }
-window.wallmat-seamless.wallmat-backdrop-transparent {
+window.wallmat-backdrop-transparent {
     backdrop-filter: none;
 }
 """
@@ -1373,7 +1372,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._preference.connect_changed(CACHE_LIMIT_KEY, self._external_cache_limit)
         self._preference.connect_changed(SEAMLESS_KEY, self._external_seamless_changed)
         self._preference.connect_changed(
-            SEAMLESS_BACKDROP_KEY, self._external_seamless_changed
+            SEAMLESS_BACKDROP_KEY, self._external_backdrop_changed
         )
         self._external_cache_limit()
         self._apply_seamless()
@@ -1423,6 +1422,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             + ("enabled" if self._preference.get_boolean(SEAMLESS_KEY, False)
                else "disabled"))
 
+    def _external_backdrop_changed(self):
+        self._apply_seamless()
+        say("Backdrop: " + self._preference.get_string(
+            SEAMLESS_BACKDROP_KEY, "blurred"
+        ))
+
     def _apply_seamless(self):
         enabled = self._preference.get_boolean(SEAMLESS_KEY, False)
         backdrop = self._preference.get_string(SEAMLESS_BACKDROP_KEY, "blurred")
@@ -1432,9 +1437,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                           "wallmat-backdrop-transparent"):
             if css_class in self.get_css_classes():
                 self.remove_css_class(css_class)
+        # The backdrop is always see-through/frosted — the solid window
+        # background is never used. The mode only decides whether controls
+        # stay visible.
+        self.add_css_class(f"wallmat-backdrop-{backdrop}")
         if enabled:
             self.add_css_class("wallmat-seamless")
-            self.add_css_class(f"wallmat-backdrop-{backdrop}")
         for widget, was_visible in self._chrome_visibility.items():
             widget.set_visible(was_visible and not enabled)
         self._apply_hint_visibility()

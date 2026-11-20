@@ -100,6 +100,7 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("def _apply_seamless", source)
         self.assertIn("Gdk.KEY_s, Gdk.KEY_S", source)
         self.assertIn("_SEAMLESS_CSS", source)
+        self.assertIn("self.add_css_class(f\"wallmat-backdrop-{backdrop}\")", source)
         settings_src = (SRC / "settings.py").read_text(encoding="utf-8")
         self.assertIn("seamless-mode", settings_src)
         self.assertIn("seamless-backdrop", settings_src)
