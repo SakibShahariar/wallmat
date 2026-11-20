@@ -60,6 +60,8 @@ from schedule import (
 from targets import (
     portal_set_on, resolve_target, screensaver_keys_for_target, supported_targets,
 )
+from catalog_commons import attribution_text
+from catalog_client import search as catalog_search, download as catalog_download
 from wallpaper_scan import (
     MAX_SCAN_DEPTH, ScanCancelled, scan_wallpapers, scan_wallpaper_metadata,
 )
@@ -913,6 +915,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             "Choose wallpaper sets for times of day"
         )
         self.manage_schedule_button.connect("clicked", self._on_manage_schedule)
+        self.browse_catalog_button = Gtk.Button(label="Browse online catalog…")
+        self.browse_catalog_button.set_tooltip_text(
+            "Opt-in import from Wikimedia Commons"
+        )
+        self.browse_catalog_button.connect("clicked", self._on_browse_catalog)
         self.remove_missing_favorites_button = Gtk.Button(
             label="Remove missing favorites"
         )
@@ -940,6 +947,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         more_actions.append(self.rotation_next_button)
         more_actions.append(self.clear_history_button)
         more_actions.append(self.manage_schedule_button)
+        more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
+        more_actions.append(self.browse_catalog_button)
         more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
         favorites_heading = Gtk.Label(label="Favorites")
         favorites_heading.set_xalign(0.0)
@@ -2664,6 +2673,177 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             tag_dialog.destroy()
 
         dialog.connect("response", on_tag_response)
+        dialog.present()
+
+    def _on_browse_catalog(self, _button):
+        """Opt-in Wikimedia Commons search, preview and explicit import."""
+        dialog = Gtk.Dialog(
+            title="Online wallpaper catalog", transient_for=self, modal=True
+        )
+        dialog.set_default_size(680, 520)
+        dialog.add_button("Close", Gtk.ResponseType.CLOSE)
+        content = dialog.get_content_area()
+        content.set_spacing(8)
+        content.set_margin_top(14)
+        content.set_margin_bottom(14)
+        content.set_margin_start(14)
+        content.set_margin_end(14)
+
+        description = Gtk.Label(label=(
+            "Optional import from Wikimedia Commons. Search uses the public API "
+            "with no account or tracking. Downloads happen only after you "
+            "confirm a result, are size-limited and are saved to a folder you "
+            "choose. Respect each image's license and attribution terms."
+        ))
+        description.set_wrap(True)
+        description.set_xalign(0.0)
+        content.append(description)
+
+        search_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        query = Gtk.Entry()
+        query.set_placeholder_text("Search Commons images")
+        query.set_hexpand(True)
+        search_button = Gtk.Button(label="Search")
+        search_box.append(query)
+        search_box.append(search_button)
+        content.append(search_box)
+
+        status = Gtk.Label(label="Search to see results.")
+        status.set_wrap(True)
+        status.set_xalign(0.0)
+        content.append(status)
+
+        store = Gio.ListStore.new(Gtk.StringObject)
+        selection = Gtk.SingleSelection(model=store)
+        factory = Gtk.SignalListItemFactory()
+
+        def on_setup(_factory, list_item):
+            label = Gtk.Label(xalign=0.0)
+            label.set_wrap(True)
+            label.set_margin_start(6)
+            label.set_margin_end(6)
+            label.set_margin_top(4)
+            label.set_margin_bottom(4)
+            list_item.set_child(label)
+
+        def on_bind(_factory, list_item):
+            item = list_item.get_item()
+            label = list_item.get_child()
+            label.set_text(item.get_string() if item else "")
+
+        factory.connect("setup", on_setup)
+        factory.connect("bind", on_bind)
+        list_view = Gtk.ListView(model=selection, factory=factory)
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_vexpand(True)
+        scroller.set_child(list_view)
+        content.append(scroller)
+
+        actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        download_button = Gtk.Button(label="Download selected…")
+        download_button.set_sensitive(False)
+        use_folder_button = Gtk.Button(label="Use downloaded folder")
+        use_folder_button.set_sensitive(False)
+        actions.append(download_button)
+        actions.append(use_folder_button)
+        content.append(actions)
+
+        items = []
+        downloaded_folder = [None]
+
+        def on_selected_changed(*_args):
+            download_button.set_sensitive(selection.get_selected() < len(items))
+
+        selection.connect("selection-changed", on_selected_changed)
+        selection.connect("notify::selected", on_selected_changed)
+
+        def on_results(results, error):
+            search_button.set_sensitive(True)
+            if error:
+                status.set_label(f"Search failed: {error}")
+                return
+            items[:] = results
+            store.remove_all()
+            for result in results:
+                store.append(Gtk.StringObject.new(
+                    f"{result['title']}\n{result['artist']} — {result['license']}"
+                ))
+            status.set_label(
+                f"{len(results)} result(s). Select one, then confirm and choose a folder."
+            )
+            on_selected_changed()
+
+        def on_search(_button):
+            text = query.get_text().strip()
+            if not text:
+                status.set_label("Enter a search term.")
+                return
+            search_button.set_sensitive(False)
+            status.set_label("Searching Commons…")
+            catalog_search(text, on_results)
+
+        def on_download(_button):
+            index = selection.get_selected()
+            if index >= len(items):
+                return
+            item = items[index]
+            confirm = Adw.MessageDialog.new(
+                dialog,
+                "Download this image?",
+                f"{item['title']}\n\n{attribution_text(item)}\n\n"
+                "The image is saved to a folder you choose. Nothing is applied "
+                "to the desktop automatically.",
+            )
+            confirm.add_response("cancel", "Cancel")
+            confirm.add_response("download", "Download")
+            confirm.set_close_response("cancel")
+            confirm.set_default_response("cancel")
+
+            def on_confirm(_dialog, choice):
+                if choice != "download":
+                    return
+                chooser = Gtk.FileChooserNative.new(
+                    "Choose download folder", dialog,
+                    Gtk.FileChooserAction.SELECT_FOLDER, "Select", "Cancel",
+                )
+
+                def on_folder(current, response):
+                    if response != Gtk.ResponseType.ACCEPT:
+                        return
+                    selected = current.get_file()
+                    target_dir = selected.get_path() if selected else None
+                    if not target_dir:
+                        return
+                    download_button.set_sensitive(False)
+                    status.set_label("Downloading…")
+
+                    def on_downloaded(path, error):
+                        download_button.set_sensitive(True)
+                        if error:
+                            status.set_label(f"Download failed: {error}")
+                            return
+                        downloaded_folder[0] = target_dir
+                        use_folder_button.set_sensitive(True)
+                        status.set_label(f"Saved to {path}")
+
+                    catalog_download(item, target_dir, on_downloaded)
+
+                chooser.connect("response", on_folder)
+                chooser.show()
+
+            confirm.connect("response", on_confirm)
+            confirm.present()
+
+        def on_use_folder(_button):
+            folder = downloaded_folder[0]
+            if folder:
+                dialog.destroy()
+                self._confirm_folder_switch(folder)
+
+        search_button.connect("clicked", on_search)
+        download_button.connect("clicked", on_download)
+        use_folder_button.connect("clicked", on_use_folder)
+        dialog.connect("response", lambda current, _response: current.destroy())
         dialog.present()
 
     def _on_export_backup(self, _button):

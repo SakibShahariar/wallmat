@@ -143,6 +143,20 @@ class RuntimeWiringTests(unittest.TestCase):
             self.assertIn("def get_position", layout, name)
             self.assertIn("def restore_position", layout, name)
 
+    def test_optional_catalog_wiring(self):
+        window_src = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn("def _on_browse_catalog", window_src)
+        self.assertIn("catalog_search(text, on_results)", window_src)
+        self.assertIn("catalog_download(item, target_dir, on_downloaded)", window_src)
+        self.assertIn("Browse online catalog", window_src)
+        self.assertIn("attribution_text(item)", window_src)
+        self.assertIn('selection.connect("notify::selected", on_selected_changed)', window_src)
+        client_src = (SRC / "catalog_client.py").read_text(encoding="utf-8")
+        self.assertIn("MIN_REQUEST_INTERVAL", client_src)
+        self.assertIn("os.replace(temporary, final)", client_src)
+        self.assertIn("_decode_image(temporary)", client_src)
+        self.assertIn("validate_download_url(response.geturl())", client_src)
+
     def test_target_routing_wiring(self):
         window_src = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn("def _detect_targets", window_src)
