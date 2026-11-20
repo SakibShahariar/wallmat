@@ -143,6 +143,16 @@ class RuntimeWiringTests(unittest.TestCase):
             self.assertIn("def get_position", layout, name)
             self.assertIn("def restore_position", layout, name)
 
+    def test_adwaita_chrome_with_transparent_backdrop(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        for name in ("Adw.WindowTitle", "Adw.HeaderBar", "Adw.ToolbarView",
+                     "_set_window_title", "set_show_end_title_buttons"):
+            self.assertIn(name, source)
+        self.assertIn("self._toolbar_view.set_content(content)", source)
+        self.assertIn("self.set_content(self._toolbar_view)", source)
+        self.assertIn('self._header_bar.set_visible(not self._plain and not enabled)', source)
+        self.assertIn("headerbar.background", source)
+
     def test_optional_catalog_wiring(self):
         window_src = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn("def _on_browse_catalog", window_src)

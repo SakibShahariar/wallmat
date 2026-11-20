@@ -117,7 +117,11 @@ window.wallmat-backdrop-blurred > *,
 window.wallmat-backdrop-transparent toolbarview,
 window.wallmat-backdrop-blurred toolbarview,
 window.wallmat-backdrop-transparent stack,
-window.wallmat-backdrop-blurred stack {
+window.wallmat-backdrop-blurred stack,
+window.wallmat-backdrop-transparent headerbar,
+window.wallmat-backdrop-blurred headerbar,
+window.wallmat-backdrop-transparent headerbar.background,
+window.wallmat-backdrop-blurred headerbar.background {
     background-color: transparent;
     background-image: none;
     box-shadow: none;
@@ -516,15 +520,25 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._stale_layouts: set[str] = set()
         self._current_layout_id: str | None = None
 
-        # No header/footer bars remain, so the content goes straight into
-        # the window. Adw.ToolbarView paints its own background, which kept
-        # the gaps between wallpapers solid even with transparent CSS.
+        # Adwaita chrome with a transparent backdrop: a real header bar gives
+        # the window its title, window controls and menu, while our CSS keeps
+        # both it and the toolbar view see-through so wallpapers show behind.
+        self._window_title = Adw.WindowTitle(
+            title="Wallpaper Chooser", subtitle="Choose and apply wallpapers"
+        )
+        self._header_bar = Adw.HeaderBar()
+        self._header_bar.set_title_widget(self._window_title)
+        self._header_bar.set_show_end_title_buttons(True)
+        self._header_bar.set_visible(not plain)
 
-        # Keep the window chrome-free as requested. Layouts remain
-        # switchable through the compact selector below the wallpaper view;
-        # --layout can still choose the initial layout at launch. Escape
-        # closes the window. Without a title bar, window movement and
-        # minimize/maximize depend on the window manager's shortcuts.
+        self._header_menu_button = Gtk.MenuButton(icon_name="open-menu-symbolic")
+        self._header_menu_button.set_tooltip_text("Main menu")
+        self._header_menu_button.set_visible(not plain)
+        self._header_bar.pack_end(self._header_menu_button)
+
+        self._toolbar_view = Adw.ToolbarView()
+        self._toolbar_view.add_top_bar(self._header_bar)
+
         self.stack = Gtk.Stack()
         self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         self.stack.set_vexpand(True)
@@ -815,13 +829,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.folder_menu_button.set_popover(folder_popover)
         self.folder_menu_button.set_visible(not self._plain)
         layout_row.append(self.folder_menu_button)
-        self.more_menu_button = Gtk.MenuButton()
-        self.more_menu_button.set_label("More")
-        self.more_menu_button.set_tooltip_text(
-            "Secondary actions and wallpaper rotation controls"
-        )
-        self.more_menu_button.set_visible(not self._plain)
-        layout_row.append(self.more_menu_button)
+        # The secondary actions live in the header bar's menu button.
+        self.more_menu_button = self._header_menu_button
         # Shortcut help stays available via '?' only; no button needed.
         content.append(layout_row)
 
@@ -1005,7 +1014,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             if child is not content_overlay
         }
 
-        self.set_content(content)
+        self._toolbar_view.set_content(content)
+        self.set_content(self._toolbar_view)
         if self._favorites_load_warning and not self._plain:
             GLib.idle_add(self._show_favorites_load_warning)
         if self._tags_load_warning and not self._plain:
@@ -1253,6 +1263,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         else:
             say("Wallpaper scan canceled; the current collection was kept.")
 
+    def _set_window_title(self, title: str):
+        """Keep the window and its Adwaita header title in sync."""
+        self.set_title(title)
+        self._window_title.set_title(title)
+
     def _on_scan_complete(
         self, generation, directory, paths, scan_errors, truncated, error,
         mtimes=None,
@@ -1330,7 +1345,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         folder_label = os.path.basename(directory.rstrip(os.sep)) or directory
         count_label = str(len(self._all_paths))
         cap_label = f" — showing first {MAX_WALLPAPERS}" if truncated else ""
-        self.set_title(
+        self._set_window_title(
             f"Wallpaper Chooser — {folder_label} ({count_label}){cap_label}"
         )
         self._scan_limit_notice.set_visible(truncated)
@@ -1522,6 +1537,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self.add_css_class("wallmat-seamless")
         for widget, was_visible in self._chrome_visibility.items():
             widget.set_visible(was_visible and not enabled)
+        self._header_bar.set_visible(not self._plain and not enabled)
         self._apply_hint_visibility()
         if enabled:
             # Keep keyboard focus inside the wallpaper view.
@@ -1575,12 +1591,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if collection is None:
             self._all_paths = list(self._folder_paths)
             folder_label = os.path.basename(self._wallpaper_dir.rstrip(os.sep)) or self._wallpaper_dir
-            self.set_title(f"Wallpaper Chooser — {folder_label} ({len(self._all_paths)})")
+            self._set_window_title(f"Wallpaper Chooser — {folder_label} ({len(self._all_paths)})")
         else:
             saved_paths = self._collections.get(collection, [])
             self._all_paths = [path for path in saved_paths if os.path.isfile(path)]
             missing = len(saved_paths) - len(self._all_paths)
-            self.set_title(f"Wallpaper Chooser — {collection} ({len(self._all_paths)})")
+            self._set_window_title(f"Wallpaper Chooser — {collection} ({len(self._all_paths)})")
             if missing:
                 say(f"{missing} missing wallpaper(s) in collection {collection!r} were skipped.")
         self._random_order = self._make_random_order(self._all_paths)
