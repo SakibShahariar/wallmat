@@ -68,6 +68,11 @@ _CSS_TEMPLATE = b"""
     border: none;
 }
 
+.parallax-bg {
+    /* Dim by darkening pixels, not via widget opacity, which would make
+       the wallpaper see-through with a transparent window backdrop. */
+    filter: brightness(0.45);
+}
 .parallax-fg {
     border-radius: 12px;
 }
@@ -315,9 +320,9 @@ class ParallaxGalleryLayout(WallLayout):
         picture = Gtk.Picture()
         picture.set_content_fit(Gtk.ContentFit.COVER)
         picture.set_size_request(320, 400)
-        # Keep the background layer opaque: a dimmed layer looks
-        # see-through once the window backdrop itself is transparent.
-        picture.set_opacity(1.0)
+        # Dimming comes from .parallax-bg's brightness filter, so the
+        # picture stays fully opaque (no see-through wallpaper).
+        picture.add_css_class("parallax-bg")
         picture.set_halign(Gtk.Align.CENTER)
         picture.set_valign(Gtk.Align.CENTER)
         picture.set_hexpand(False)

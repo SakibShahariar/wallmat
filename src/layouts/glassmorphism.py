@@ -83,23 +83,24 @@ _CSS_TEMPLATE = b"""
 .glass-card {
     background-color: rgba(255,255,255,0.06);
     border-radius: 16px;
-    /* Wallpapers stay fully opaque: with a transparent window backdrop,
-       dimming makes the images look see-through. */
+    /* Dim by darkening pixels, not by lowering widget opacity: opacity
+       makes the wallpaper see-through on a transparent window backdrop. */
     opacity: 1.0;
+    filter: brightness(0.55);
 }
 .glass-card.active {
-    opacity: 1.0;
+    filter: none;
     box-shadow: 0 0 24px 4px {glow};
 }
 /* The focus ring is drawn on the card itself, so it can never drift out
    of alignment with the wallpaper. The tall GTK row focus outline is
    suppressed above (row:focus), leaving exactly one ring. */
 .glass-card.focused {
-    opacity: 1.0;
+    filter: none;
     box-shadow: 0 0 0 3px {ring};
 }
 .glass-card.active.focused {
-    opacity: 1.0;
+    filter: none;
     box-shadow: 0 0 24px 4px {glow}, 0 0 0 3px {ring};
 }
 

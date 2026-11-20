@@ -168,7 +168,7 @@ class RuntimeWiringTests(unittest.TestCase):
         source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
         self.assertNotIn("_FocusFrame", source)
         self.assertNotIn("_focus_frame", source)
-        self.assertIn(".glass-card.focused {\n    opacity: 1.0;\n    box-shadow: 0 0 0 3px {ring};", source)
+        self.assertIn(".glass-card.focused {\n    filter: none;\n    box-shadow: 0 0 0 3px {ring};", source)
         # The tall GTK row outline stays suppressed so only one ring shows.
         self.assertIn(".wallmat-glass row:focus", source)
 
@@ -186,7 +186,9 @@ class RuntimeWiringTests(unittest.TestCase):
 
     def test_focused_glass_card_is_not_dimmed(self):
         source = (SRC / "layouts" / "glassmorphism.py").read_text(encoding="utf-8")
-        self.assertIn(".glass-card.focused {\n    opacity: 1.0;", source)
+        self.assertIn("filter: brightness(0.55);", source)
+        self.assertIn(".glass-card.focused {\n    filter: none;", source)
+        self.assertNotIn("opacity: 0.5;", source)
 
     def test_radial_fan_uses_a_bounded_window(self):
         source = (SRC / "layouts" / "radial_fan.py").read_text(encoding="utf-8")
