@@ -115,6 +115,17 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("Adw.ShortcutsItem.new", source)
         self.assertNotIn("shortcuts_button", source)
 
+    def test_schedule_wiring(self):
+        schema = (Path(__file__).resolve().parents[1] / "data"
+                  / "dev.sakib.Wallmat.gschema.xml").read_text(encoding="utf-8")
+        self.assertIn('name="rotation-schedule"', schema)
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn("def _on_manage_schedule", source)
+        self.assertIn("def _schedule_candidates", source)
+        self.assertIn("active_period(periods, now.hour", source)
+        self.assertIn("self.manage_schedule_button", source)
+        self.assertTrue((SRC / "schedule.py").exists())
+
     def test_color_filter_wiring(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn("from color_palette import PaletteCache", source)

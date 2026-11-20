@@ -80,6 +80,11 @@
       <summary>Thumbnail cache size limit in MiB</summary>
       <description>Maximum size of the on-disk thumbnail cache before old files are pruned.</description>
     </key>
+    <key name="rotation-schedule" type="s">
+      <default>'[]'</default>
+      <summary>Time-based wallpaper rotation schedule</summary>
+      <description>JSON array of named local-time periods with wallpaper sources. Empty disables scheduling.</description>
+    </key>
     <key name="seamless-mode" type="b">
       <default>false</default>
       <summary>Seamless wallpaper-only view</summary>

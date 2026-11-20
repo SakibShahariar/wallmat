@@ -44,6 +44,19 @@ class BackupStorageTests(unittest.TestCase):
             restored["collections"], {"Nature": [str(self.favorite)]}
         )
 
+    def test_schedule_survives_backup_roundtrip(self):
+        schedule = (
+            '[{"name":"night","start":"22:00","end":"06:00",'
+            '"source":"library","value":"","enabled":true}]'
+        )
+        preferences = {"rotation-schedule": schedule}
+        backup = encode_backup(set(), str(self.root), preferences)
+        restored = decode_backup(backup, str(self.root))
+        self.assertEqual(restored["preferences"]["rotation-schedule"], schedule)
+        with self.assertRaises(ValueError):
+            encode_backup(set(), str(self.root),
+                          {"rotation-schedule": "not-json"})
+
     def test_rejects_invalid_tags_mapping(self):
         with self.assertRaises(ValueError):
             encode_backup(set(), str(self.root), {}, tags=[])

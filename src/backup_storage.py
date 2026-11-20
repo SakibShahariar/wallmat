@@ -3,6 +3,7 @@
 from favorites_storage import decode_favorites, encode_favorites
 from tags_storage import decode_tags, encode_tags
 from collections_storage import decode_collections, encode_collections
+from schedule import parse_schedule, serialize_schedule
 
 
 BACKUP_FORMAT = "dev.sakib.Wallmat.backup"
@@ -19,6 +20,7 @@ _STRING_SETTINGS = {
     "matugen-args",
     "wallpaper-target",
     "seamless-backdrop",
+    "rotation-schedule",
 }
 _BOOLEAN_SETTINGS = {"favorites-only", "seamless-mode"}
 _INTEGER_SETTINGS = {
@@ -69,6 +71,11 @@ def validate_preferences(preferences):
                 raise ValueError("wallpaper-target is not supported")
             if key == "seamless-backdrop" and value not in _ALLOWED_BACKDROPS:
                 raise ValueError("seamless-backdrop is not supported")
+            if key == "rotation-schedule":
+                try:
+                    value = serialize_schedule(parse_schedule(value))
+                except ValueError as error:
+                    raise ValueError(f"rotation-schedule is invalid: {error}") from error
         elif key in _BOOLEAN_SETTINGS:
             if type(value) is not bool:
                 raise ValueError(f"{key} must be a boolean")

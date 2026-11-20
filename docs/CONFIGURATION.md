@@ -38,6 +38,7 @@ Restart Wallmat after installing or updating the schema. If `glib-compile-schema
 - `matugen-args`: arguments passed to Matugen after `matugen image PATH`; an explicit `--matugen-args` value on the command line takes priority.
 - `wallpaper-target`: `desktop`, `lock`, or `both`. Only the desktop background is applied today; other values need a supported desktop interface.
 - `thumbnail-cache-limit-mb`: 64–4096 MiB; default 512.
+- `rotation-schedule`: JSON array of time periods. Each has `name`, `start`/`end` in HH:MM local time, `source` (`library`, `folder`, `collection`), `value` (path or collection name; empty for `library`), and `enabled`. Use **More → Manage schedules** in the app rather than editing the JSON by hand. Schedules are included in backups.
 - `seamless-mode`: hide all controls and show only the wallpaper view; toggle with Ctrl+Shift+S in the app.
 - `seamless-backdrop`: `transparent` or `blurred` (default). The app always uses this backdrop instead of a solid window background; blur requires a compositor that supports GTK's backdrop filter.
 

@@ -17,12 +17,13 @@ For batch selection checks, see the [batch actions test plan](BATCH_ACTIONS_TEST
 
 ## Applying and previewing
 
-- **More menu** — contains auto-rotation and its interval, Previous/Next, Clear history, favorite maintenance, **Manage tags**, **Manage collections**, **Backup and restore** for favorites, tags, collections, and supported preferences, and **Preview Matugen colors**.
+- **More menu** — contains auto-rotation and its interval, **Manage schedules**, Previous/Next, Clear history, favorite maintenance, **Manage tags**, **Manage collections**, **Backup and restore** for favorites, tags, collections, and supported preferences, and **Preview Matugen colors**.
 
 - **Set as wallpaper** — use the XDG Wallpaper portal on Wayland; if its service or method is unavailable, fall back to the existing GNOME background settings method. Portal cancellation or failure is reported without bypassing the user's decision. Non-Wayland sessions keep the GNOME settings path.
 - **Apply wallpaper + Matugen** — apply the wallpaper and run Matugen immediately.
 - **Preview Matugen colors** — run Matugen with the configured arguments in JSON dry-run mode, show dark/light key colors, and apply only after confirmation. Preview requires a Matugen build supporting `--json` and `--dry-run`; it does not generate templates or change the wallpaper/theme.
 - **Auto-rotate** — rotate every 1, 5, 10, or 30 minutes. Rotation stops when Wallmat closes.
+- **Manage schedules** — define named local-time periods that pick wallpapers from the current library, a folder, or a collection. Periods crossing midnight are supported; if periods overlap, the one running longest wins. When no period is active, or its source is empty/missing, the wallpaper is left unchanged. With no periods defined, the plain fixed-interval rotation is used.
 - **Previous** — reapply an earlier wallpaper from saved applied history.
 - **Next** — choose another random wallpaper.
 - **Clear history** — clear saved applied history and the Recent list.

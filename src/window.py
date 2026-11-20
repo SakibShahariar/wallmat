@@ -19,6 +19,7 @@ persisted across restarts.
 import os
 import sys
 import json
+from datetime import datetime
 import shlex
 import shutil
 import subprocess
@@ -50,6 +51,10 @@ from random_selection import (
 )
 from cache_utils import set_cache_limit_mb
 from color_palette import PaletteCache, extract_families, FAMILIES
+from schedule import (
+    parse_schedule, active_period, SchedulePeriod, serialize_schedule,
+    parse_clock, format_clock, MAX_PERIODS,
+)
 from wallpaper_scan import (
     MAX_SCAN_DEPTH, ScanCancelled, scan_wallpapers, scan_wallpaper_metadata,
 )
@@ -89,6 +94,7 @@ WALLPAPER_TARGET_KEY = "wallpaper-target"
 CACHE_LIMIT_KEY = "thumbnail-cache-limit-mb"
 SEAMLESS_KEY = "seamless-mode"
 SEAMLESS_BACKDROP_KEY = "seamless-backdrop"
+ROTATION_SCHEDULE_KEY = "rotation-schedule"
 
 # Seamless mode: only the wallpaper stack is visible, with a see-through
 # or blurred window background. GTK4's CSS parser accepts backdrop-filter;
@@ -187,6 +193,7 @@ class _LayoutPreference:
             CACHE_LIMIT_KEY: 512,
             SEAMLESS_KEY: False,
             SEAMLESS_BACKDROP_KEY: "blurred",
+            ROTATION_SCHEDULE_KEY: "[]",
         }
         try:
             schema_source = Gio.SettingsSchemaSource.get_default()
@@ -308,6 +315,7 @@ class _LayoutPreference:
             CACHE_LIMIT_KEY: self.get_int(CACHE_LIMIT_KEY, 512),
             SEAMLESS_KEY: self.get_boolean(SEAMLESS_KEY, False),
             SEAMLESS_BACKDROP_KEY: self.get_string(SEAMLESS_BACKDROP_KEY, "blurred"),
+            ROTATION_SCHEDULE_KEY: self.get_string(ROTATION_SCHEDULE_KEY, "[]"),
         }
 
     def import_values(self, values: dict):
@@ -316,7 +324,7 @@ class _LayoutPreference:
             if key in {
                 SETTINGS_KEY, FILTER_KEY, SORT_KEY, LAST_FOLDER_KEY,
                 SELECTED_PATH_KEY, MATUGEN_ARGS_KEY, WALLPAPER_TARGET_KEY,
-                SEAMLESS_BACKDROP_KEY,
+                SEAMLESS_BACKDROP_KEY, ROTATION_SCHEDULE_KEY,
             }:
                 self.set_string(key, value)
             elif key in (FAVORITES_ONLY_KEY, SEAMLESS_KEY):
@@ -882,6 +890,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.manage_collections_button.connect("clicked", self._on_manage_collections)
         self.batch_select_button = Gtk.Button(label="Select multiple…")
         self.batch_select_button.connect("clicked", self._on_batch_select)
+        self.manage_schedule_button = Gtk.Button(label="Manage schedules…")
+        self.manage_schedule_button.set_tooltip_text(
+            "Choose wallpaper sets for times of day"
+        )
+        self.manage_schedule_button.connect("clicked", self._on_manage_schedule)
         self.remove_missing_favorites_button = Gtk.Button(
             label="Remove missing favorites"
         )
@@ -908,6 +921,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         more_actions.append(self.rotation_previous_button)
         more_actions.append(self.rotation_next_button)
         more_actions.append(self.clear_history_button)
+        more_actions.append(self.manage_schedule_button)
         more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
         favorites_heading = Gtk.Label(label="Favorites")
         favorites_heading.set_xalign(0.0)
@@ -1141,6 +1155,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             for extension in image_format.get_extensions()
             if f".{extension.lower()}" in safe_extensions
         }
+        self._supported_exts = supported_exts
         scan_depth = self._preference.get_int(
             SCAN_DEPTH_KEY, DEFAULT_SCAN_DEPTH
         )
@@ -2810,11 +2825,188 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 self._on_auto_rotate_tick,
             )
 
+    def _on_manage_schedule(self, _button):
+        periods = self._load_schedule()
+        dialog = Gtk.Dialog(
+            title="Wallpaper schedules", transient_for=self, modal=True
+        )
+        dialog.set_default_size(560, 520)
+        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        dialog.add_button("Save", Gtk.ResponseType.ACCEPT)
+        dialog.set_default_response(Gtk.ResponseType.ACCEPT)
+
+        content = dialog.get_content_area()
+        content.set_spacing(8)
+        content.set_margin_top(12)
+        content.set_margin_bottom(12)
+        content.set_margin_start(12)
+        content.set_margin_end(12)
+
+        description = Gtk.Label(
+            label=(
+                "Each period picks wallpapers from a source during its local "
+                "time window. Overnight periods cross midnight; when periods "
+                "overlap, the one running longest wins. Schedules apply only "
+                "while auto-rotation is enabled."
+            )
+        )
+        description.set_wrap(True)
+        description.set_xalign(0.0)
+        content.append(description)
+
+        rows_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        content.append(rows_box)
+        rows = []
+
+        def add_row(period=None):
+            row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            row.add_css_class("card")
+
+            name = Gtk.Entry()
+            name.set_placeholder_text("Period name")
+            name.set_text(period.name if period else "")
+            row.append(name)
+
+            times = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            start = Gtk.Entry()
+            start.set_width_chars(5)
+            start.set_text(format_clock(period.start) if period else "08:00")
+            end = Gtk.Entry()
+            end.set_width_chars(5)
+            end.set_text(format_clock(period.end) if period else "17:00")
+            times.append(Gtk.Label(label="From"))
+            times.append(start)
+            times.append(Gtk.Label(label="to"))
+            times.append(end)
+            row.append(times)
+
+            source = Gtk.DropDown.new_from_strings(
+                ["Current library", "Folder", "Collection"]
+            )
+            value = Gtk.Entry()
+            value.set_placeholder_text("Folder path or collection name")
+            if period:
+                index = ("library", "folder", "collection").index(period.source_type)
+                source.set_selected(index)
+                value.set_text(period.source_value)
+            else:
+                source.set_selected(0)
+            sources = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            sources.append(source)
+            sources.append(value)
+            sources.set_hexpand(True)
+            value.set_hexpand(True)
+            row.append(sources)
+
+            controls = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            enabled = Gtk.CheckButton(label="Enabled")
+            enabled.set_active(period.enabled if period else True)
+            controls.append(enabled)
+            remove = Gtk.Button(label="Remove")
+            controls.append(remove)
+            row.append(controls)
+
+            rows_box.append(row)
+            entry = {
+                "row": row, "name": name, "start": start, "end": end,
+                "source": source, "value": value, "enabled": enabled,
+            }
+            rows.append(entry)
+
+            def on_remove(_button):
+                rows_box.remove(row)
+                if entry in rows:
+                    rows.remove(entry)
+
+            remove.connect("clicked", on_remove)
+
+        for existing in periods:
+            add_row(existing)
+        if not rows:
+            add_row()
+
+        add_button = Gtk.Button(label="Add period")
+        add_button.connect("clicked", lambda _b: add_row() if len(rows) < MAX_PERIODS else None)
+        content.append(add_button)
+
+        def on_response(current, response):
+            if response != Gtk.ResponseType.ACCEPT:
+                current.destroy()
+                return
+            built = []
+            for entry in rows:
+                try:
+                    built.append(SchedulePeriod(
+                        name=entry["name"].get_text(),
+                        start=parse_clock(entry["start"].get_text()),
+                        end=parse_clock(entry["end"].get_text()),
+                        source_type=(
+                            "library", "folder", "collection"
+                        )[entry["source"].get_selected()],
+                        source_value=entry["value"].get_text(),
+                        enabled=entry["enabled"].get_active(),
+                    ))
+                except ValueError as error:
+                    say(f"Invalid schedule: {error}")
+                    return
+            self._preference.set_string(
+                ROTATION_SCHEDULE_KEY, serialize_schedule(built)
+            )
+            say(f"Saved {len(built)} schedule period(s).")
+            current.destroy()
+
+        dialog.connect("response", on_response)
+        dialog.present()
+
+    def _load_schedule(self):
+        try:
+            return parse_schedule(
+                self._preference.get_string(ROTATION_SCHEDULE_KEY, "[]")
+            )
+        except ValueError:
+            return []
+
+    def _schedule_candidates(self, period):
+        """Resolve a period's source to existing wallpaper paths."""
+        if period.source_type == "library":
+            return [p for p in self._paths if os.path.isfile(p)]
+        if period.source_type == "collection":
+            return [p for p in self._collections.get(period.source_value, [])
+                    if os.path.isfile(p)]
+        root = os.path.abspath(period.source_value)
+        if not os.path.isdir(root):
+            return []
+        if root == self._wallpaper_dir:
+            return [p for p in self._folder_paths if os.path.isfile(p)]
+        paths, _errors, _truncated = scan_wallpapers(
+            root, getattr(self, "_supported_exts", set()),
+            max_wallpapers=MAX_WALLPAPERS,
+            max_depth=self._preference.get_int(SCAN_DEPTH_KEY, DEFAULT_SCAN_DEPTH),
+        )
+        return [p for p in paths if os.path.isfile(p)]
+
     def _on_auto_rotate_tick(self):
         if not self.auto_rotate_toggle.get_active():
             self._rotation_source_id = None
             return GLib.SOURCE_REMOVE
-        self._on_rotation_next(None)
+        periods = self._load_schedule()
+        if not periods:
+            self._on_rotation_next(None)
+            return GLib.SOURCE_CONTINUE
+        now = datetime.now().astimezone()
+        active = active_period(periods, now.hour * 60 + now.minute)
+        if active is None:
+            say("No schedule period is active; the wallpaper was left unchanged.")
+            return GLib.SOURCE_CONTINUE
+        candidates = self._schedule_candidates(active)
+        if not candidates:
+            say(f"Schedule {active.name!r} has no available wallpapers; "
+                "the wallpaper was left unchanged.")
+            return GLib.SOURCE_CONTINUE
+        path = self._choose_random_wallpaper(candidates)
+        if path is not None:
+            self._on_wallpaper_selected(None, path)
+            self._on_apply_wallpaper(None)
         return GLib.SOURCE_CONTINUE
 
     def _make_random_order(self, paths: list[str]) -> list[str]:
