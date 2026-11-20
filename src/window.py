@@ -464,6 +464,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # they can be registered — do it once the window is realized.
         # User gtk.css overrides these at USER priority.
         self.connect("realize", self._register_focus_colors)
+        self._register_display_css(Gdk.Display.get_default())
 
         saved_rotation_interval = self._preference.get_int(
             AUTO_ROTATE_INTERVAL_KEY, DEFAULT_ROTATION_INTERVAL
@@ -1697,11 +1698,25 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if not self._plain:
             self._preference.set(layout_id)
 
-    def _register_focus_colors(self, window):
-        display = self.get_display()
+    def _register_display_css(self, display):
+        if display is None:
+            return
         register_focus_colors(display)
         register_css_once("wallmat-seamless", display, _SEAMLESS_CSS,
                           Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+    def _register_focus_colors(self, window):
+        display = self.get_display()
+        self._register_display_css(display)
+        # GTK may mark the toplevel as fully opaque, which makes the
+        # compositor ignore our transparent CSS background. Clearing the
+        # opaque region lets the desktop show through.
+        surface = self.get_surface()
+        if surface is not None:
+            try:
+                surface.set_opaque_region(None)
+            except (AttributeError, TypeError, GLib.Error):
+                pass
 
     def _on_wallpaper_selected(self, layout, path):
         if self._plain:
