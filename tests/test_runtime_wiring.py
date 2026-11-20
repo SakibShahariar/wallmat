@@ -143,6 +143,39 @@ class RuntimeWiringTests(unittest.TestCase):
             self.assertIn("def get_position", layout, name)
             self.assertIn("def restore_position", layout, name)
 
+    def test_daemon_scans_library_for_period_candidates(self):
+        source = (SRC / "schedule_daemon.py").read_text(encoding="utf-8")
+        tree = ast.parse(source, filename="schedule_daemon.py")
+        calls = [
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and getattr(node.func, "id", None) == "period_candidates"
+        ]
+        self.assertEqual(len(calls), 1)
+        # The folder-path argument must come from a real scan; an empty list
+        # means every library-source schedule is silently skipped by the
+        # background service while the app is closed.
+        self.assertGreaterEqual(len(calls[0].args), 3)
+        self.assertNotIsInstance(calls[0].args[2], ast.List)
+        self.assertIn("folder_paths = scan_wallpapers", source)
+
+    def test_placement_applies_on_portal_path(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn("def _apply_placement_mode", source)
+        # Both the GSettings fallback and the Wayland portal success path must
+        # apply the chosen placement mode; previously only the fallback did.
+        self.assertEqual(source.count("self._apply_placement_mode()"), 2)
+
+    def test_base_select_path_restores_saved_focus(self):
+        base = (SRC / "layouts" / "base.py").read_text(encoding="utf-8")
+        self.assertIn("self._paths.index(path)", base)
+        self.assertIn("self.restore_position(index)", base)
+
+    def test_schedule_dialog_describes_independent_timers(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn("independently of auto-rotation", source)
+        self.assertNotIn("apply only while auto-rotation", source)
+
     def test_schedule_wiring(self):
         schema = (Path(__file__).resolve().parents[1] / "data"
                   / "dev.sakib.Wallmat.gschema.xml").read_text(encoding="utf-8")

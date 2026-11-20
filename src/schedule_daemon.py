@@ -26,6 +26,7 @@ from collections_storage import decode_collections
 from schedule import parse_schedule, active_period, period_candidates
 from portal_wallpaper import request_wallpaper
 from random_selection import choose_next
+from wallpaper_scan import scan_wallpapers, MAX_SCAN_DEPTH
 
 CONFIG_DIR = os.path.expanduser("~/.config/wallmat")
 COLLECTIONS_FILE = os.path.join(CONFIG_DIR, "collections.json")
@@ -110,10 +111,16 @@ def check_once(preference):
             preference.get_string("rotation-schedule", "[]"):
         return
     root = preference.get_string(LAST_FOLDER_KEY, "")
+    extensions = supported_extensions()
+    scan_depth = max(0, min(preference.get_int(SCAN_DEPTH_KEY, 0), MAX_SCAN_DEPTH))
+    # Library and "current folder" periods need the real folder contents.
+    # An empty folder_paths made the daemon skip every default schedule.
+    folder_paths = []
+    if root and os.path.isdir(root):
+        folder_paths = scan_wallpapers(root, extensions, max_depth=scan_depth)[0]
     candidates = period_candidates(
-        active, load_collections(root), [], root,
-        supported_extensions(),
-        preference.get_int(SCAN_DEPTH_KEY, 0),
+        active, load_collections(root), folder_paths, root,
+        extensions, scan_depth,
     )
     if not candidates:
         return

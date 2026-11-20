@@ -24,10 +24,10 @@ Persistent repository-specific record of commit-level CI checks and red-cross in
 
 - Repository: `SakibShahariar/wallmat`
 - Default branch: `main`
-- Checkpoint SHA: `3d3c989b3e17ebb20ab665091da6fae3c1894387`
+- Checkpoint SHA: `ad39f10bd0fcd7971df9646a9e13e93bab517fe0`
 - Initialized: 2026-11-02
 - Baseline: latest branch tip queried through combined commit-status endpoint; empty status list recorded as **unavailable**, not green/red. Older history was not retroactively audited during setup.
-- Last reviewed: 2026-11-20; range `a779d9c80ad341d4bab868abfb5204b156528b48..3d3c989b3e17ebb20ab665091da6fae3c1894387` (148 commits). Next session: review commits after this checkpoint and carry forward any unresolved red/pending entries.
+- Last reviewed: 2026-11-20; range `3d3c989b3e17ebb20ab665091da6fae3c1894387..ad39f10bd0fcd7971df9646a9e13e93bab517fe0` (14 commits). All observed green. Next session: review commits after this checkpoint and carry forward any unresolved red/pending entries.
 
 ## Initial baseline
 
@@ -329,3 +329,23 @@ unclassified historical failures, not implicit passes or active regressions.
 | 2026-11-19 | `ede473a`..`6e0bd30` (1 commit) | `refactor(ui): remove the Shortcuts button` — observed completed success, run 44582619404; local checks: compile exit 0, 103 tests OK, schema exit 0. |
 | 2026-11-20 | `6e0bd30`..`0b650b8` (1 commit) | `refactor(ui): use Adw.ShortcutsDialog for keyboard help` — observed completed success, run 44584963876; local checks: compile exit 0, 103 tests OK, schema exit 0. |
 | 2026-11-20 | `0b650b8`..`3d3c989` (1 commit) | `feat(ui): add seamless wallpaper-only view` — observed completed success, run 44591742234; local checks: compile exit 0, 104 tests OK, schema exit 0. |
+| 2026-11-20 | `3d3c989`..`ad39f10` (14 commits) | All 14 commits observed completed success (runs 44668244877–44736418412). Local checks at `ad39f10`: compile exit 0, 128 tests OK, schema exit 0. Checkpoint advanced to `ad39f10bd0fcd7971df9646a9e13e93bab517fe0`. |
+
+## Reviewed range 2026-11-20: `3d3c989`..`ad39f10`
+
+| Commit SHA | Subject | CI result | Checked | Workflow run |
+|---|---|---|---|---|
+| `83e107921e2c` | `fix(ui): apply the transparent/blurred backdrop in normal view too` | green | 2026-11-20 | 44668244877 |
+| `5d9eacb17599` | `fix(ui): clear the toplevel opaque region for real transparency` | green | 2026-11-20 | 44672107018 |
+| `8f211ea308f2` | `fix(ui): retry clearing the toplevel opaque region` | green | 2026-11-20 | 44673384707 |
+| `28e4de1e4464` | `fix(ui): drop the now-empty ToolbarView` | green | 2026-11-20 | 44674292251 |
+| `c6a67abec821` | `fix(ui): keep wallpaper images opaque with a transparent backdrop` | green | 2026-11-20 | 44683060032 |
+| `db736931f058` | `fix(ui): dim wallpapers with brightness, not opacity` | green | 2026-11-20 | 44685630031 |
+| `c3ab45ccd89d` | `feat(filter): add dominant-color family filtering (#74)` | green | 2026-11-20 | 44688244233 |
+| `760384121a1c` | `feat(rotation): add time-based wallpaper schedules (#73)` | green | 2026-11-20 | 44691376797 |
+| `90821e95f074` | `fix(rotation): make schedules independent of Auto-rotate and run in background` | green | 2026-11-20 | 44704795733 |
+| `b93c70a92abf` | `feat(nav): restore per-layout position (#37)` | green | 2026-11-20 | 44718478095 |
+| `7aed2b989b1a` | `feat(placement): add image placement modes (#72)` | green | 2026-11-20 | 44721391104 |
+| `deb20afe289e` | `fix(plain): always define the plain-mode exit status` | green | 2026-11-20 | 44723719108 |
+| `dda4cf6cb8d7` | `design(icon): modern gradient wallpaper-stack app icon` | green | 2026-11-20 | 44731440827 |
+| `ad39f10bd0fc` | `fix(installer): seed hicolor index so launcher icons resolve` | green | 2026-11-20 | 44736418412 |

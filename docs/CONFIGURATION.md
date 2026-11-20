@@ -48,7 +48,7 @@ Use `python3 src/settings.py` for a GUI covering these and the browsing settings
 
 Favorites are stored in `~/.config/wallmat/favorites.json`. Wallpaper tags are stored separately in `~/.config/wallmat/tags.json`; assignments are relative to the selected folder where possible, while paths outside it remain absolute. Named wallpaper collections are stored in `~/.config/wallmat/collections.json` as ordered lists of absolute file paths. New favorite saves use a versioned format with paths relative to the selected wallpaper folder; favorites outside that folder remain absolute. When the selected wallpaper folder has moved and old favorite paths no longer exist, matching relative paths are resolved under the new folder. Existing legacy arrays of absolute paths remain readable and are migrated the next time favorites are saved.
 
-The app also persists layout, text filter, sort mode, Favorites only, last selection, recent wallpaper paths, and auto-rotate interval when the schema is installed. Selection is restored only when the file still exists in the current folder and matches the restored filters. Focus restoration is supported in Split-Screen Preview and selection restoration in Masonry Grid; other layouts and scroll position are not yet restored.
+The app also persists layout, text filter, sort mode, Favorites only, last selection, recent wallpaper paths, auto-rotate interval, per-layout position, image placement and schedules when the schema is installed. Selection is restored only when the file still exists in the current folder and matches the restored filters. All eight layouts restore their saved scroll/focus position when you switch back to them and focus the saved wallpaper when it is still present; Split-Screen Preview and Masonry Grid additionally give the restored item a visible selection state.
 
 
 ## Backup and restore
@@ -57,7 +57,7 @@ Use **More → Backup and restore** to export a versioned `wallmat-backup.json`
 or restore one. Version-3 backups include favorites, per-wallpaper tags,
 named collections, and supported GSettings preferences: layout, filter,
 sorting, favorites-only state, recent paths, wallpaper history, scan depth,
-and rotation settings.
+rotation schedules, image placement and per-layout positions.
 
 Restore validates the backup format, version, favorites and tag paths,
 preference names, types, and supported ranges before asking for confirmation.

@@ -2902,8 +2902,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             label=(
                 "Each period picks wallpapers from a source during its local "
                 "time window. Overnight periods cross midnight; when periods "
-                "overlap, the one running longest wins. Schedules apply only "
-                "while auto-rotation is enabled."
+                "overlap, the one running longest wins. Schedules run "
+                "independently of auto-rotation."
             )
         )
         description.set_wrap(True)
@@ -3320,9 +3320,31 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if not result:
             say(message or "The desktop portal did not apply the wallpaper.")
             return
+        self._apply_placement_mode()
         self._record_applied_history(path)
         self._remember_recent_path(path)
         say(f"Wallpaper applied through the desktop portal: {path}")
+
+    def _apply_placement_mode(self):
+        """Apply the saved placement mode through the desktop's settings.
+
+        Shared by the X11/GSettings and Wayland portal paths so choosing a
+        mode has an effect regardless of how the wallpaper itself was set.
+        """
+        mode = self._preference.get_string(PLACEMENT_KEY, "fill")
+        if mode not in MODES:
+            mode = "fill"
+        try:
+            settings = Gio.Settings.new("org.gnome.desktop.background")
+        except GLib.Error:
+            say("Could not read desktop background settings for image placement.")
+            return
+        if not apply_gnome_placement(
+            settings, mode,
+            self._preference.get_string(PLACEMENT_BACKGROUND_KEY, "#000000"),
+        ):
+            say(f"Image placement {mode!r} is not supported by this desktop; "
+                "the wallpaper was still applied.")
 
     def _apply_wallpaper_gsettings(self, path):
         try:
@@ -3339,15 +3361,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             if not updated:
                 say("GNOME exposes no supported wallpaper URI setting.")
                 return False
-            mode = self._preference.get_string(PLACEMENT_KEY, "fill")
-            if mode not in MODES:
-                mode = "fill"
-            if not apply_gnome_placement(
-                settings, mode,
-                self._preference.get_string(PLACEMENT_BACKGROUND_KEY, "#000000"),
-            ):
-                say(f"Image placement {mode!r} is not supported by this desktop; "
-                    "the wallpaper was still applied.")
+            self._apply_placement_mode()
             self._record_applied_history(path)
             self._remember_recent_path(path)
             say(f"Wallpaper applied: {path}")

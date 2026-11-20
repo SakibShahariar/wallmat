@@ -60,12 +60,20 @@ class WallLayout(GObject.Object):
         raise NotImplementedError
 
     def select_path(self, path: str) -> bool:
-        """Focus a path when this layout can restore focus; return success.
+        """Focus a saved path by restoring its index, if still present.
 
-        Layouts with no programmatic focus support keep the default no-op so
-        restoring a saved selection never disrupts their normal interaction.
+        Every layout exposes a meaningful position through
+        :meth:`restore_position`, so the default uses that to focus the saved
+        wallpaper. Layouts with extra selection or grab-focus behavior
+        override this; the base implementation also covers layouts that are
+        built lazily and have no dedicated selection object.
         """
-        return False
+        try:
+            index = self._paths.index(path)
+        except ValueError:
+            return False
+        self.restore_position(index)
+        return True
 
     def get_position(self) -> int | None:
         """Return the layout's current index, if it has one."""
