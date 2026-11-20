@@ -143,6 +143,20 @@ class RuntimeWiringTests(unittest.TestCase):
             self.assertIn("def get_position", layout, name)
             self.assertIn("def restore_position", layout, name)
 
+    def test_target_routing_wiring(self):
+        window_src = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn("def _detect_targets", window_src)
+        self.assertIn("def _resolve_target", window_src)
+        self.assertIn("set_on=portal_set_on(target)", window_src)
+        self.assertIn("def _apply_wallpaper_gsettings(self, path, target=", window_src)
+        portal_src = (SRC / "portal_wallpaper.py").read_text(encoding="utf-8")
+        self.assertIn("def request_wallpaper(path, callback, set_on=", portal_src)
+        self.assertIn('GLib.Variant("s", set_on)', portal_src)
+        settings_src = (SRC / "settings.py").read_text(encoding="utf-8")
+        self.assertIn("supported_targets(*self._target_capabilities())", settings_src)
+        daemon_src = (SRC / "schedule_daemon.py").read_text(encoding="utf-8")
+        self.assertIn("apply_wallpaper(chosen, resolve_target(preference))", daemon_src)
+
     def test_backup_export_section_picker_wiring(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn("Export backup sections", source)

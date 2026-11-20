@@ -27,6 +27,9 @@ from schedule import parse_schedule, active_period, period_candidates
 from portal_wallpaper import request_wallpaper
 from random_selection import choose_next
 from wallpaper_scan import scan_wallpapers, MAX_SCAN_DEPTH
+from targets import (
+    portal_set_on, resolve_target, screensaver_keys_for_target, supported_targets,
+)
 
 CONFIG_DIR = os.path.expanduser("~/.config/wallmat")
 COLLECTIONS_FILE = os.path.join(CONFIG_DIR, "collections.json")
@@ -73,21 +76,55 @@ def save_state(state):
         pass
 
 
-def apply_wallpaper(path):
+def resolve_target(preference):
+    """Return the safe wallpaper target for this desktop and preference."""
+    background_keys = ()
+    screensaver_keys = ()
+    try:
+        background_keys = Gio.Settings.new("org.gnome.desktop.background").list_keys()
+    except GLib.Error:
+        pass
+    try:
+        screensaver_keys = Gio.Settings.new("org.gnome.desktop.screensaver").list_keys()
+    except GLib.Error:
+        pass
+    supported = supported_targets(background_keys, screensaver_keys, True)
+    target = resolve_target(
+        preference.get_string("wallpaper-target", "desktop"), supported
+    )
+    return target if target is not None else "desktop"
+
+
+def apply_wallpaper(path, target="desktop"):
     def fallback():
+        uri = GLib.filename_to_uri(path)
         try:
-            settings = Gio.Settings.new("org.gnome.desktop.background")
-            uri = GLib.filename_to_uri(path)
-            if "picture-uri" in settings.list_keys():
-                settings.set_string("picture-uri", uri)
-            if "picture-uri-dark" in settings.list_keys():
-                settings.set_string("picture-uri-dark", uri)
+            if target in ("desktop", "both"):
+                settings = Gio.Settings.new("org.gnome.desktop.background")
+                keys = settings.list_keys()
+                if "picture-uri" in keys:
+                    settings.set_string("picture-uri", uri)
+                if "picture-uri-dark" in keys:
+                    settings.set_string("picture-uri-dark", uri)
+        except GLib.Error:
+            pass
+        try:
+            if target in ("lock", "both"):
+                lock_settings = Gio.Settings.new("org.gnome.desktop.screensaver")
+                keys = lock_settings.list_keys()
+                for key in screensaver_keys_for_target(target):
+                    if key in keys:
+                        lock_settings.set_string(key, uri)
         except GLib.Error:
             pass
 
     if os.environ.get("WAYLAND_DISPLAY") or \
             os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland":
-        request_wallpaper(path, lambda result, _message: None if result else fallback())
+        request_wallpaper(
+            path,
+            lambda result, _message: None if result else fallback(),
+            set_on=portal_set_on(target) or "background",
+        )
     else:
         fallback()
 
@@ -127,7 +164,7 @@ def check_once(preference):
     chosen, _history = choose_next(candidates, [], 0)
     if chosen is None:
         return
-    apply_wallpaper(chosen)
+    apply_wallpaper(chosen, resolve_target(preference))
     save_state({
         "period": active.name,
         "schedule": preference.get_string("rotation-schedule", "[]"),

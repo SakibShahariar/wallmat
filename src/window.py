@@ -57,6 +57,9 @@ from schedule import (
     parse_schedule, active_period, SchedulePeriod, serialize_schedule,
     parse_clock, format_clock, MAX_PERIODS, period_candidates,
 )
+from targets import (
+    portal_set_on, resolve_target, screensaver_keys_for_target, supported_targets,
+)
 from wallpaper_scan import (
     MAX_SCAN_DEPTH, ScanCancelled, scan_wallpapers, scan_wallpaper_metadata,
 )
@@ -377,6 +380,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._wallpaper_dir = os.path.abspath(initial_directory)
         self._selected_path: str | None = None
         self._rotation_source_id: int | None = None
+        self._target_capabilities = self._detect_targets()
         self._rotation_history: list[str] = []
         self._rotation_history_index = -1
         self._history_navigation = False
@@ -3346,6 +3350,38 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         window.present()
         window.fullscreen()
 
+    def _detect_targets(self) -> set[str]:
+        """Observe which wallpaper targets this desktop can actually apply."""
+        background_keys = ()
+        screensaver_keys = ()
+        try:
+            background_keys = Gio.Settings.new(
+                "org.gnome.desktop.background"
+            ).list_keys()
+        except GLib.Error:
+            pass
+        try:
+            screensaver_keys = Gio.Settings.new(
+                "org.gnome.desktop.screensaver"
+            ).list_keys()
+        except GLib.Error:
+            pass
+        # The Wallpaper portal defines set-on in version 1, so a reachable
+        # portal backend is enough to offer all targets through that path.
+        return supported_targets(
+            background_keys, screensaver_keys, portal_set_on_support=True
+        )
+
+    def _resolve_target(self) -> str:
+        """Return the safe target for the saved preference on this desktop."""
+        requested = self._preference.get_string(WALLPAPER_TARGET_KEY, "desktop")
+        target = resolve_target(requested, self._target_capabilities)
+        if target is None:
+            say(f"Wallpaper target {requested!r} is not supported here; "
+                "falling back to the desktop background.")
+            return "desktop"
+        return target
+
     def _on_apply_wallpaper(self, button):
         path = self._selected_path
         if not path:
@@ -3353,6 +3389,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if self._portal_request_pending:
             say("A wallpaper change is already waiting for the desktop portal.")
             return False
+        target = self._resolve_target()
         if (
             os.environ.get("WAYLAND_DISPLAY")
             or os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
@@ -3362,13 +3399,14 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             request_wallpaper(
                 path,
                 lambda result, message: self._on_portal_wallpaper_result(
-                    path, result, message
+                    path, result, message, target
                 ),
+                set_on=portal_set_on(target) or "background",
             )
             return True
-        return self._apply_wallpaper_gsettings(path)
+        return self._apply_wallpaper_gsettings(path, target)
 
-    def _on_portal_wallpaper_result(self, path, result, message):
+    def _on_portal_wallpaper_result(self, path, result, message, target="desktop"):
         self._portal_request_pending = False
         self.set_wallpaper_button.set_sensitive(bool(self._selected_path))
         if result is None:
@@ -3378,7 +3416,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if not result:
             say(message or "The desktop portal did not apply the wallpaper.")
             return
-        self._apply_placement_mode()
+        if target in ("desktop", "both"):
+            self._apply_placement_mode()
         self._record_applied_history(path)
         self._remember_recent_path(path)
         say(f"Wallpaper applied through the desktop portal: {path}")
@@ -3404,22 +3443,39 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             say(f"Image placement {mode!r} is not supported by this desktop; "
                 "the wallpaper was still applied.")
 
-    def _apply_wallpaper_gsettings(self, path):
+    def _apply_wallpaper_gsettings(self, path, target="desktop"):
         try:
-            settings = Gio.Settings.new("org.gnome.desktop.background")
             uri = GLib.filename_to_uri(path)
-            keys = settings.list_keys()
+            settings = None
+            if target in ("desktop", "both"):
+                settings = Gio.Settings.new("org.gnome.desktop.background")
+            keys = settings.list_keys() if settings is not None else ()
             updated = False
-            if "picture-uri" in keys:
-                settings.set_string("picture-uri", uri)
-                updated = True
-            if "picture-uri-dark" in keys:
-                settings.set_string("picture-uri-dark", uri)
-                updated = True
+            if target in ("desktop", "both"):
+                if "picture-uri" in keys:
+                    settings.set_string("picture-uri", uri)
+                    updated = True
+                if "picture-uri-dark" in keys:
+                    settings.set_string("picture-uri-dark", uri)
+                    updated = True
+            if target in ("lock", "both"):
+                try:
+                    lock_settings = Gio.Settings.new(
+                        "org.gnome.desktop.screensaver"
+                    )
+                except GLib.Error:
+                    lock_settings = None
+                if lock_settings is not None:
+                    lock_keys = lock_settings.list_keys()
+                    for key in screensaver_keys_for_target(target):
+                        if key in lock_keys:
+                            lock_settings.set_string(key, uri)
+                            updated = True
             if not updated:
                 say("GNOME exposes no supported wallpaper URI setting.")
                 return False
-            self._apply_placement_mode()
+            if target in ("desktop", "both"):
+                self._apply_placement_mode()
             self._record_applied_history(path)
             self._remember_recent_path(path)
             say(f"Wallpaper applied: {path}")

@@ -28,6 +28,7 @@ from window import (
 )
 from backup_storage import encode_backup, decode_backup
 from placement import MODES, MODE_LABELS, supported_modes
+from targets import supported_targets
 from favorites_storage import decode_favorites, encode_favorites
 from tags_storage import decode_tags, encode_tags
 from collections_storage import decode_collections, encode_collections
@@ -231,7 +232,11 @@ class WallmatSettingsApp(Adw.Application):
         args.connect("changed", self._on_matugen_args)
         group.add(args)
 
-        targets = [(key, label) for key, label, _hint in TARGETS]
+        supported = supported_targets(*self._target_capabilities())
+        targets = [
+            (key, label if key in supported else label + " (unsupported here)")
+            for key, label, _hint in TARGETS
+        ]
         target_row, self.target_keys = _combo(
             targets, self.preference.get_string("wallpaper-target", "desktop")
         )
@@ -241,10 +246,15 @@ class WallmatSettingsApp(Adw.Application):
 
         hint = Adw.ActionRow()
         hint.set_title("Lock-screen support")
-        hint.set_subtitle(
-            "Only the desktop background is applied today. Other targets need a "
-            "desktop service that Wallmat does not use yet."
-        )
+        if "lock" in supported:
+            hint.set_subtitle(
+                "Desktop, lock screen and combined targets are available on this desktop."
+            )
+        else:
+            hint.set_subtitle(
+                "This desktop does not expose a lock-screen wallpaper setting. "
+                "Selecting that target keeps the desktop background unchanged."
+            )
         hint.add_css_class("dim-label")
         group.add(hint)
 
@@ -433,6 +443,24 @@ class WallmatSettingsApp(Adw.Application):
 
     def _on_matugen_args(self, entry):
         self.preference.set_string("matugen-args", entry.get_text())
+
+    def _target_capabilities(self):
+        """Return (background keys, screensaver keys, portal set-on support)."""
+        background_keys = ()
+        screensaver_keys = ()
+        try:
+            background_keys = Gio.Settings.new(
+                "org.gnome.desktop.background"
+            ).list_keys()
+        except GLib.Error:
+            pass
+        try:
+            screensaver_keys = Gio.Settings.new(
+                "org.gnome.desktop.screensaver"
+            ).list_keys()
+        except GLib.Error:
+            pass
+        return background_keys, screensaver_keys, True
 
     def _on_target(self, row, _pspec):
         self.preference.set_string("wallpaper-target",

@@ -40,7 +40,7 @@ def portal_response_result(response_code):
     return False, f"The desktop portal returned an unknown response ({response_code})."
 
 
-def request_wallpaper(path, callback):
+def request_wallpaper(path, callback, set_on="background"):
     """Request a wallpaper change; callback receives (result, message).
 
     result is True on success, False on user cancellation/error, and None when
@@ -100,7 +100,7 @@ def request_wallpaper(path, callback):
         handle = fd_list.append(fd)
         options = {
             "show-preview": GLib.Variant("b", True),
-            "set-on": GLib.Variant("s", "background"),
+            "set-on": GLib.Variant("s", set_on),
             "handle_token": GLib.Variant("s", token),
         }
         parameters = GLib.Variant("(sha{sv})", ("", handle, options))
