@@ -489,7 +489,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._stale_layouts: set[str] = set()
         self._current_layout_id: str | None = None
 
-        toolbar_view = Adw.ToolbarView()
+        # No header/footer bars remain, so the content goes straight into
+        # the window. Adw.ToolbarView paints its own background, which kept
+        # the gaps between wallpapers solid even with transparent CSS.
 
         # Keep the window chrome-free as requested. Layouts remain
         # switchable through the compact selector below the wallpaper view;
@@ -932,8 +934,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         more_popover.set_child(more_scroller)
         self.more_menu_button.set_popover(more_popover)
         self._update_missing_favorites_action()
-        toolbar_view.set_content(content)
-
         # Remember which chrome was visible so seamless mode can restore it.
         self._wallpaper_overlay = content_overlay
         self._chrome_visibility = {
@@ -942,7 +942,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             if child is not content_overlay
         }
 
-        self.set_content(toolbar_view)
+        self.set_content(content)
         if self._favorites_load_warning and not self._plain:
             GLib.idle_add(self._show_favorites_load_warning)
         if self._tags_load_warning and not self._plain:
