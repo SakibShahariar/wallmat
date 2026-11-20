@@ -531,6 +531,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._header_bar.set_show_end_title_buttons(True)
         self._header_bar.set_visible(not plain)
 
+        self._search_toggle = Gtk.ToggleButton(icon_name="system-search-symbolic")
+        self._search_toggle.set_tooltip_text("Filter wallpapers (Ctrl+F)")
+        self._search_toggle.set_visible(not plain)
+        self._search_toggle.connect("toggled", self._on_search_toggle)
+        self._header_bar.pack_start(self._search_toggle)
+
         self._header_menu_button = Gtk.MenuButton(icon_name="open-menu-symbolic")
         self._header_menu_button.set_tooltip_text("Main menu")
         self._header_menu_button.set_visible(not plain)
@@ -605,6 +611,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         filter_bar.set_margin_bottom(6)
         filter_bar.set_hexpand(True)
         filter_bar.set_visible(not plain)
+        self._filter_bar = filter_bar
 
         def filter_chip(label, widget):
             chip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
@@ -772,13 +779,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         action_row.set_column_spacing(8)
         action_row.set_hexpand(True)
         action_row.set_halign(Gtk.Align.FILL)
-        action_row.set_margin_top(8)
-        action_row.set_margin_bottom(10)
+        action_row.set_margin_top(4)
+        action_row.set_margin_bottom(8)
 
-        # Keep layout selection available without restoring a header bar.
-        layout_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        layout_row.set_halign(Gtk.Align.CENTER)
-        layout_row.set_margin_top(8)
+        # Layout shortcuts stay available via Ctrl+1..Ctrl+8, and the folder
+        # action lives in the header menu instead of a separate bottom row.
         self._layout_ids = list(LAYOUT_REGISTRY)
         self._layout_labels = [
             "Split-Screen Preview",
@@ -790,32 +795,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             "Radial Fan",
             "Cylindrical Ring",
         ]
-        # Layouts are chosen at startup (settings app or --layout) or with
-        # Ctrl+1..Ctrl+8; no dropdown clutters the wallpaper view.
-        self.folder_menu_button = Gtk.MenuButton()
-        self.folder_menu_button.set_label("Folder")
-        self.folder_menu_button.set_tooltip_text("Wallpaper folder actions")
-        folder_popover = Gtk.Popover()
-        folder_actions = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL, spacing=4
-        )
-        folder_actions.set_margin_top(6)
-        folder_actions.set_margin_bottom(6)
-        folder_actions.set_margin_start(6)
-        folder_actions.set_margin_end(6)
-        choose_folder_action = Gtk.Button(label="Choose wallpaper folder…")
-        choose_folder_action.connect("clicked", self._on_choose_folder)
-        folder_actions.append(choose_folder_action)
-        folder_popover.set_child(folder_actions)
-        self.folder_menu_button.set_popover(folder_popover)
-        self.folder_menu_button.set_visible(not self._plain)
-        layout_row.append(self.folder_menu_button)
         # The secondary actions live in the header bar's menu button.
         self.more_menu_button = self._header_menu_button
         # Shortcut help stays available via '?' only; no button needed.
-        content.append(layout_row)
 
         self.set_wallpaper_button = Gtk.Button(label="Set as wallpaper")
+        self.set_wallpaper_button.add_css_class("suggested-action")
         self.set_wallpaper_button.set_sensitive(False)
         self.set_wallpaper_button.connect("clicked", self._on_apply_wallpaper)
         self.preview_button = Gtk.Button(label="Preview")
@@ -825,7 +810,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.preview_button.set_sensitive(False)
         self.preview_button.connect("clicked", self._on_open_preview)
         self.apply_matugen_button = Gtk.Button(label="Apply wallpaper + Matugen")
-        self.apply_matugen_button.add_css_class("suggested-action")
         self.apply_matugen_button.set_sensitive(False)
         self.apply_matugen_button.connect("clicked", self._on_apply_matugen)
         self.preview_matugen_button = Gtk.Button(label="Preview Matugen colors…")
@@ -927,6 +911,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         more_actions.set_margin_bottom(8)
         more_actions.set_margin_start(8)
         more_actions.set_margin_end(8)
+        folder_action = Gtk.Button(label="Choose wallpaper folder…")
+        folder_action.connect("clicked", self._on_choose_folder)
+        more_actions.append(folder_action)
+        more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
         rotation_heading = Gtk.Label(label="Wallpaper rotation")
         rotation_heading.set_xalign(0.0)
         rotation_heading.add_css_class("heading")
@@ -1530,6 +1518,20 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             hint = getattr(layout, "hint_label", None)
             if hint is not None:
                 hint.set_visible(not enabled)
+
+    def _set_search_visible(self, visible: bool):
+        """Show/hide the search chip and keep the header toggle in sync."""
+        self.search_entry.set_visible(visible)
+        if self._search_toggle.get_active() != visible:
+            self._search_toggle.set_active(visible)
+        if visible:
+            self.search_entry.grab_focus()
+        else:
+            self.search_entry.set_text("")
+            self.stack.grab_focus()
+
+    def _on_search_toggle(self, button):
+        self._set_search_visible(button.get_active())
 
     def _on_search_changed(self, entry):
         if not self._plain:
@@ -3866,8 +3868,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self._show_shortcuts()
             return True
         if keyval == Gdk.KEY_f and state & Gdk.ModifierType.CONTROL_MASK:
-            self.search_entry.set_visible(True)
-            self.search_entry.grab_focus()
+            self._set_search_visible(True)
             return True
         if keyval == Gdk.KEY_o and state & Gdk.ModifierType.CONTROL_MASK:
             self._on_choose_folder(None)
@@ -3878,9 +3879,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 if not self._preference.persistent:
                     self._apply_seamless()
             elif self.search_entry.get_visible():
-                self.search_entry.set_text("")
-                self.search_entry.set_visible(False)
-                self.stack.grab_focus()
+                self._set_search_visible(False)
             else:
                 self.close()
             return True

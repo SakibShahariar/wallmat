@@ -143,6 +143,17 @@ class RuntimeWiringTests(unittest.TestCase):
             self.assertIn("def get_position", layout, name)
             self.assertIn("def restore_position", layout, name)
 
+    def test_polished_action_layout_wiring(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn("Gtk.ToggleButton(icon_name=\"system-search-symbolic\")", source)
+        self.assertIn("def _set_search_visible", source)
+        self.assertIn("self._set_search_visible(True)", source)
+        self.assertIn("self._set_search_visible(False)", source)
+        self.assertIn('Gtk.Button(label="Choose wallpaper folder…")', source)
+        self.assertIn("self.set_wallpaper_button.add_css_class(\"suggested-action\")", source)
+        self.assertNotIn("self.apply_matugen_button.add_css_class", source)
+        self.assertNotIn("layout_row.append(self.folder_menu_button)", source)
+
     def test_compact_filter_bar_wiring(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn("filter_bar = Gtk.FlowBox()", source)
