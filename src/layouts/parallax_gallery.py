@@ -315,7 +315,9 @@ class ParallaxGalleryLayout(WallLayout):
         picture = Gtk.Picture()
         picture.set_content_fit(Gtk.ContentFit.COVER)
         picture.set_size_request(320, 400)
-        picture.set_opacity(0.35)  # dimmed, per spec's "background... fade"-style depth cue
+        # Keep the background layer opaque: a dimmed layer looks
+        # see-through once the window backdrop itself is transparent.
+        picture.set_opacity(1.0)
         picture.set_halign(Gtk.Align.CENTER)
         picture.set_valign(Gtk.Align.CENTER)
         picture.set_hexpand(False)

@@ -83,8 +83,9 @@ _CSS_TEMPLATE = b"""
 .glass-card {
     background-color: rgba(255,255,255,0.06);
     border-radius: 16px;
-    opacity: 0.5;
-    transition: opacity 200ms ease;
+    /* Wallpapers stay fully opaque: with a transparent window backdrop,
+       dimming makes the images look see-through. */
+    opacity: 1.0;
 }
 .glass-card.active {
     opacity: 1.0;
