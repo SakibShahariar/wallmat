@@ -143,6 +143,16 @@ class RuntimeWiringTests(unittest.TestCase):
             self.assertIn("def get_position", layout, name)
             self.assertIn("def restore_position", layout, name)
 
+    def test_backup_export_section_picker_wiring(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn("Export backup sections", source)
+        self.assertIn("sections=selected", source)
+        self.assertIn("Select at least one section to export.", source)
+        self.assertIn("if imported[\"favorites\"] is not None", source)
+        self.assertIn("if imported[\"preferences\"] is not None", source)
+        storage = (SRC / "backup_storage.py").read_text(encoding="utf-8")
+        self.assertIn("BACKUP_SECTIONS", storage)
+
     def test_close_saves_current_layout_position(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         tree = ast.parse(source, filename="window.py")

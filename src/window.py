@@ -67,7 +67,7 @@ from wallpaper_history import (
     for_collection,
 )
 from favorites_storage import decode_favorites, encode_favorites
-from backup_storage import encode_backup, decode_backup
+from backup_storage import BACKUP_SECTIONS, encode_backup, decode_backup
 from matugen_preview import build_preview_command, parse_preview_output
 from tags_storage import decode_tags, encode_tags, normalize_tags
 from collections_storage import decode_collections, encode_collections, normalize_collection_name
@@ -2663,15 +2663,67 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         dialog.present()
 
     def _on_export_backup(self, _button):
-        dialog = Gtk.FileChooserNative.new(
-            "Export Wallmat backup", self, Gtk.FileChooserAction.SAVE,
-            "Export", "Cancel",
+        picker = Gtk.Dialog(
+            title="Export backup sections", transient_for=self, modal=True
         )
-        dialog.set_current_name("wallmat-backup.json")
-        dialog.connect("response", self._on_backup_export_response)
-        dialog.show()
+        picker.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        picker.add_button("Choose file…", Gtk.ResponseType.ACCEPT)
+        picker.set_default_response(Gtk.ResponseType.ACCEPT)
+        content = picker.get_content_area()
+        content.set_spacing(8)
+        content.set_margin_top(16)
+        content.set_margin_bottom(16)
+        content.set_margin_start(16)
+        content.set_margin_end(16)
+        description = Gtk.Label(
+            label="Choose which data to include. Unselected sections are left "
+                  "untouched if this backup is restored later."
+        )
+        description.set_wrap(True)
+        description.set_xalign(0.0)
+        content.append(description)
+        checks = {}
+        for section in BACKUP_SECTIONS:
+            check = Gtk.CheckButton(
+                label={
+                    "favorites": "Favorites",
+                    "tags": "Wallpaper tags",
+                    "collections": "Collections",
+                    "preferences": "Preferences and settings",
+                }[section]
+            )
+            check.set_active(True)
+            content.append(check)
+            checks[section] = check
 
-    def _on_backup_export_response(self, dialog, response):
+        def on_picker_response(current, response):
+            selected = [
+                section for section in BACKUP_SECTIONS
+                if checks[section].get_active()
+            ]
+            current.destroy()
+            if response != Gtk.ResponseType.ACCEPT:
+                return
+            if not selected:
+                say("Select at least one section to export.")
+                return
+            chooser = Gtk.FileChooserNative.new(
+                "Export Wallmat backup", self, Gtk.FileChooserAction.SAVE,
+                "Export", "Cancel",
+            )
+            chooser.set_current_name("wallmat-backup.json")
+            chooser.connect(
+                "response",
+                lambda _dialog, result: self._on_backup_export_response(
+                    _dialog, result, sections=selected
+                ),
+            )
+            chooser.show()
+
+        picker.connect("response", on_picker_response)
+        picker.present()
+
+    def _on_backup_export_response(self, dialog, response, sections=None):
         try:
             if response != Gtk.ResponseType.ACCEPT:
                 return
@@ -2683,6 +2735,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             backup = encode_backup(
                 self._favorites, self._wallpaper_dir,
                 self._preference.export_values(), self._tags, self._collections,
+                sections=sections,
             )
             temporary_path = path + ".tmp"
             try:
@@ -2727,11 +2780,18 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         finally:
             dialog.destroy()
 
-        restore_sections = ["favorites", "preferences"]
+        restore_sections = []
+        if imported["favorites"] is not None:
+            restore_sections.append("favorites")
         if imported["tags"] is not None:
-            restore_sections.insert(1, "wallpaper tags")
+            restore_sections.append("wallpaper tags")
         if imported["collections"] is not None:
-            restore_sections.insert(-1, "collections")
+            restore_sections.append("collections")
+        if imported["preferences"] is not None:
+            restore_sections.append("preferences")
+        if not restore_sections:
+            say("The backup contains no data to restore.")
+            return
         confirmation = Adw.MessageDialog.new(
             self,
             "Restore Wallmat backup?",
@@ -2761,7 +2821,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 if imported["collections"] is not None and self._collections_write_blocked:
                     say("Collections cannot be restored because their recovery backup failed.")
                     return
-                self._favorites = set(imported["favorites"])
+                if imported["favorites"] is not None:
+                    self._favorites = set(imported["favorites"])
                 if imported["tags"] is not None:
                     self._tags = {
                         path: set(tags) for path, tags in imported["tags"].items()
@@ -2777,9 +2838,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                         self._save_tags()
                     if imported["collections"] is not None:
                         self._save_collections()
-                    self._preference.import_values(imported["preferences"])
+                    if imported["preferences"] is not None:
+                        self._preference.import_values(imported["preferences"])
                 except (OSError, ValueError, TypeError) as error:
-                    self._favorites = old_favorites
+                    if imported["favorites"] is not None:
+                        self._favorites = old_favorites
                     self._tags = old_tags
                     self._collections = old_collections
                     try:
@@ -2788,7 +2851,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                             self._save_tags()
                         if imported["collections"] is not None:
                             self._save_collections()
-                        self._preference.import_values(old_preferences)
+                        if imported["preferences"] is not None:
+                            self._preference.import_values(old_preferences)
                     except (OSError, ValueError, TypeError):
                         pass
                     say(f"Could not restore Wallmat backup: {error}")

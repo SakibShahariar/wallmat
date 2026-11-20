@@ -12,6 +12,10 @@ from placement import MODES
 BACKUP_FORMAT = "dev.sakib.Wallmat.backup"
 BACKUP_VERSION = 3
 
+# Sections a user may choose to include in an export. Order is stable so
+# backups remain diffable and the section list is easy to read.
+BACKUP_SECTIONS = ("favorites", "tags", "collections", "preferences")
+
 # Keep this allow-list aligned with data/dev.sakib.Wallmat.gschema.xml.
 # It intentionally excludes transient state and unknown future settings.
 _STRING_SETTINGS = {
@@ -118,9 +122,25 @@ def validate_preferences(preferences):
     return validated
 
 
-def encode_backup(favorites, wallpaper_root, preferences, tags=None, collections=None):
-    """Build a JSON-compatible backup without mutating application state."""
-    return {
+def encode_backup(favorites, wallpaper_root, preferences, tags=None, collections=None,
+                  sections=None):
+    """Build a JSON-compatible backup without mutating application state.
+
+    ``sections`` optionally limits which data sections are included; omitted
+    sections are written as null and listed in ``sections`` so a restore knows
+    not to replace the user's current data for them. The default includes all
+    sections and keeps the original on-disk shape for compatibility.
+    """
+    if sections is not None:
+        names = list(sections)
+        if len(set(names)) != len(names):
+            raise ValueError("sections must not contain duplicates")
+    else:
+        names = list(BACKUP_SECTIONS)
+    selected = set(names)
+    if not selected or not selected.issubset(BACKUP_SECTIONS):
+        raise ValueError("sections must be a non-empty subset of the backup sections")
+    data = {
         "format": BACKUP_FORMAT,
         "version": BACKUP_VERSION,
         "favorites": encode_favorites(favorites, wallpaper_root),
@@ -128,6 +148,13 @@ def encode_backup(favorites, wallpaper_root, preferences, tags=None, collections
         "collections": encode_collections({} if collections is None else collections),
         "preferences": validate_preferences(preferences),
     }
+    if len(selected) == len(BACKUP_SECTIONS):
+        return data
+    for section in BACKUP_SECTIONS:
+        if section not in selected:
+            data[section] = None
+    data["sections"] = [section for section in BACKUP_SECTIONS if section in selected]
+    return data
 
 
 def decode_backup(data, current_root):
@@ -144,14 +171,44 @@ def decode_backup(data, current_root):
         expected_fields.add("tags")
     if version >= 3:
         expected_fields.add("collections")
-    if set(data) != expected_fields:
+    has_sections = version >= 3 and "sections" in data
+    allowed_fields = set(expected_fields) | ({"sections"} if has_sections else set())
+    if set(data) != allowed_fields:
         raise ValueError("backup contains missing or unexpected top-level fields")
 
-    # Validate every section before callers write any current user data.
-    favorites = decode_favorites(data["favorites"], current_root)
-    preferences = validate_preferences(data["preferences"])
-    tags = decode_tags(data["tags"], current_root) if version >= 2 else None
-    collections = decode_collections(data["collections"]) if version >= 3 else None
+    if has_sections:
+        names = data["sections"]
+        if (
+            not isinstance(names, list) or not names
+            or any(name not in BACKUP_SECTIONS for name in names)
+            or len(set(names)) != len(names)
+        ):
+            raise ValueError("backup sections are invalid")
+        included = set(names)
+    else:
+        included = set(expected_fields) & set(BACKUP_SECTIONS)
+
+    # Validate every included section before callers write any current data.
+    def section_value(name):
+        return data.get(name) if name in included else None
+
+    favorites_data = section_value("favorites")
+    preferences_data = section_value("preferences")
+    tags_data = section_value("tags")
+    collections_data = section_value("collections")
+    if favorites_data is not None and not isinstance(favorites_data, (list, dict)):
+        raise ValueError("favorites must be a list or object")
+    if preferences_data is not None and not isinstance(preferences_data, dict):
+        raise ValueError("preferences must be an object")
+    if tags_data is not None and not isinstance(tags_data, (list, dict)):
+        raise ValueError("tags must be a list or object")
+    if collections_data is not None and not isinstance(collections_data, dict):
+        raise ValueError("collections must be an object")
+
+    favorites = decode_favorites(favorites_data, current_root) if favorites_data is not None else None
+    preferences = validate_preferences(preferences_data) if preferences_data is not None else None
+    tags = decode_tags(tags_data, current_root) if tags_data is not None else None
+    collections = decode_collections(collections_data) if collections_data is not None else None
     return {
         "favorites": favorites,
         "preferences": preferences,

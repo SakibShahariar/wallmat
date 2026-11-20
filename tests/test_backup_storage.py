@@ -44,6 +44,41 @@ class BackupStorageTests(unittest.TestCase):
             restored["collections"], {"Nature": [str(self.favorite)]}
         )
 
+    def test_selective_export_omits_unselected_sections(self):
+        tags = {str(self.favorite): {"Nature"}}
+        collections = {"Nature": [str(self.favorite)]}
+        backup = encode_backup(
+            {str(self.favorite)}, str(self.root), {"sort-mode": "name"},
+            tags, collections, sections=["tags"],
+        )
+        self.assertEqual(backup["sections"], ["tags"])
+        self.assertIsNone(backup["favorites"])
+        self.assertIsNone(backup["collections"])
+        self.assertIsNone(backup["preferences"])
+        restored = decode_backup(backup, str(self.root))
+        self.assertIsNone(restored["favorites"])
+        self.assertEqual(restored["tags"], tags)
+        self.assertIsNone(restored["collections"])
+        self.assertIsNone(restored["preferences"])
+
+    def test_full_export_keeps_original_shape(self):
+        backup = encode_backup(set(), str(self.root), {"sort-mode": "name"})
+        self.assertNotIn("sections", backup)
+        self.assertEqual(set(backup), {"format", "version", "favorites",
+                                        "tags", "collections", "preferences"})
+
+    def test_rejects_invalid_section_selection(self):
+        for bad in ([], ["unknown"], ["tags", "tags"]):
+            with self.subTest(bad=bad):
+                with self.assertRaises(ValueError):
+                    encode_backup(set(), str(self.root), {}, sections=bad)
+
+    def test_selective_backup_rejects_tampered_sections(self):
+        backup = encode_backup(set(), str(self.root), {}, sections=["tags"])
+        backup["sections"] = ["nope"]
+        with self.assertRaises(ValueError):
+            decode_backup(backup, str(self.root))
+
     def test_layout_positions_validation(self):
         preferences = {"layout-positions": '{"split_screen": 5}'}
         backup = encode_backup(set(), str(self.root), preferences)
