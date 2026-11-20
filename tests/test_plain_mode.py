@@ -20,6 +20,12 @@ class PlainModeContractTests(unittest.TestCase):
             {0, 2, 3, 4},
         )
 
+    def test_app_has_default_plain_exit_code(self):
+        # A second instance forwards to the running one and run() returns
+        # without activating; main() must still have a status to return.
+        source = (Path(__file__).resolve().parents[1] / "src" / "main.py").read_text()
+        self.assertIn("self.plain_exit_code = CANCELLED", source)
+
     def test_existing_directory_is_valid(self):
         with tempfile.TemporaryDirectory() as directory:
             self.assertIsNone(validate_directory(directory))

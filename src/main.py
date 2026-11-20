@@ -38,7 +38,7 @@ GLib.set_prgname("wallmat")
 
 sys.path.insert(0, os.path.dirname(__file__))
 from window import WallpaperChooserWindow, LAYOUT_REGISTRY
-from plain_mode import INVALID_DIRECTORY, validate_directory
+from plain_mode import CANCELLED, INVALID_DIRECTORY, validate_directory
 
 
 class WallpaperChooserApp(Adw.Application):
@@ -50,6 +50,9 @@ class WallpaperChooserApp(Adw.Application):
         self.wallpaper_dir = wallpaper_dir
         self.initial_layout_id = initial_layout_id
         self.plain = plain
+        # Always defined: another instance may own the app id, in which case
+        # run() returns without activating and no window sets this.
+        self.plain_exit_code = CANCELLED
         self.matugen_args = matugen_args or ["--type", "scheme-smart", "--mode", "dark"]
 
     def do_activate(self):
