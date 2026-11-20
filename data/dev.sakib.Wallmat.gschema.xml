@@ -80,6 +80,16 @@
       <summary>Thumbnail cache size limit in MiB</summary>
       <description>Maximum size of the on-disk thumbnail cache before old files are pruned.</description>
     </key>
+    <key name="wallpaper-placement" type="s">
+      <default>'fill'</default>
+      <summary>Wallpaper image placement mode</summary>
+      <description>One of fill, fit, center, or stretch where the desktop exposes a supported setting.</description>
+    </key>
+    <key name="placement-background" type="s">
+      <default>'#000000'</default>
+      <summary>Background color for fit and center placement</summary>
+      <description>GdkRGBA color used for unused space when wallpapers are fitted or centered.</description>
+    </key>
     <key name="layout-positions" type="s">
       <default>'{}'</default>
       <summary>Per-layout saved indices</summary>

@@ -51,6 +51,7 @@ from random_selection import (
 )
 from cache_utils import set_cache_limit_mb
 from color_palette import PaletteCache, extract_families, FAMILIES
+from placement import apply_gnome_placement, supported_modes, MODES
 from schedule import (
     parse_schedule, active_period, SchedulePeriod, serialize_schedule,
     parse_clock, format_clock, MAX_PERIODS, period_candidates,
@@ -96,6 +97,8 @@ SEAMLESS_KEY = "seamless-mode"
 SEAMLESS_BACKDROP_KEY = "seamless-backdrop"
 ROTATION_SCHEDULE_KEY = "rotation-schedule"
 LAYOUT_POSITIONS_KEY = "layout-positions"
+PLACEMENT_KEY = "wallpaper-placement"
+PLACEMENT_BACKGROUND_KEY = "placement-background"
 
 # Seamless mode: only the wallpaper stack is visible, with a see-through
 # or blurred window background. GTK4's CSS parser accepts backdrop-filter;
@@ -196,6 +199,8 @@ class _LayoutPreference:
             SEAMLESS_BACKDROP_KEY: "blurred",
             ROTATION_SCHEDULE_KEY: "[]",
             LAYOUT_POSITIONS_KEY: "{}",
+            PLACEMENT_KEY: "fill",
+            PLACEMENT_BACKGROUND_KEY: "#000000",
         }
         try:
             schema_source = Gio.SettingsSchemaSource.get_default()
@@ -319,6 +324,8 @@ class _LayoutPreference:
             SEAMLESS_BACKDROP_KEY: self.get_string(SEAMLESS_BACKDROP_KEY, "blurred"),
             ROTATION_SCHEDULE_KEY: self.get_string(ROTATION_SCHEDULE_KEY, "[]"),
             LAYOUT_POSITIONS_KEY: self.get_string(LAYOUT_POSITIONS_KEY, "{}"),
+            PLACEMENT_KEY: self.get_string(PLACEMENT_KEY, "fill"),
+            PLACEMENT_BACKGROUND_KEY: self.get_string(PLACEMENT_BACKGROUND_KEY, "#000000"),
         }
 
     def import_values(self, values: dict):
@@ -328,7 +335,7 @@ class _LayoutPreference:
                 SETTINGS_KEY, FILTER_KEY, SORT_KEY, LAST_FOLDER_KEY,
                 SELECTED_PATH_KEY, MATUGEN_ARGS_KEY, WALLPAPER_TARGET_KEY,
                 SEAMLESS_BACKDROP_KEY, ROTATION_SCHEDULE_KEY,
-                LAYOUT_POSITIONS_KEY,
+                LAYOUT_POSITIONS_KEY, PLACEMENT_KEY, PLACEMENT_BACKGROUND_KEY,
             }:
                 self.set_string(key, value)
             elif key in (FAVORITES_ONLY_KEY, SEAMLESS_KEY):
@@ -3332,6 +3339,15 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             if not updated:
                 say("GNOME exposes no supported wallpaper URI setting.")
                 return False
+            mode = self._preference.get_string(PLACEMENT_KEY, "fill")
+            if mode not in MODES:
+                mode = "fill"
+            if not apply_gnome_placement(
+                settings, mode,
+                self._preference.get_string(PLACEMENT_BACKGROUND_KEY, "#000000"),
+            ):
+                say(f"Image placement {mode!r} is not supported by this desktop; "
+                    "the wallpaper was still applied.")
             self._record_applied_history(path)
             self._remember_recent_path(path)
             say(f"Wallpaper applied: {path}")

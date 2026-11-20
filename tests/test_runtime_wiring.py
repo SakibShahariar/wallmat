@@ -115,6 +115,17 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("Adw.ShortcutsItem.new", source)
         self.assertNotIn("shortcuts_button", source)
 
+    def test_placement_wiring(self):
+        schema = (Path(__file__).resolve().parents[1] / "data"
+                  / "dev.sakib.Wallmat.gschema.xml").read_text(encoding="utf-8")
+        self.assertIn('name="wallpaper-placement"', schema)
+        self.assertIn('name="placement-background"', schema)
+        window_src = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn("apply_gnome_placement", window_src)
+        settings_src = (SRC / "settings.py").read_text(encoding="utf-8")
+        self.assertIn("def _on_placement", settings_src)
+        self.assertTrue((SRC / "placement.py").exists())
+
     def test_layout_position_restore_wiring(self):
         schema = (Path(__file__).resolve().parents[1] / "data"
                   / "dev.sakib.Wallmat.gschema.xml").read_text(encoding="utf-8")

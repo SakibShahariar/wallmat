@@ -6,6 +6,7 @@ from favorites_storage import decode_favorites, encode_favorites
 from tags_storage import decode_tags, encode_tags
 from collections_storage import decode_collections, encode_collections
 from schedule import parse_schedule, serialize_schedule
+from placement import MODES
 
 
 BACKUP_FORMAT = "dev.sakib.Wallmat.backup"
@@ -24,6 +25,8 @@ _STRING_SETTINGS = {
     "seamless-backdrop",
     "rotation-schedule",
     "layout-positions",
+    "wallpaper-placement",
+    "placement-background",
 }
 _BOOLEAN_SETTINGS = {"favorites-only", "seamless-mode"}
 _INTEGER_SETTINGS = {
@@ -79,6 +82,11 @@ def validate_preferences(preferences):
                     value = serialize_schedule(parse_schedule(value))
                 except ValueError as error:
                     raise ValueError(f"rotation-schedule is invalid: {error}") from error
+            if key == "wallpaper-placement" and value not in MODES:
+                raise ValueError("wallpaper-placement is not a supported mode")
+            if key == "placement-background":
+                if not isinstance(value, str) or len(value) > 64:
+                    raise ValueError("placement-background must be a short color string")
             if key == "layout-positions":
                 try:
                     positions = json.loads(value)

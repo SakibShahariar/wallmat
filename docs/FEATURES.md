@@ -63,6 +63,7 @@ focus.
 - **Escape** — clear the filter, or close the window when the filter is hidden.
 - **?** — open the keyboard shortcut cheatsheet.
 - **Ctrl + 1…8** — switch layouts without restarting (in the registry order shown by `--help`/settings). The startup layout can also be chosen in Wallmat Settings.
+- **Image placement** — Wallmat Settings → Image placement lets you choose Fill/crop, Fit, Center, or Stretch. The mode is applied through the desktop's supported setting (e.g. GNOME `picture-options`); unsupported modes are listed as such and never silently misapplied. Fit/Center use an explicit background color for unused space. The source image is never modified.
 - **Backdrop** — the app window never uses a solid background: the area around layouts is transparent or blurred, chosen in Wallmat Settings.
 - **Ctrl + Shift + S** — toggle Seamless mode, which additionally hides every control so only the wallpaper view remains. Press it again or Escape to return to the normal view.
 

@@ -27,6 +27,7 @@ from window import (
     SCHEMA_ID, ROTATION_INTERVALS, LAYOUT_REGISTRY, _LayoutPreference,
 )
 from backup_storage import encode_backup, decode_backup
+from placement import MODES, MODE_LABELS, supported_modes
 from favorites_storage import decode_favorites, encode_favorites
 from tags_storage import decode_tags, encode_tags
 from collections_storage import decode_collections, encode_collections
@@ -248,6 +249,41 @@ class WallmatSettingsApp(Adw.Application):
         group.add(hint)
 
         page.add(group)
+
+        placement = Adw.PreferencesGroup()
+        placement.set_title("Image placement")
+        placement.set_description(
+            "Controls how the desktop fits the image; the source file is never changed."
+        )
+        current_mode = self.preference.get_string("wallpaper-placement", "fill")
+        if current_mode not in MODES:
+            current_mode = "fill"
+        mode_row, self.placement_keys = _combo(
+            [(mode, MODE_LABELS[mode]) for mode in MODES], current_mode
+        )
+        mode_row.set_title("Placement mode")
+        try:
+            gnome = Gio.Settings.new("org.gnome.desktop.background")
+            available = supported_modes(gnome.get_range("picture-options")[1])
+            mode_row.set_subtitle(
+                "Supported here: " + ", ".join(
+                    MODE_LABELS[m] for m in MODES if m in available
+                )
+            )
+        except (GLib.Error, TypeError, IndexError):
+            mode_row.set_subtitle(
+                "This desktop does not expose placement settings."
+            )
+        mode_row.connect("notify::selected", self._on_placement)
+        placement.add(mode_row)
+
+        color = Adw.EntryRow()
+        color.set_title("Background color for Fit / Center")
+        color.set_text(self.preference.get_string("placement-background", "#000000"))
+        color.connect("changed", self._on_placement_background)
+        placement.add(color)
+
+        page.add(placement)
         return page
 
     def _storage_page(self):
@@ -331,6 +367,13 @@ class WallmatSettingsApp(Adw.Application):
 
     def _on_history(self, row, _pspec):
         self.preference.set_int("random-history-limit", int(row.get_value()))
+
+    def _on_placement(self, row, _pspec):
+        self.preference.set_string("wallpaper-placement",
+                                   self.placement_keys[row.get_selected()])
+
+    def _on_placement_background(self, entry):
+        self.preference.set_string("placement-background", entry.get_text())
 
     def _on_background_service(self, row, _pspec):
         if row.get_active():
