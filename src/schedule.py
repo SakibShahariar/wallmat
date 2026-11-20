@@ -6,7 +6,10 @@ tests never need a real clock or timezone database.
 """
 
 import json
+import os
 from dataclasses import dataclass
+
+from wallpaper_scan import MAX_SCAN_DEPTH, scan_wallpapers
 
 MAX_PERIODS = 24
 SOURCE_TYPES = ("folder", "collection", "library")
@@ -113,6 +116,30 @@ def active_period(periods, minute: int):
         matches,
         key=lambda period: ((minute - period.start) % 1440, period.name),
     )
+
+
+def period_candidates(period, collections, folder_paths, wallpaper_dir,
+                      supported_exts, scan_depth=0):
+    """Resolve a period's source to existing wallpaper paths.
+
+    Shared by the interactive app and the background daemon so both pick
+    wallpapers from exactly the same sets.
+    """
+    if period.source_type == "library":
+        return [path for path in folder_paths if os.path.isfile(path)]
+    if period.source_type == "collection":
+        return [path for path in collections.get(period.source_value, [])
+                if os.path.isfile(path)]
+    root = os.path.abspath(period.source_value)
+    if not os.path.isdir(root):
+        return []
+    if root == os.path.abspath(wallpaper_dir or ""):
+        return [path for path in folder_paths if os.path.isfile(path)]
+    depth = max(0, min(int(scan_depth), MAX_SCAN_DEPTH))
+    paths, _errors, _truncated = scan_wallpapers(
+        root, supported_exts, max_wallpapers=10_000, max_depth=depth
+    )
+    return [path for path in paths if os.path.isfile(path)]
 
 
 def parse_schedule(text: str) -> list[SchedulePeriod]:

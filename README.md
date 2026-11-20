@@ -85,9 +85,10 @@ To add Wallmat and Wallmat Settings to your application menu, run:
 ```
 
 This installs desktop entries, an app icon and the GSettings schema under
-`$XDG_DATA_HOME` (`~/.local/share` by default), so preferences persist. Use
-`./install.sh --uninstall` to remove them. Log out and back in if the launcher
-does not appear immediately.
+`$XDG_DATA_HOME` (`~/.local/share` by default), so preferences persist. It also
+registers an autostart service that applies time-based wallpaper schedules even
+when Wallmat is closed. Use `./install.sh --uninstall` to remove them. Log out
+and back in if the launcher does not appear immediately.
 
 ## Settings
 

@@ -53,7 +53,7 @@ from cache_utils import set_cache_limit_mb
 from color_palette import PaletteCache, extract_families, FAMILIES
 from schedule import (
     parse_schedule, active_period, SchedulePeriod, serialize_schedule,
-    parse_clock, format_clock, MAX_PERIODS,
+    parse_clock, format_clock, MAX_PERIODS, period_candidates,
 )
 from wallpaper_scan import (
     MAX_SCAN_DEPTH, ScanCancelled, scan_wallpapers, scan_wallpaper_metadata,
@@ -537,6 +537,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         ):
             saved_sort_mode = "name"
         self._sort_mode = saved_sort_mode
+        self._schedule_source_id = None
+        self._last_schedule_period = None
         self._color_filter: str | None = None
         self._palette_cache = PaletteCache()
         self._palette_generation = 0
@@ -1415,6 +1417,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._preference.connect_changed(
             MATUGEN_ARGS_KEY, self._external_matugen_changed
         )
+        self._preference.connect_changed(
+            ROTATION_SCHEDULE_KEY, lambda: self._on_schedule_changed()
+        )
         self._preference.connect_changed(CACHE_LIMIT_KEY, self._external_cache_limit)
         self._preference.connect_changed(SEAMLESS_KEY, self._external_seamless_changed)
         self._preference.connect_changed(
@@ -1422,6 +1427,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         )
         self._external_cache_limit()
         self._apply_seamless()
+        self._on_schedule_changed()
         if not self._matugen_args_explicit:
             self._external_matugen_changed()
 
@@ -2793,6 +2799,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if self._search_timeout_id is not None:
             GLib.source_remove(self._search_timeout_id)
             self._search_timeout_id = None
+        if self._schedule_source_id is not None:
+            GLib.source_remove(self._schedule_source_id)
+            self._schedule_source_id = None
         return False
 
     def _on_auto_rotate_toggled(self, button):
@@ -2967,36 +2976,40 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             return []
 
     def _schedule_candidates(self, period):
-        """Resolve a period's source to existing wallpaper paths."""
-        if period.source_type == "library":
-            return [p for p in self._paths if os.path.isfile(p)]
-        if period.source_type == "collection":
-            return [p for p in self._collections.get(period.source_value, [])
-                    if os.path.isfile(p)]
-        root = os.path.abspath(period.source_value)
-        if not os.path.isdir(root):
-            return []
-        if root == self._wallpaper_dir:
-            return [p for p in self._folder_paths if os.path.isfile(p)]
-        paths, _errors, _truncated = scan_wallpapers(
-            root, getattr(self, "_supported_exts", set()),
-            max_wallpapers=MAX_WALLPAPERS,
-            max_depth=self._preference.get_int(SCAN_DEPTH_KEY, DEFAULT_SCAN_DEPTH),
+        return period_candidates(
+            period, self._collections, self._paths,
+            self._wallpaper_dir, getattr(self, "_supported_exts", set()),
+            self._preference.get_int(SCAN_DEPTH_KEY, DEFAULT_SCAN_DEPTH),
         )
-        return [p for p in paths if os.path.isfile(p)]
 
     def _on_auto_rotate_tick(self):
         if not self.auto_rotate_toggle.get_active():
             self._rotation_source_id = None
             return GLib.SOURCE_REMOVE
+        self._on_rotation_next(None)
+        return GLib.SOURCE_CONTINUE
+
+    def _on_schedule_changed(self):
+        """Start or stop the independent schedule timer."""
+        periods = self._load_schedule()
+        if periods and self._schedule_source_id is None:
+            self._schedule_source_id = GLib.timeout_add_seconds(
+                60, self._on_schedule_tick
+            )
+            self._on_schedule_tick()
+        elif not periods and self._schedule_source_id is not None:
+            GLib.source_remove(self._schedule_source_id)
+            self._schedule_source_id = None
+
+    def _on_schedule_tick(self):
+        """Apply the active period once per change; independent of rotation."""
         periods = self._load_schedule()
         if not periods:
-            self._on_rotation_next(None)
-            return GLib.SOURCE_CONTINUE
+            self._schedule_source_id = None
+            return GLib.SOURCE_REMOVE
         now = datetime.now().astimezone()
         active = active_period(periods, now.hour * 60 + now.minute)
-        if active is None:
-            say("No schedule period is active; the wallpaper was left unchanged.")
+        if active is None or active.name == self._last_schedule_period:
             return GLib.SOURCE_CONTINUE
         candidates = self._schedule_candidates(active)
         if not candidates:
@@ -3005,6 +3018,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             return GLib.SOURCE_CONTINUE
         path = self._choose_random_wallpaper(candidates)
         if path is not None:
+            self._last_schedule_period = active.name
             self._on_wallpaper_selected(None, path)
             self._on_apply_wallpaper(None)
         return GLib.SOURCE_CONTINUE

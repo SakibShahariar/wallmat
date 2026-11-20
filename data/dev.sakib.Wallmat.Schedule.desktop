@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Wallmat Schedule Service
+Comment=Apply scheduled wallpapers in the background
+Exec=@SCHEDULE_EXEC@
+TryExec=python3
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

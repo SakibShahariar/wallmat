@@ -10,6 +10,7 @@ startup require a restart, which is noted in the UI.
 
 import json
 import os
+import subprocess
 import sys
 
 import gi
@@ -32,6 +33,11 @@ from collections_storage import decode_collections, encode_collections
 from widgets.thumbnail_loader import CACHE_DIR
 from cache_utils import DEFAULT_CACHE_LIMIT_BYTES
 
+SOURCE_DIR = os.path.dirname(os.path.abspath(__file__))
+AUTOSTART_FILE = os.path.join(
+    os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")),
+    "autostart", "dev.sakib.Wallmat.Schedule.desktop",
+)
 CONFIG_DIR = os.path.expanduser("~/.config/wallmat")
 FAVORITES_FILE = os.path.join(CONFIG_DIR, "favorites.json")
 TAGS_FILE = os.path.join(CONFIG_DIR, "tags.json")
@@ -184,6 +190,19 @@ class WallmatSettingsApp(Adw.Application):
         display.add(backdrop_row)
 
         page.add(display)
+
+        service = Adw.PreferencesGroup()
+        service.set_title("Background service")
+        service.set_description(
+            "Apply the active schedule even when Wallmat is closed."
+        )
+        background = Adw.SwitchRow()
+        background.set_title("Run schedules in background")
+        background.set_subtitle("Start the schedule service at login")
+        background.set_active(os.path.exists(AUTOSTART_FILE))
+        background.connect("notify::active", self._on_background_service)
+        service.add(background)
+        page.add(service)
         return page
 
     def _wallpaper_page(self):
@@ -312,6 +331,37 @@ class WallmatSettingsApp(Adw.Application):
 
     def _on_history(self, row, _pspec):
         self.preference.set_int("random-history-limit", int(row.get_value()))
+
+    def _on_background_service(self, row, _pspec):
+        if row.get_active():
+            os.makedirs(os.path.dirname(AUTOSTART_FILE), exist_ok=True)
+            with open(AUTOSTART_FILE, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "[Desktop Entry]\nType=Application\n"
+                    "Name=Wallmat Schedule Service\n"
+                    f"Exec={sys.executable} {SOURCE_DIR}/schedule_daemon.py\n"
+                    "TryExec=python3\nTerminal=false\nNoDisplay=true\n"
+                    "X-GNOME-Autostart-enabled=true\n"
+                )
+            already_running = subprocess.run(
+                ["pgrep", "-f", "schedule_daemon.py"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                check=False,
+            ).returncode == 0
+            if not already_running:
+                try:
+                    subprocess.Popen(
+                        [sys.executable, f"{SOURCE_DIR}/schedule_daemon.py"],
+                        start_new_session=True,
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    )
+                except OSError:
+                    pass
+        else:
+            try:
+                os.remove(AUTOSTART_FILE)
+            except OSError:
+                pass
 
     def _on_seamless(self, row, _pspec):
         self.preference.set_boolean("seamless-mode", row.get_active())

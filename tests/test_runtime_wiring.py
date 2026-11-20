@@ -124,7 +124,11 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("def _schedule_candidates", source)
         self.assertIn("active_period(periods, now.hour", source)
         self.assertIn("self.manage_schedule_button", source)
+        self.assertIn("def _on_schedule_tick", source)
         self.assertTrue((SRC / "schedule.py").exists())
+        self.assertTrue((SRC / "schedule_daemon.py").exists())
+        installer = (Path(__file__).resolve().parents[1] / "install.sh").read_text()
+        self.assertIn("dev.sakib.Wallmat.Schedule.desktop", installer)
 
     def test_color_filter_wiring(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
