@@ -58,6 +58,14 @@ install() {
         > "$AUTOSTART/dev.sakib.Wallmat.Schedule.desktop"
     cp "$SOURCE_DIR/data/dev.sakib.Wallmat.svg" "$ICONS/dev.sakib.Wallmat.svg"
 
+    # A user-level hicolor directory needs its own index.theme before
+    # gtk-update-icon-cache will build a cache for it; without a cache the
+    # launcher falls back to image-missing.svg.
+    if [ ! -f "$DATA_HOME/icons/hicolor/index.theme" ] \
+            && [ -f /usr/share/icons/hicolor/index.theme ]; then
+        cp /usr/share/icons/hicolor/index.theme "$DATA_HOME/icons/hicolor/index.theme"
+    fi
+
     cp "$SOURCE_DIR/data/dev.sakib.Wallmat.gschema.xml" \
        "$SCHEMAS/dev.sakib.Wallmat.gschema.xml"
     glib-compile-schemas "$SCHEMAS"

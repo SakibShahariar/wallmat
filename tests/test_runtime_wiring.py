@@ -185,6 +185,8 @@ class RuntimeWiringTests(unittest.TestCase):
         installer = (root / "install.sh").read_text(encoding="utf-8")
         self.assertIn("--uninstall", installer)
         self.assertIn("glib-compile-schemas", installer)
+        self.assertIn("icons/hicolor/index.theme", installer)
+        self.assertIn("gtk-update-icon-cache", installer)
 
     def test_settings_app_and_shared_preferences(self):
         schema = (Path(__file__).resolve().parents[1] / "data"
