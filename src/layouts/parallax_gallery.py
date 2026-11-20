@@ -244,6 +244,12 @@ class ParallaxGalleryLayout(WallLayout):
 
         return outer
 
+    def get_position(self):
+        return self._focus
+
+    def restore_position(self, index):
+        self._set_focus(index, announce=False)
+
     def on_activate(self):
         self.fg_view.grab_focus()
 

@@ -115,6 +115,23 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("Adw.ShortcutsItem.new", source)
         self.assertNotIn("shortcuts_button", source)
 
+    def test_layout_position_restore_wiring(self):
+        schema = (Path(__file__).resolve().parents[1] / "data"
+                  / "dev.sakib.Wallmat.gschema.xml").read_text(encoding="utf-8")
+        self.assertIn('name="layout-positions"', schema)
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn("def _save_layout_position", source)
+        self.assertIn("def _restore_layout_position", source)
+        base = (SRC / "layouts" / "base.py").read_text(encoding="utf-8")
+        self.assertIn("def get_position", base)
+        self.assertIn("def restore_position", base)
+        for name in ("split_screen", "infinite_ribbon", "glassmorphism",
+                     "parallax_gallery", "masonry_grid", "radial_fan",
+                     "cylindrical_ring", "stacked_deck"):
+            layout = (SRC / "layouts" / f"{name}.py").read_text(encoding="utf-8")
+            self.assertIn("def get_position", layout, name)
+            self.assertIn("def restore_position", layout, name)
+
     def test_schedule_wiring(self):
         schema = (Path(__file__).resolve().parents[1] / "data"
                   / "dev.sakib.Wallmat.gschema.xml").read_text(encoding="utf-8")

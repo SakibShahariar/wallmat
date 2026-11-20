@@ -137,6 +137,12 @@ class MasonryGridLayout(WallLayout):
                 "masonry-grid", display, _CSS, Gtk.STYLE_PROVIDER_PRIORITY_USER
             )
 
+    def get_position(self):
+        return self.selection.get_selected()
+
+    def restore_position(self, index):
+        self.selection.set_selected(index)
+
     def on_activate(self):
         self.grid_view.grab_focus()
 

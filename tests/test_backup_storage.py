@@ -44,6 +44,15 @@ class BackupStorageTests(unittest.TestCase):
             restored["collections"], {"Nature": [str(self.favorite)]}
         )
 
+    def test_layout_positions_validation(self):
+        preferences = {"layout-positions": '{"split_screen": 5}'}
+        backup = encode_backup(set(), str(self.root), preferences)
+        self.assertEqual(decode_backup(backup, str(self.root))["preferences"],
+                         preferences)
+        with self.assertRaises(ValueError):
+            encode_backup(set(), str(self.root),
+                          {"layout-positions": '{"x": "five"}'})
+
     def test_schedule_survives_backup_roundtrip(self):
         schedule = (
             '[{"name":"night","start":"22:00","end":"06:00",'

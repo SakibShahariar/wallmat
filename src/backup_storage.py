@@ -1,5 +1,7 @@
 """Versioned, validated JSON backups for Wallmat user data."""
 
+import json
+
 from favorites_storage import decode_favorites, encode_favorites
 from tags_storage import decode_tags, encode_tags
 from collections_storage import decode_collections, encode_collections
@@ -21,6 +23,7 @@ _STRING_SETTINGS = {
     "wallpaper-target",
     "seamless-backdrop",
     "rotation-schedule",
+    "layout-positions",
 }
 _BOOLEAN_SETTINGS = {"favorites-only", "seamless-mode"}
 _INTEGER_SETTINGS = {
@@ -76,6 +79,16 @@ def validate_preferences(preferences):
                     value = serialize_schedule(parse_schedule(value))
                 except ValueError as error:
                     raise ValueError(f"rotation-schedule is invalid: {error}") from error
+            if key == "layout-positions":
+                try:
+                    positions = json.loads(value)
+                except (TypeError, ValueError) as error:
+                    raise ValueError("layout-positions is not valid JSON") from error
+                if not isinstance(positions, dict) or any(
+                    not isinstance(name, str) or type(index) is not int or index < 0
+                    for name, index in positions.items()
+                ):
+                    raise ValueError("layout-positions must map names to indices")
         elif key in _BOOLEAN_SETTINGS:
             if type(value) is not bool:
                 raise ValueError(f"{key} must be a boolean")

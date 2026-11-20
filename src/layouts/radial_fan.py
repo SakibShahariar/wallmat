@@ -414,6 +414,13 @@ class RadialFanLayout(WallLayout):
 
         return outer
 
+    def get_position(self):
+        return self.fan._front
+
+    def restore_position(self, index):
+        self.fan._front = index % max(1, len(self.fan._paths))
+        self.fan.queue_draw()
+
     def on_activate(self):
         self.fan.grab_focus()
 

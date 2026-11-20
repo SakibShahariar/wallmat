@@ -95,6 +95,7 @@ CACHE_LIMIT_KEY = "thumbnail-cache-limit-mb"
 SEAMLESS_KEY = "seamless-mode"
 SEAMLESS_BACKDROP_KEY = "seamless-backdrop"
 ROTATION_SCHEDULE_KEY = "rotation-schedule"
+LAYOUT_POSITIONS_KEY = "layout-positions"
 
 # Seamless mode: only the wallpaper stack is visible, with a see-through
 # or blurred window background. GTK4's CSS parser accepts backdrop-filter;
@@ -194,6 +195,7 @@ class _LayoutPreference:
             SEAMLESS_KEY: False,
             SEAMLESS_BACKDROP_KEY: "blurred",
             ROTATION_SCHEDULE_KEY: "[]",
+            LAYOUT_POSITIONS_KEY: "{}",
         }
         try:
             schema_source = Gio.SettingsSchemaSource.get_default()
@@ -316,6 +318,7 @@ class _LayoutPreference:
             SEAMLESS_KEY: self.get_boolean(SEAMLESS_KEY, False),
             SEAMLESS_BACKDROP_KEY: self.get_string(SEAMLESS_BACKDROP_KEY, "blurred"),
             ROTATION_SCHEDULE_KEY: self.get_string(ROTATION_SCHEDULE_KEY, "[]"),
+            LAYOUT_POSITIONS_KEY: self.get_string(LAYOUT_POSITIONS_KEY, "{}"),
         }
 
     def import_values(self, values: dict):
@@ -325,6 +328,7 @@ class _LayoutPreference:
                 SETTINGS_KEY, FILTER_KEY, SORT_KEY, LAST_FOLDER_KEY,
                 SELECTED_PATH_KEY, MATUGEN_ARGS_KEY, WALLPAPER_TARGET_KEY,
                 SEAMLESS_BACKDROP_KEY, ROTATION_SCHEDULE_KEY,
+                LAYOUT_POSITIONS_KEY,
             }:
                 self.set_string(key, value)
             elif key in (FAVORITES_ONLY_KEY, SEAMLESS_KEY):
@@ -1785,15 +1789,48 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                     if has_query else "This folder has no supported wallpaper images."
                 )
 
+    def _load_layout_positions(self) -> dict:
+        try:
+            data = json.loads(
+                self._preference.get_string(LAYOUT_POSITIONS_KEY, "{}")
+            )
+        except (ValueError, TypeError):
+            return {}
+        if not isinstance(data, dict):
+            return {}
+        return {
+            name: index for name, index in data.items()
+            if isinstance(name, str) and type(index) is int and index >= 0
+        }
+
+    def _save_layout_position(self, layout_id: str, index: int):
+        positions = self._load_layout_positions()
+        positions[layout_id] = index
+        self._preference.set_string(
+            LAYOUT_POSITIONS_KEY,
+            json.dumps(positions, sort_keys=True),
+        )
+
+    def _restore_layout_position(self, layout, index):
+        count = len(getattr(layout, "_paths", []))
+        if count and index < count:
+            layout.restore_position(index)
+
     def _switch_to(self, layout_id: str):
         if layout_id == self._current_layout_id:
             return
         if layout_id not in LAYOUT_REGISTRY:
             return
+        # The first switch happens before the saved wallpaper path is
+        # restored; let that take priority on startup.
+        restoring_initial = self._current_layout_id is None
 
         if self._current_layout_id is not None:
             old_layout = self._layouts.get(self._current_layout_id)
             if old_layout is not None:
+                old_position = old_layout.get_position()
+                if old_position is not None:
+                    self._save_layout_position(self._current_layout_id, old_position)
                 old_layout.on_deactivate()
 
         if layout_id not in self._layouts:
@@ -1812,6 +1849,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.stack.set_visible_child_name(layout_id)
         layout.on_activate()
         self._apply_hint_visibility()
+        saved_index = None if restoring_initial else self._load_layout_positions().get(layout_id)
+        if saved_index is not None:
+            GLib.idle_add(self._restore_layout_position, layout, saved_index)
         self._current_layout_id = layout_id
         if not self._plain:
             self._preference.set(layout_id)

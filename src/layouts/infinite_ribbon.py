@@ -98,6 +98,12 @@ class InfiniteRibbonLayout(WallLayout):
 
         return overlay
 
+    def get_position(self):
+        return self._focus
+
+    def restore_position(self, index):
+        self._set_focus(index, announce=False)
+
     def on_activate(self):
         self.carousel.list_view.grab_focus()
 

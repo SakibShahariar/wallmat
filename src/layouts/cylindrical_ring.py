@@ -392,6 +392,13 @@ class CylindricalRingLayout(WallLayout):
 
         return outer
 
+    def get_position(self):
+        return self.ring._focus
+
+    def restore_position(self, index):
+        self.ring._focus = index % max(1, len(self.ring._paths))
+        self.ring.queue_draw()
+
     def on_activate(self):
         self.ring.grab_focus()
 

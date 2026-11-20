@@ -246,6 +246,13 @@ class StackedDeckLayout(WallLayout):
 
         return outer
 
+    def get_position(self):
+        return self._deck_index
+
+    def restore_position(self, index):
+        self._deck_index = index % max(1, len(self._paths))
+        self.deck.queue_draw()
+
     def on_activate(self):
         self.deck.grab_focus()
 

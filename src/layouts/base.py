@@ -67,6 +67,14 @@ class WallLayout(GObject.Object):
         """
         return False
 
+    def get_position(self) -> int | None:
+        """Return the layout's current index, if it has one."""
+        return None
+
+    def restore_position(self, index: int) -> None:
+        """Restore a previously saved index. Optional override."""
+        pass
+
     def on_activate(self):
         """Called each time the user switches TO this layout. Optional override."""
         pass
