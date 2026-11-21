@@ -608,31 +608,40 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.sort_selector.set_tooltip_text("Sort wallpapers")
         self.sort_selector.connect("notify::selected", self._on_sort_selected)
 
-        # One compact, wrapping toolbar instead of a column of loose rows.
-        filter_bar = Gtk.FlowBox()
-        filter_bar.set_orientation(Gtk.Orientation.HORIZONTAL)
-        filter_bar.set_selection_mode(Gtk.SelectionMode.NONE)
-        filter_bar.set_max_children_per_line(24)
-        filter_bar.set_min_children_per_line(1)
-        filter_bar.set_row_spacing(6)
-        filter_bar.set_column_spacing(6)
-        filter_bar.set_margin_start(12)
-        filter_bar.set_margin_end(12)
-        filter_bar.set_margin_top(6)
-        filter_bar.set_margin_bottom(6)
-        filter_bar.set_hexpand(True)
-        filter_bar.set_visible(not plain)
-        self._filter_bar = filter_bar
+        # All sorting/filtering lives in one popover so the window shows only
+        # the wallpaper view and the primary action.
+        filters_popover = Gtk.Popover()
+        filters_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        filters_box.set_margin_top(10)
+        filters_box.set_margin_bottom(10)
+        filters_box.set_margin_start(10)
+        filters_box.set_margin_end(10)
+        filters_popover.set_child(filters_box)
+        self._filters_popover = filters_popover
+        self._filters_box = filters_box
+
+        filters_child = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        filters_child.append(Gtk.Image.new_from_icon_name("tune-symbolic"))
+        self._filters_label = Gtk.Label(label="Filters")
+        filters_child.append(self._filters_label)
+        self.filters_button = Gtk.MenuButton()
+        self.filters_button.set_child(filters_child)
+        self.filters_button.set_popover(filters_popover)
+        self.filters_button.set_tooltip_text("Sort and filter wallpapers")
+        self.filters_button.set_visible(not plain)
+        self.filters_button.set_halign(Gtk.Align.CENTER)
 
         def filter_chip(label, widget):
-            chip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-            chip.append(Gtk.Label(label=label))
+            chip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            lbl = Gtk.Label(label=label)
+            lbl.set_xalign(0.0)
+            lbl.set_hexpand(True)
+            chip.append(lbl)
+            widget.set_hexpand(True)
             chip.append(widget)
-            chip.add_css_class("wallmat-filter-chip")
             return chip
 
-        filter_bar.append(self.search_entry)
-        filter_bar.append(filter_chip("Sort", self.sort_selector))
+        filters_box.append(filter_chip("Sort", self.sort_selector))
 
         favorites_chip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         favorites_chip.append(Gtk.Image.new_from_icon_name("emblem-favorite-symbolic"))
@@ -642,14 +651,14 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.favorites_filter.set_active(self._favorites_only)
         self.favorites_filter.set_tooltip_text("Show only favorite wallpapers")
         self.favorites_filter.connect("toggled", self._on_favorites_filter_toggled)
-        filter_bar.append(self.favorites_filter)
+        filters_box.append(self.favorites_filter)
 
         self._tag_filter_values = [None]
         self._updating_tag_filter = False
         self.tag_filter = Gtk.DropDown.new_from_strings(["All tags"])
         self.tag_filter.set_tooltip_text("Filter wallpapers by tag")
         self.tag_filter.connect("notify::selected", self._on_tag_filter_changed)
-        filter_bar.append(filter_chip("Tag", self.tag_filter))
+        filters_box.append(filter_chip("Tag", self.tag_filter))
 
         self._color_families = [None, *FAMILIES]
         self.color_filter = Gtk.DropDown.new_from_strings(
@@ -659,14 +668,14 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             "Filter wallpapers by dominant color family"
         )
         self.color_filter.connect("notify::selected", self._on_color_filter_changed)
-        filter_bar.append(filter_chip("Color", self.color_filter))
+        filters_box.append(filter_chip("Color", self.color_filter))
 
         self._collection_selector_values = [None]
         self._updating_collection_selector = False
         self.collection_selector = Gtk.DropDown.new_from_strings(["Current folder"])
         self.collection_selector.set_tooltip_text("Switch between saved wallpaper collections")
         self.collection_selector.connect("notify::selected", self._on_collection_selected)
-        filter_bar.append(filter_chip("Collection", self.collection_selector))
+        filters_box.append(filter_chip("Collection", self.collection_selector))
 
         # Empty-state message covers both an empty directory and a filter
         # with no matching filenames.
@@ -682,14 +691,15 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         content_overlay.add_overlay(self._empty_state)
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        content.append(filter_bar)
+        content.append(self.search_entry)
+        content.append(self.filters_button)
 
         self._recent_paths: list[str] = []
         self._recent_selector = Gtk.DropDown.new_from_strings(["No recent wallpapers"])
         self._recent_selector.set_sensitive(False)
         self._recent_selector.set_tooltip_text("Reopen a recently selected wallpaper")
         self._recent_selector.connect("notify::selected", self._on_recent_selected)
-        filter_bar.append(filter_chip("Recent", self._recent_selector))
+        filters_box.append(filter_chip("Recent", self._recent_selector))
 
         self._metadata_row = Gtk.Box(
             orientation=Gtk.Orientation.HORIZONTAL, spacing=8
@@ -849,14 +859,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             "Choose and immediately apply a random wallpaper from the current filtered results"
         )
         self.surprise_button.connect("clicked", self._on_surprise_me)
-        for action_button in (
-            self.preview_button,
-            self.set_wallpaper_button,
-            self.apply_matugen_button,
-            self.favorite_button,
-            self.surprise_button,
-        ):
+        # Keep only Preview and the primary Set-as-wallpaper action visible;
+        # the rest stay reachable from the header menu.
+        for action_button in (self.preview_button, self.set_wallpaper_button):
             action_row.insert(action_button, -1)
+
         # Plain mode is a path picker for shell pipelines, not a desktop
         # wallpaper manager; keep unrelated apply/favorites actions hidden.
         action_row.set_visible(not self._plain)
@@ -937,6 +944,18 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         more_actions.set_margin_bottom(8)
         more_actions.set_margin_start(8)
         more_actions.set_margin_end(8)
+        self._more_actions = more_actions
+        secondary_heading = Gtk.Label(label="More actions")
+        secondary_heading.set_xalign(0.0)
+        secondary_heading.add_css_class("heading")
+        more_actions.append(secondary_heading)
+        for action_button in (
+            self.apply_matugen_button,
+            self.favorite_button,
+            self.surprise_button,
+        ):
+            more_actions.append(action_button)
+        more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
         folder_action = Gtk.Button(label="Choose wallpaper folder…")
         folder_action.connect("clicked", self._on_choose_folder)
         more_actions.append(folder_action)
@@ -1742,7 +1761,25 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         finally:
             self._updating_tag_filter = False
 
+    def _update_filters_badge(self):
+        """Show how many filters are active on the Filters button."""
+        count = 0
+        if self._favorites_only:
+            count += 1
+        if self.tag_filter.get_selected() > 0:
+            count += 1
+        if self._color_filter:
+            count += 1
+        if self._active_collection:
+            count += 1
+        if self.sort_selector.get_selected() != 0:
+            count += 1
+        if self.search_entry.get_text().strip():
+            count += 1
+        self._filters_label.set_label("Filters" if not count else f"Filters · {count}")
+
     def _refresh_filtered_paths(self):
+        self._update_filters_badge()
         query = self.search_entry.get_text().strip().casefold()
         if self._sort_mode == "newest":
             paths = sorted(

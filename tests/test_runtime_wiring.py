@@ -170,16 +170,18 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertNotIn("self.apply_matugen_button.add_css_class", source)
         self.assertNotIn("layout_row.append(self.folder_menu_button)", source)
 
-    def test_compact_filter_bar_wiring(self):
+    def test_filters_popover_wiring(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
-        self.assertIn("filter_bar = Gtk.FlowBox()", source)
-        self.assertIn('filter_bar.append(filter_chip("Sort", self.sort_selector))', source)
-        self.assertIn('filter_bar.append(filter_chip("Tag", self.tag_filter))', source)
-        self.assertIn('filter_bar.append(filter_chip("Color", self.color_filter))', source)
-        self.assertIn('filter_bar.append(filter_chip("Collection", self.collection_selector))', source)
-        self.assertIn('filter_bar.append(filter_chip("Recent", self._recent_selector))', source)
+        self.assertIn("filters_popover = Gtk.Popover()", source)
+        self.assertIn("self.filters_button = Gtk.MenuButton()", source)
+        self.assertIn("def _update_filters_badge", source)
+        self.assertIn('self._filters_label.set_label("Filters" if not count', source)
+        self.assertIn("for action_button in (self.preview_button, self.set_wallpaper_button):", source)
+        self.assertIn("self.filters_button.set_halign(Gtk.Align.CENTER)", source)
+        for key in ("Sort", "Tag", "Color", "Collection", "Recent"):
+            self.assertIn(f'filters_box.append(filter_chip("{key}"', source)
         self.assertIn('Gtk.Image.new_from_icon_name("emblem-favorite-symbolic")', source)
-        self.assertIn("content.append(filter_bar)", source)
+        self.assertIn("content.append(self.filters_button)", source)
 
     def test_adwaita_chrome_with_transparent_backdrop(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
