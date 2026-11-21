@@ -156,12 +156,19 @@ popover.wallmat-filter-popover dropdown button.toggle {
 }
 popover.wallmat-filter-popover button:hover,
 popover.wallmat-filter-popover dropdown button:hover {
-    background-color: var(--surface_container_highest);
+    background-color: var(--primary);
+    color: var(--on_primary);
 }
 popover.wallmat-filter-popover button:checked,
 popover.wallmat-filter-popover dropdown button:checked {
     background-color: var(--primary_container);
     color: var(--on_primary_container);
+}
+/* The theme colours the label on the dropdown's internal toggle button
+   separately; keep it readable against the primary hover background. */
+popover.wallmat-filter-popover dropdown button.toggle:hover label,
+popover.wallmat-filter-popover dropdown button.toggle:checked label {
+    color: var(--on_primary);
 }
 """
 
