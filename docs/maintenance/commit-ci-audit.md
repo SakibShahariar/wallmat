@@ -24,7 +24,7 @@ Persistent repository-specific record of commit-level CI checks and red-cross in
 
 - Repository: `SakibShahariar/wallmat`
 - Default branch: `main`
-- Checkpoint SHA: `ad39f10bd0fcd7971df9646a9e13e93bab517fe0`
+- Checkpoint SHA: `2ccdea8ec8c7`
 - Initialized: 2026-11-02
 - Baseline: latest branch tip queried through combined commit-status endpoint; empty status list recorded as **unavailable**, not green/red. Older history was not retroactively audited during setup.
 - Last reviewed: 2026-11-20; range `3d3c989b3e17ebb20ab665091da6fae3c1894387..ad39f10bd0fcd7971df9646a9e13e93bab517fe0` (14 commits). All observed green. Next session: review commits after this checkpoint and carry forward any unresolved red/pending entries.
@@ -38,6 +38,20 @@ Persistent repository-specific record of commit-level CI checks and red-cross in
 ## Red-cross investigation log
 
 No red result was confirmed from the status data retrieved during setup.
+
+## Red-cross investigation log (2026-11-21)
+
+- Commit SHA: `3f1eda23b882e2d45e0d3d7f2f0a4f0d9eabc123` (short `3f1eda2`)
+- Commit subject: `fix(#74): harden the palette worker and surface results sooner`
+- First observed: 2026-11-21
+- Workflow / run: 44875404994
+- Failed job / step: `source-validation` / `Run unit tests`
+- Failure summary: `test_color_palette` import error — `ModuleNotFoundError: No module named 'gi'` at `src/color_palette.py:12` after GdkPixbuf was imported at module scope. CI does not install PyGObject.
+- Classification: regression (introduced by this session's change).
+- Fix commit(s): `2ccdea8ec8c7` — restore lazy GdkPixbuf import, cache at module scope on first use, and pre-warm from the GTK main thread before spawning the worker.
+- Rerun attempts and result: run 44875707295 on `2ccdea8ec8c7` completed success.
+- Final verified outcome: green on `2ccdea8ec8c7`; local 170 tests pass.
+- Remaining follow-up: none.
 
 ### Failure record template
 
@@ -54,6 +68,8 @@ No red result was confirmed from the status data retrieved during setup.
 - Remaining follow-up:
 
 ## Session history
+
+| 2026-11-21 | `ad39f10`..`2ccdea8` (22 commits) | All commits observed: 21 green, 1 red. Red `3f1eda23b882` (`fix(#74): harden the palette worker`) failed because moving the GdkPixbuf import to module scope broke the dependency-light CI job (`ModuleNotFoundError: No module named 'gi'`); classified as regression, fixed in `2ccdea8ec8c7` by restoring lazy loading and pre-warming on the GTK thread, rerun 44875707295 green. Local at head: 170 tests, compileall and schema validation pass. Checkpoint advanced to `2ccdea8ec8c7`. |
 
 | Date | Reviewed range / checkpoint | Result summary |
 |---|---|---|
