@@ -44,10 +44,13 @@ _HUE_RANGES = (
     ("pink", 290, 345),
 )
 
-# A family must own a meaningful share of the image to count. At 8% almost
-# every photo matched "red"/"dark"; 15% keeps clearly-dominant families
-# while still allowing multi-colour wallpapers to match more than one.
-_MIN_FAMILY_WEIGHT = 0.15
+# A family must own a meaningful share of the image to count. 8% matched
+# 60% of the library for "red"; 25% keeps only clearly-dominant families.
+_MIN_FAMILY_WEIGHT = 0.25
+
+# Neutral families are less useful if any dim pixel triggers them: nearly
+# every wallpaper would match "dark". Require a much stronger share.
+_NEUTRAL_MIN_WEIGHT = 0.50
 
 
 def classify_rgb(red: int, green: int, blue: int) -> str | None:
@@ -80,7 +83,10 @@ def classify_pixels(pixels: Iterable[tuple[int, int, int]]) -> frozenset[str]:
         return frozenset()
     return frozenset(
         name for name, weight in weights.items()
-        if weight / total >= _MIN_FAMILY_WEIGHT
+        if weight / total >= (
+            _NEUTRAL_MIN_WEIGHT if name in ("dark", "light")
+            else _MIN_FAMILY_WEIGHT
+        )
     )
 
 

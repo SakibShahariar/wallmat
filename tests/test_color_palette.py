@@ -32,8 +32,12 @@ class ColorPaletteTests(unittest.TestCase):
         # A family needs a meaningful share (15%) to count: a 10% sprinkle
         # must not match, a 20% presence must.
         base = [(30, 180, 60)] * 90
-        self.assertNotIn("red", classify_pixels(base + [(220, 30, 30)] * 10))
-        self.assertIn("red", classify_pixels(base + [(220, 30, 30)] * 20))
+        self.assertNotIn("red", classify_pixels(base + [(220, 30, 30)] * 20))
+        self.assertIn("red", classify_pixels(base + [(220, 30, 30)] * 35))
+        # Neutral families require >50%: a few dark pixels must not match.
+        mixed = [(10, 10, 10)] * 30 + [(30, 180, 60)] * 70
+        self.assertNotIn("dark", classify_pixels(mixed))
+        self.assertIn("dark", classify_pixels([(10, 10, 10)] * 60 + [(30, 180, 60)] * 40))
 
     def test_default_sample_size_is_stable(self):
         from color_palette import extract_families
