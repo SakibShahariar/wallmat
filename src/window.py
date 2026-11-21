@@ -945,6 +945,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         more_actions.set_margin_start(8)
         more_actions.set_margin_end(8)
         self._more_actions = more_actions
+        self._details_toggle = Gtk.CheckButton(label="Show file details")
+        self._details_toggle.set_visible(not self._plain)
+        self._details_toggle.connect("toggled", self._on_details_toggled)
+        more_actions.append(self._details_toggle)
         secondary_heading = Gtk.Label(label="More actions")
         secondary_heading.set_xalign(0.0)
         secondary_heading.add_css_class("heading")
@@ -2082,8 +2086,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         """Read image metadata off the GTK thread and ignore stale results."""
         if self._plain:
             return
+        # The details stay in the label but the row is opt-in from the menu.
         self._metadata_label.set_text("Loading wallpaper details…")
-        self._metadata_row.set_visible(True)
 
         def inspect_file():
             try:
@@ -2113,7 +2117,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             def update_label():
                 if self._selected_path == path:
                     self._metadata_label.set_text(details)
-                    self._metadata_row.set_visible(True)
                 return GLib.SOURCE_REMOVE
 
             GLib.idle_add(update_label)
@@ -2128,8 +2131,15 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         display.get_clipboard().set(self._metadata_label.get_text())
         say("Wallpaper details copied.")
 
+    def _on_details_toggled(self, button):
+        self._metadata_row.set_visible(
+            button.get_active() and bool(self._selected_path)
+        )
+
     def _on_hide_metadata(self, _button):
         self._metadata_row.set_visible(False)
+        if self._details_toggle.get_active():
+            self._details_toggle.set_active(False)
 
     def _update_favorite_button(self):
         label = "Remove favorite" if self._selected_path in self._favorites else "Add to favorites"

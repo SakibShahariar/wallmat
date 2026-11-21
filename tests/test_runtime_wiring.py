@@ -143,6 +143,15 @@ class RuntimeWiringTests(unittest.TestCase):
             self.assertIn("def get_position", layout, name)
             self.assertIn("def restore_position", layout, name)
 
+    def test_file_details_are_opt_in(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn('Gtk.CheckButton(label="Show file details")', source)
+        self.assertIn("def _on_details_toggled", source)
+        self.assertIn("self._metadata_row.set_visible(False)", source)
+        # Selection no longer forces the row visible.
+        load_fn = source.split("def _load_selected_metadata")[1].split("def _on_copy_metadata")[0]
+        self.assertNotIn("self._metadata_row.set_visible(True)", load_fn)
+
     def test_windowless_instance_guard(self):
         source = (SRC / "main.py").read_text(encoding="utf-8")
         self.assertIn("def ensure_window", source)
