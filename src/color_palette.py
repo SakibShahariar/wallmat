@@ -44,7 +44,10 @@ _HUE_RANGES = (
     ("pink", 290, 345),
 )
 
-_MIN_FAMILY_WEIGHT = 0.08
+# A family must own a meaningful share of the image to count. At 8% almost
+# every photo matched "red"/"dark"; 15% keeps clearly-dominant families
+# while still allowing multi-colour wallpapers to match more than one.
+_MIN_FAMILY_WEIGHT = 0.15
 
 
 def classify_rgb(red: int, green: int, blue: int) -> str | None:
@@ -81,7 +84,7 @@ def classify_pixels(pixels: Iterable[tuple[int, int, int]]) -> frozenset[str]:
     )
 
 
-def extract_families(path: str, size: int = 16, cache_path: str | None = None) -> frozenset[str]:
+def extract_families(path: str, size: int = 32, cache_path: str | None = None) -> frozenset[str]:
     """Decode a tiny copy of an image and classify its colour families.
 
     ``cache_path`` may point at an already-generated thumbnail; decoding a

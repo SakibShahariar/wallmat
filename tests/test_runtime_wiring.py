@@ -337,7 +337,7 @@ class RuntimeWiringTests(unittest.TestCase):
         )
         self.assertIn("cache_path=cache_path", source)
         palette = (SRC / "color_palette.py").read_text(encoding="utf-8")
-        self.assertIn("def extract_families(path: str, size: int = 16, cache_path", palette)
+        self.assertIn("def extract_families(path: str, size: int = 32, cache_path", palette)
 
     def test_color_filter_wiring(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")

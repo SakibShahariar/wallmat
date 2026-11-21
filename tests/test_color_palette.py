@@ -28,6 +28,20 @@ class ColorPaletteTests(unittest.TestCase):
         self.assertNotIn("red", families)
         self.assertTrue(families.issubset(set(FAMILIES)))
 
+    def test_precision_threshold(self):
+        # A family needs a meaningful share (15%) to count: a 10% sprinkle
+        # must not match, a 20% presence must.
+        base = [(30, 180, 60)] * 90
+        self.assertNotIn("red", classify_pixels(base + [(220, 30, 30)] * 10))
+        self.assertIn("red", classify_pixels(base + [(220, 30, 30)] * 20))
+
+    def test_default_sample_size_is_stable(self):
+        from color_palette import extract_families
+        import inspect
+        self.assertEqual(
+            inspect.signature(extract_families).parameters["size"].default, 32
+        )
+
     def test_empty_pixels(self):
         self.assertEqual(classify_pixels([]), frozenset())
 
