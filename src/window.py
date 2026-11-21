@@ -50,7 +50,9 @@ from random_selection import (
     shuffle_with_recent_last,
 )
 from cache_utils import set_cache_limit_mb
-from color_palette import PaletteCache, extract_families, FAMILIES
+from color_palette import (
+    PaletteCache, ensure_pixbuf_loaded, extract_families, FAMILIES,
+)
 from filtering import apply_filters
 from placement import apply_gnome_placement, supported_modes, MODES
 from schedule import (
@@ -1705,6 +1707,13 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             if self._palette_cache.get(path, fingerprint) is None:
                 stats[path] = fingerprint
         if not stats:
+            return
+        # Load GdkPixbuf on the main thread so the worker only uses the
+        # already-cached module instead of importing GI concurrently.
+        try:
+            ensure_pixbuf_loaded()
+        except Exception as error:
+            say(f"Image decoding is unavailable for color filtering: {error}")
             return
         self._palette_generation += 1
         generation = self._palette_generation

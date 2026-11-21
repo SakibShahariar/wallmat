@@ -9,10 +9,21 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Iterable
 
-import gi
+# GdkPixbuf is loaded lazily so the pure classifier stays importable in the
+# dependency-light CI job. Once loaded it is cached at module scope so the
+# palette worker thread never has to import GI modules itself.
+_GdkPixbuf = None
 
-gi.require_version("GdkPixbuf", "2.0")
-from gi.repository import GdkPixbuf
+
+def ensure_pixbuf_loaded():
+    """Load and cache GdkPixbuf. Call this on the GTK main thread."""
+    global _GdkPixbuf
+    if _GdkPixbuf is None:
+        import gi
+        gi.require_version("GdkPixbuf", "2.0")
+        from gi.repository import GdkPixbuf as _Pixbuf
+        _GdkPixbuf = _Pixbuf
+    return _GdkPixbuf
 
 FAMILIES = (
     "dark", "light", "red", "orange", "yellow", "green",
@@ -75,7 +86,9 @@ def extract_families(path: str, size: int = 16) -> frozenset[str]:
     GdkPixbuf is imported at module scope so the worker thread never has to
     import GI modules concurrently with the main loop.
     """
-    pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, size, size, True)
+    pixbuf = ensure_pixbuf_loaded().Pixbuf.new_from_file_at_scale(
+        path, size, size, True
+    )
     if pixbuf is None:
         return frozenset()
     pixels = []

@@ -308,7 +308,7 @@ class RuntimeWiringTests(unittest.TestCase):
 
     def test_color_filter_wiring(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
-        self.assertIn("from color_palette import PaletteCache", source)
+        self.assertIn("ensure_pixbuf_loaded()", source)
         self.assertIn("self.color_filter = Gtk.DropDown.new_from_strings", source)
         self.assertIn("def _start_palette_scan", source)
         self.assertIn("def _palettes_ready", source)
