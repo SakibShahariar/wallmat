@@ -204,7 +204,6 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("headerbar.background", source)
         self.assertIn("Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION", source)
         self.assertIn("border-radius: 12px", source)
-        self.assertIn("overflow: hidden", source)
 
     def test_optional_catalog_wiring(self):
         window_src = (SRC / "window.py").read_text(encoding="utf-8")

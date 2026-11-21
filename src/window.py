@@ -117,7 +117,6 @@ _SEAMLESS_CSS = b"""
 window.wallmat-backdrop-transparent,
 window.wallmat-backdrop-blurred {
     border-radius: 12px;
-    overflow: hidden;
 }
 window.wallmat-backdrop-transparent > *,
 window.wallmat-backdrop-blurred > *,
