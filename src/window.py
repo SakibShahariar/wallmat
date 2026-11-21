@@ -135,6 +135,17 @@ window.wallmat-backdrop-transparent {
 }
 """
 
+def _icon_button(label: str, icon_name: str) -> Gtk.Button:
+    """Build a labelled button with a leading symbolic icon."""
+    button = Gtk.Button()
+    box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+    box.set_halign(Gtk.Align.CENTER)
+    box.append(Gtk.Image.new_from_icon_name(icon_name))
+    box.append(Gtk.Label(label=label))
+    button.set_child(box)
+    return button
+
+
 DEFAULT_WALLPAPER_DIR = "/usr/share/backgrounds"
 MAX_RECENT_WALLPAPERS = 8
 DEFAULT_LAYOUT_ID = "split_screen"
@@ -623,7 +634,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         filter_bar.append(self.search_entry)
         filter_bar.append(filter_chip("Sort", self.sort_selector))
 
-        self.favorites_filter = Gtk.ToggleButton(label="★ Favorites")
+        favorites_chip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        favorites_chip.append(Gtk.Image.new_from_icon_name("emblem-favorite-symbolic"))
+        favorites_chip.append(Gtk.Label(label="Favorites"))
+        self.favorites_filter = Gtk.ToggleButton()
+        self.favorites_filter.set_child(favorites_chip)
         self.favorites_filter.set_active(self._favorites_only)
         self.favorites_filter.set_tooltip_text("Show only favorite wallpapers")
         self.favorites_filter.connect("toggled", self._on_favorites_filter_toggled)
@@ -689,11 +704,13 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._metadata_label.add_css_class("dim-label")
         self._metadata_label.set_selectable(True)
         self._metadata_row.append(self._metadata_label)
-        copy_metadata_button = Gtk.Button(label="Copy details")
+        copy_metadata_button = _icon_button("Copy details", "edit-copy-symbolic")
+        copy_metadata_button.add_css_class("flat")
         copy_metadata_button.set_tooltip_text("Copy wallpaper metadata and path")
         copy_metadata_button.connect("clicked", self._on_copy_metadata)
         self._metadata_row.append(copy_metadata_button)
-        hide_metadata_button = Gtk.Button(label="Hide")
+        hide_metadata_button = _icon_button("Hide", "window-close-symbolic")
+        hide_metadata_button.add_css_class("flat")
         hide_metadata_button.set_tooltip_text("Hide wallpaper details")
         hide_metadata_button.connect("clicked", self._on_hide_metadata)
         self._metadata_row.append(hide_metadata_button)
@@ -799,26 +816,35 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.more_menu_button = self._header_menu_button
         # Shortcut help stays available via '?' only; no button needed.
 
-        self.set_wallpaper_button = Gtk.Button(label="Set as wallpaper")
+        self.set_wallpaper_button = _icon_button(
+            "Set as wallpaper", "preferences-desktop-wallpaper-symbolic"
+        )
         self.set_wallpaper_button.add_css_class("suggested-action")
         self.set_wallpaper_button.set_sensitive(False)
         self.set_wallpaper_button.connect("clicked", self._on_apply_wallpaper)
-        self.preview_button = Gtk.Button(label="Preview")
+        self.preview_button = _icon_button("Preview", "view-reveal-symbolic")
         self.preview_button.set_tooltip_text(
             "Open a large preview; use the zoom control and scroll to inspect details"
         )
         self.preview_button.set_sensitive(False)
         self.preview_button.connect("clicked", self._on_open_preview)
-        self.apply_matugen_button = Gtk.Button(label="Apply wallpaper + Matugen")
+        self.apply_matugen_button = _icon_button(
+            "Apply + Matugen", "color-select-symbolic"
+        )
         self.apply_matugen_button.set_sensitive(False)
         self.apply_matugen_button.connect("clicked", self._on_apply_matugen)
         self.preview_matugen_button = Gtk.Button(label="Preview Matugen colors…")
         self.preview_matugen_button.set_sensitive(False)
         self.preview_matugen_button.connect("clicked", self._on_preview_matugen)
-        self.favorite_button = Gtk.Button(label="Add to favorites")
+        self.favorite_button = _icon_button(
+            "Add to favorites", "emblem-favorite-symbolic"
+        )
+        self._favorite_button_label = self.favorite_button.get_child().get_last_child()
         self.favorite_button.set_sensitive(False)
         self.favorite_button.connect("clicked", self._on_toggle_favorite)
-        self.surprise_button = Gtk.Button(label="Surprise me")
+        self.surprise_button = _icon_button(
+            "Surprise me", "system-shuffle-symbolic"
+        )
         self.surprise_button.set_tooltip_text(
             "Choose and immediately apply a random wallpaper from the current filtered results"
         )
@@ -1232,10 +1258,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         else:
             say("Wallpaper scan canceled; the current collection was kept.")
 
-    def _set_window_title(self, title: str):
-        """Keep the window and its Adwaita header title in sync."""
-        self.set_title(title)
+    def _set_window_title(self, title: str, subtitle: str = ""):
+        """Keep the WM title and the header title/subtitle in sync."""
+        self.set_title(title if not subtitle else f"{title} — {subtitle}")
         self._window_title.set_title(title)
+        self._window_title.set_subtitle(subtitle)
 
     def _on_scan_complete(
         self, generation, directory, paths, scan_errors, truncated, error,
@@ -1315,7 +1342,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         count_label = str(len(self._all_paths))
         cap_label = f" — showing first {MAX_WALLPAPERS}" if truncated else ""
         self._set_window_title(
-            f"Wallpaper Chooser — {folder_label} ({count_label}){cap_label}"
+            "Wallpaper Chooser",
+            f"{folder_label} · {count_label} wallpapers{cap_label}",
         )
         self._scan_limit_notice.set_visible(truncated)
         if truncated:
@@ -1574,12 +1602,18 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if collection is None:
             self._all_paths = list(self._folder_paths)
             folder_label = os.path.basename(self._wallpaper_dir.rstrip(os.sep)) or self._wallpaper_dir
-            self._set_window_title(f"Wallpaper Chooser — {folder_label} ({len(self._all_paths)})")
+            self._set_window_title(
+                "Wallpaper Chooser",
+                f"{folder_label} · {len(self._all_paths)} wallpapers",
+            )
         else:
             saved_paths = self._collections.get(collection, [])
             self._all_paths = [path for path in saved_paths if os.path.isfile(path)]
             missing = len(saved_paths) - len(self._all_paths)
-            self._set_window_title(f"Wallpaper Chooser — {collection} ({len(self._all_paths)})")
+            self._set_window_title(
+                "Wallpaper Chooser",
+                f"{collection} · {len(self._all_paths)} wallpapers",
+            )
             if missing:
                 say(f"{missing} missing wallpaper(s) in collection {collection!r} were skipped.")
         self._random_order = self._make_random_order(self._all_paths)
@@ -2061,10 +2095,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._metadata_row.set_visible(False)
 
     def _update_favorite_button(self):
-        if self._selected_path in self._favorites:
-            self.favorite_button.set_label("Remove favorite")
-        else:
-            self.favorite_button.set_label("Add to favorites")
+        label = "Remove favorite" if self._selected_path in self._favorites else "Add to favorites"
+        self._favorite_button_label.set_label(label)
 
     def _update_missing_favorites_action(self):
         missing_count = sum(
