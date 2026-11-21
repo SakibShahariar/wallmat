@@ -375,7 +375,7 @@ class _LayoutPreference:
 class WallpaperChooserWindow(Adw.ApplicationWindow):
     def __init__(self, app, wallpaper_dir: str | None, initial_layout_id: str | None = None,
                  plain: bool = False, matugen_args: list[str] | None = None):
-        super().__init__(application=app, title="Wallpaper Chooser")
+        super().__init__(application=app, title="Wallmat")
         self._plain = plain
         self._portal_request_pending = False
         if plain:
@@ -535,7 +535,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # the window its title, window controls and menu, while our CSS keeps
         # both it and the toolbar view see-through so wallpapers show behind.
         self._window_title = Adw.WindowTitle(
-            title="Wallpaper Chooser", subtitle="Choose and apply wallpapers"
+            title="Wallmat", subtitle="Choose and apply wallpapers"
         )
         self._header_bar = Adw.HeaderBar()
         self._header_bar.set_title_widget(self._window_title)
@@ -1367,7 +1367,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         count_label = str(len(self._all_paths))
         cap_label = f" — showing first {MAX_WALLPAPERS}" if truncated else ""
         self._set_window_title(
-            "Wallpaper Chooser",
+            "Wallmat",
             f"{folder_label} · {count_label} wallpapers{cap_label}",
         )
         self._scan_limit_notice.set_visible(truncated)
@@ -1628,7 +1628,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self._all_paths = list(self._folder_paths)
             folder_label = os.path.basename(self._wallpaper_dir.rstrip(os.sep)) or self._wallpaper_dir
             self._set_window_title(
-                "Wallpaper Chooser",
+                "Wallmat",
                 f"{folder_label} · {len(self._all_paths)} wallpapers",
             )
         else:
@@ -1636,7 +1636,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self._all_paths = [path for path in saved_paths if os.path.isfile(path)]
             missing = len(saved_paths) - len(self._all_paths)
             self._set_window_title(
-                "Wallpaper Chooser",
+                "Wallmat",
                 f"{collection} · {len(self._all_paths)} wallpapers",
             )
             if missing:
