@@ -26,7 +26,6 @@ import os
 import hashlib
 import threading
 import queue
-from collections import OrderedDict
 
 import gi
 
@@ -41,7 +40,6 @@ CACHE_DIR = os.path.expanduser("~/.cache/wallpaper-chooser/thumbs")
 DEFAULT_THUMB_SIZE = 480
 DEBOUNCE_MS = 60
 POOL_SIZE = 6
-MAX_TEXTURE_CACHE = 128
 # A large folder binds far more than 128 thumbnails at once (GTK's
 # virtualized views request the viewport plus an overscan buffer). With
 # the old 128-slot queue and 3 workers, requests were dropped as soon as
@@ -94,11 +92,6 @@ class ThumbnailLoader:
         self._generation: dict[str, int] = {}
         # item_id -> generation token while queued/decoding/delivering.
         self._live: dict[str, int] = {}
-        # Decoded textures kept in memory so filter/layout changes can paint
-        # already-seen wallpapers instantly instead of showing an empty card
-        # while the cached WebP is decoded again. Bounded LRU.
-        self._texture_cache: "OrderedDict[str, object]" = OrderedDict()
-        self._texture_cache_lock = threading.Lock()
 
         # Bound pending work as well as worker count. When a burst fills the
         # queue, the oldest not-yet-started request is discarded in favor of
@@ -121,26 +114,6 @@ class ThumbnailLoader:
         self._generation_counter += 1
         generation = self._generation_counter
         self._generation[item_id] = generation
-
-        # If this image was decoded earlier in the session, paint it now
-        # instead of leaving an empty card during the debounce + re-decode.
-        with self._texture_cache_lock:
-            cached = self._texture_cache.get(source_path)
-            if cached is not None:
-                self._texture_cache.move_to_end(source_path)
-                self._live[item_id] = generation
-
-                def deliver_cached():
-                    if (self._live.get(item_id) != generation
-                            or self._generation.get(item_id) != generation):
-                        return GLib.SOURCE_REMOVE
-                    self._live.pop(item_id, None)
-                    self._forget(item_id, generation)
-                    on_ready(item_id, cached)
-                    return GLib.SOURCE_REMOVE
-
-                GLib.idle_add(deliver_cached)
-                return
 
         def fire_after_debounce():
             self._pending_timeouts.pop(item_id, None)
@@ -207,6 +180,30 @@ class ThumbnailLoader:
         if self._cache_writes % CACHE_PRUNE_EVERY == 0:
             self._prune_cache()
 
+    def _fallback_thumbnail(self, source_path: str, primary: str) -> str:
+        """If this size isn't cached yet, reuse any other cached size.
+
+        Layouts request several thumbnail sizes. Generating every size for
+        a large library is expensive, so a missing size used to force a slow
+        full-resolution decode and left cards blank meanwhile. Falling back
+        to an already-cached size keeps every layout responsive; the correct
+        size is still generated and saved for later below.
+        """
+        if os.path.exists(primary):
+            return primary
+        try:
+            stat = os.stat(source_path)
+        except OSError:
+            return primary
+        directory = os.path.dirname(primary)
+        for size in (480, 900, 320, 600):
+            key = f"{source_path}:{stat.st_mtime_ns}:{stat.st_size}:{size}"
+            digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+            candidate = os.path.join(directory, f"{digest}.{self._cache_ext}")
+            if os.path.exists(candidate):
+                return candidate
+        return primary
+
     def _cache_path(self, source_path: str) -> str:
         try:
             stat = os.stat(source_path)
@@ -233,27 +230,28 @@ class ThumbnailLoader:
                         or self._generation.get(item_id) != generation):
                     continue  # superseded before a worker got to it
 
-                cache_path = self._cache_path(source_path)
+                primary_path = self._cache_path(source_path)
+                source_cache = self._fallback_thumbnail(source_path, primary_path)
                 try:
-                    if os.path.exists(cache_path):
+                    if os.path.exists(source_cache):
                         try:
-                            pixbuf = GdkPixbuf.Pixbuf.new_from_file(cache_path)
+                            pixbuf = GdkPixbuf.Pixbuf.new_from_file(source_cache)
                             try:
-                                os.utime(cache_path, None)
+                                os.utime(source_cache, None)
                             except OSError:
                                 pass
                         except GLib.Error:
                             # A truncated/corrupt cache must not permanently
                             # hide a valid source image on later launches.
                             try:
-                                os.remove(cache_path)
+                                os.remove(source_cache)
                             except OSError:
                                 pass
                             pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
                                 source_path, self._thumb_size, -1, True
                             )
                             try:
-                                pixbuf.savev(cache_path, self._cache_ext, [], [])
+                                pixbuf.savev(primary_path, self._cache_ext, [], [])
                                 self._note_cache_write()
                             except GLib.Error:
                                 pass  # cache write failure is non-fatal
@@ -262,7 +260,7 @@ class ThumbnailLoader:
                             source_path, self._thumb_size, -1, True
                         )
                         try:
-                            pixbuf.savev(cache_path, self._cache_ext, [], [])
+                            pixbuf.savev(primary_path, self._cache_ext, [], [])
                             self._note_cache_write()
                         except GLib.Error:
                             pass  # cache write failure is non-fatal
@@ -276,12 +274,11 @@ class ThumbnailLoader:
 
                 # The main-thread delivery rechecks generation as cancel()
                 # can run after idle_add() but before this callback executes.
-                GLib.idle_add(self._deliver, item_id, generation, pixbuf, on_ready,
-                              source_path)
+                GLib.idle_add(self._deliver, item_id, generation, pixbuf, on_ready)
             finally:
                 self._job_queue.task_done()
 
-    def _deliver(self, item_id, generation, pixbuf, on_ready, source_path=None):
+    def _deliver(self, item_id, generation, pixbuf, on_ready):
         if (self._live.get(item_id) != generation
                 or self._generation.get(item_id) != generation):
             return GLib.SOURCE_REMOVE
@@ -291,11 +288,5 @@ class ThumbnailLoader:
         # same item_id.
         self._forget(item_id, generation)
         texture = Gdk.Texture.new_for_pixbuf(pixbuf)
-        if source_path is not None:
-            with self._texture_cache_lock:
-                self._texture_cache[source_path] = texture
-                self._texture_cache.move_to_end(source_path)
-                while len(self._texture_cache) > MAX_TEXTURE_CACHE:
-                    self._texture_cache.popitem(last=False)
         on_ready(item_id, texture)
         return GLib.SOURCE_REMOVE

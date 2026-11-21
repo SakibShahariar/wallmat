@@ -312,13 +312,6 @@ class RuntimeWiringTests(unittest.TestCase):
         installer = (Path(__file__).resolve().parents[1] / "install.sh").read_text()
         self.assertIn("dev.sakib.Wallmat.Schedule.desktop", installer)
 
-    def test_thumbnail_texture_cache(self):
-        source = (SRC / "widgets" / "thumbnail_loader.py").read_text(encoding="utf-8")
-        self.assertIn("self._texture_cache", source)
-        self.assertIn("MAX_TEXTURE_CACHE", source)
-        self.assertIn("self._texture_cache.move_to_end(source_path)", source)
-        self.assertIn("self._live[item_id] = generation", source)
-
     def test_preview_uses_cached_thumbnail(self):
         source = (SRC / "widgets" / "desktop_preview.py").read_text(encoding="utf-8")
         self.assertIn("cache/wallpaper-chooser/thumbs", source)
