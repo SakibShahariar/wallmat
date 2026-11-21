@@ -26,6 +26,7 @@ import os
 import hashlib
 import threading
 import queue
+from collections import OrderedDict
 
 import gi
 
@@ -40,6 +41,7 @@ CACHE_DIR = os.path.expanduser("~/.cache/wallpaper-chooser/thumbs")
 DEFAULT_THUMB_SIZE = 480
 DEBOUNCE_MS = 60
 POOL_SIZE = 6
+MAX_TEXTURE_CACHE = 128
 # A large folder binds far more than 128 thumbnails at once (GTK's
 # virtualized views request the viewport plus an overscan buffer). With
 # the old 128-slot queue and 3 workers, requests were dropped as soon as
@@ -92,6 +94,11 @@ class ThumbnailLoader:
         self._generation: dict[str, int] = {}
         # item_id -> generation token while queued/decoding/delivering.
         self._live: dict[str, int] = {}
+        # Decoded textures kept in memory so filter/layout changes can paint
+        # already-seen wallpapers instantly instead of showing an empty card
+        # while the cached WebP is decoded again. Bounded LRU.
+        self._texture_cache: "OrderedDict[str, object]" = OrderedDict()
+        self._texture_cache_lock = threading.Lock()
 
         # Bound pending work as well as worker count. When a burst fills the
         # queue, the oldest not-yet-started request is discarded in favor of
@@ -114,6 +121,26 @@ class ThumbnailLoader:
         self._generation_counter += 1
         generation = self._generation_counter
         self._generation[item_id] = generation
+
+        # If this image was decoded earlier in the session, paint it now
+        # instead of leaving an empty card during the debounce + re-decode.
+        with self._texture_cache_lock:
+            cached = self._texture_cache.get(source_path)
+            if cached is not None:
+                self._texture_cache.move_to_end(source_path)
+                self._live[item_id] = generation
+
+                def deliver_cached():
+                    if (self._live.get(item_id) != generation
+                            or self._generation.get(item_id) != generation):
+                        return GLib.SOURCE_REMOVE
+                    self._live.pop(item_id, None)
+                    self._forget(item_id, generation)
+                    on_ready(item_id, cached)
+                    return GLib.SOURCE_REMOVE
+
+                GLib.idle_add(deliver_cached)
+                return
 
         def fire_after_debounce():
             self._pending_timeouts.pop(item_id, None)
@@ -249,11 +276,12 @@ class ThumbnailLoader:
 
                 # The main-thread delivery rechecks generation as cancel()
                 # can run after idle_add() but before this callback executes.
-                GLib.idle_add(self._deliver, item_id, generation, pixbuf, on_ready)
+                GLib.idle_add(self._deliver, item_id, generation, pixbuf, on_ready,
+                              source_path)
             finally:
                 self._job_queue.task_done()
 
-    def _deliver(self, item_id, generation, pixbuf, on_ready):
+    def _deliver(self, item_id, generation, pixbuf, on_ready, source_path=None):
         if (self._live.get(item_id) != generation
                 or self._generation.get(item_id) != generation):
             return GLib.SOURCE_REMOVE
@@ -263,5 +291,11 @@ class ThumbnailLoader:
         # same item_id.
         self._forget(item_id, generation)
         texture = Gdk.Texture.new_for_pixbuf(pixbuf)
+        if source_path is not None:
+            with self._texture_cache_lock:
+                self._texture_cache[source_path] = texture
+                self._texture_cache.move_to_end(source_path)
+                while len(self._texture_cache) > MAX_TEXTURE_CACHE:
+                    self._texture_cache.popitem(last=False)
         on_ready(item_id, texture)
         return GLib.SOURCE_REMOVE
