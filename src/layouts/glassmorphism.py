@@ -355,7 +355,11 @@ class GlassmorphismLayout(WallLayout):
 
     def _on_unbind(self, factory, list_item):
         item: _GlassItem = list_item.get_item()
-        if item is not None:
+        # A store splice can bind a replacement row to the same path before
+        # this row is unbound. Only cancel/pop if this row still owns the
+        # registration, or we would kill the new row's pending request and
+        # leave its card blank forever.
+        if item is not None and self._live_widgets.get(item.path) is list_item.get_child():
             self.loader.cancel(item.path)
             self._live_widgets.pop(item.path, None)
         picture: Gtk.Picture = list_item.get_child()

@@ -273,10 +273,13 @@ class WallpaperCarousel(Gtk.Box):
         item: WallpaperItem = list_item.get_item()
         card: SkewedCard = list_item.get_child()
 
-        if item is not None:
+        # A store splice can bind a replacement row to the same item before
+        # this one unbinds. Only cancel when this row still owns the request;
+        # otherwise we kill the new row's pending thumbnail and leave a card
+        # blank forever.
+        if item is not None and self._live_widgets.get(item.item_id) is card:
             self.loader.cancel(item.item_id)
-            if self._live_widgets.get(item.item_id) is card:
-                del self._live_widgets[item.item_id]
+            del self._live_widgets[item.item_id]
 
         # Release the GPU texture reference for this recycled slot.
         card.texture = None
