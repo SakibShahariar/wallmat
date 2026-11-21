@@ -191,13 +191,15 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("filters_popover = Gtk.Popover()", source)
         self.assertIn("self.filters_button = Gtk.MenuButton()", source)
         self.assertIn("def _update_filters_badge", source)
-        self.assertIn('self._filters_label.set_label("Filters" if not count', source)
+        self.assertIn('self._filters_label.set_label(f"{count}" if count', source)
+        self.assertIn("self._header_bar.pack_start(self.filters_button)", source)
+        self.assertIn('self.filters_button.add_css_class("flat")', source)
         self.assertIn("for action_button in (self.preview_button, self.set_wallpaper_button):", source)
-        self.assertIn("self.filters_button.set_halign(Gtk.Align.CENTER)", source)
+        self.assertNotIn("self.filters_button.set_halign(Gtk.Align.CENTER)", source)
         for key in ("Sort", "Tag", "Color", "Collection", "Recent"):
             self.assertIn(f'filters_box.append(filter_chip("{key}"', source)
         self.assertIn('Gtk.Image.new_from_icon_name("non-starred-symbolic")', source)
-        self.assertIn("content.append(self.filters_button)", source)
+        self.assertNotIn("content.append(self.filters_button)", source)
 
     def test_adwaita_chrome_with_transparent_backdrop(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")

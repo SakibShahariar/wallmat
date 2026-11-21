@@ -630,14 +630,16 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         filters_child = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         filters_child.append(Gtk.Image.new_from_icon_name("tune-symbolic"))
-        self._filters_label = Gtk.Label(label="Filters")
+        self._filters_label = Gtk.Label(label="")
+        self._filters_label.set_visible(False)
         filters_child.append(self._filters_label)
         self.filters_button = Gtk.MenuButton()
         self.filters_button.set_child(filters_child)
         self.filters_button.set_popover(filters_popover)
         self.filters_button.set_tooltip_text("Sort and filter wallpapers")
         self.filters_button.set_visible(not plain)
-        self.filters_button.set_halign(Gtk.Align.CENTER)
+        self.filters_button.add_css_class("flat")
+        self._header_bar.pack_start(self.filters_button)
 
         def filter_chip(label, widget):
             chip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -701,7 +703,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         content.append(self.search_entry)
-        content.append(self.filters_button)
 
         self._recent_paths: list[str] = []
         self._recent_selector = Gtk.DropDown.new_from_strings(["No recent wallpapers"])
@@ -1836,7 +1837,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             count += 1
         if self.search_entry.get_text().strip():
             count += 1
-        self._filters_label.set_label("Filters" if not count else f"Filters · {count}")
+        self._filters_label.set_label(f"{count}" if count else "")
+        self._filters_label.set_visible(bool(count))
+        self.filters_button.set_tooltip_text(
+            f"Sort and filter wallpapers ({count} active)" if count
+            else "Sort and filter wallpapers"
+        )
 
     def _refresh_filtered_paths(self):
         self._update_filters_badge()
