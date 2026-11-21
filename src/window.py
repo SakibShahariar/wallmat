@@ -1373,6 +1373,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._random_order = self._make_random_order(self._all_paths)
         self._paths = list(self._all_paths)
         self._restore_applied_history()
+        # Precompute color palettes in the background so choosing a color
+        # family later applies instantly instead of leaving an empty grid
+        # while hundreds of thumbnails are decoded on demand.
+        self._start_palette_scan(silent=True)
 
         folder_label = os.path.basename(directory.rstrip(os.sep)) or directory
         count_label = str(len(self._all_paths))
@@ -1700,7 +1704,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self._start_palette_scan()
         self._refresh_filtered_paths()
 
-    def _start_palette_scan(self):
+    def _start_palette_scan(self, silent=False):
         """Compute palettes for uncached files in a worker thread."""
         stats = {}
         # Reuse the same cached thumbnails the layouts already generate.
@@ -1728,9 +1732,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._palette_generation += 1
         generation = self._palette_generation
         self._palette_scanning = True
-        self._scan_progress_label.set_text("Analyzing wallpaper colors…")
-        self._scan_spinner.start()
-        self._scan_progress_row.set_visible(True)
+        if not silent:
+            self._scan_progress_label.set_text("Analyzing wallpaper colors…")
+            self._scan_spinner.start()
+            self._scan_progress_row.set_visible(True)
 
         def work():
             batch = []
@@ -1766,9 +1771,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             return GLib.SOURCE_REMOVE
         for path, fingerprint, families in batch:
             self._palette_cache.put(path, fingerprint, families)
-        self._scan_progress_label.set_text(
-            f"Analyzing wallpaper colors… {len(self._palette_cache)} images"
-        )
+        if not silent:
+            self._scan_progress_label.set_text(
+                f"Analyzing wallpaper colors… {len(self._palette_cache)} images"
+            )
         # Cache silently; the view is rebuilt once when the scan completes.
         return GLib.SOURCE_REMOVE
 

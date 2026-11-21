@@ -319,6 +319,12 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("os.path.isfile(thumb)", source)
         self.assertIn("source = thumb", source)
 
+    def test_palettes_precomputed_at_scan(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn("self._start_palette_scan(silent=True)", source)
+        self.assertIn("def _start_palette_scan(self, silent=False)", source)
+        self.assertIn("if not silent:", source)
+
     def test_color_filter_stable_loading(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn("self._palette_scanning = True", source)
