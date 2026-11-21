@@ -9,6 +9,11 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Iterable
 
+import gi
+
+gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import GdkPixbuf
+
 FAMILIES = (
     "dark", "light", "red", "orange", "yellow", "green",
     "cyan", "blue", "purple", "pink",
@@ -65,12 +70,11 @@ def classify_pixels(pixels: Iterable[tuple[int, int, int]]) -> frozenset[str]:
 
 
 def extract_families(path: str, size: int = 16) -> frozenset[str]:
-    """Decode a tiny copy of an image and classify its colour families."""
-    import gi
+    """Decode a tiny copy of an image and classify its colour families.
 
-    gi.require_version("GdkPixbuf", "2.0")
-    from gi.repository import GdkPixbuf
-
+    GdkPixbuf is imported at module scope so the worker thread never has to
+    import GI modules concurrently with the main loop.
+    """
     pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, size, size, True)
     if pixbuf is None:
         return frozenset()

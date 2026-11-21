@@ -1711,21 +1711,26 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         def work():
             batch = []
-            for path, fingerprint in stats.items():
-                if generation != self._palette_generation:
-                    break
-                try:
-                    families = extract_families(path)
-                except Exception:
-                    # A single unreadable or unsupported image must not
-                    # abort the whole palette scan.
-                    families = frozenset()
-                batch.append((path, fingerprint, families))
-                if len(batch) >= 25:
+            try:
+                for path, fingerprint in stats.items():
+                    if generation != self._palette_generation:
+                        break
+                    try:
+                        families = extract_families(path)
+                    except Exception as error:
+                        # A single unreadable or unsupported image must not
+                        # abort the whole palette scan.
+                        print(f"Wallmat palette: skipped {path}: {error}",
+                              file=sys.stderr)
+                        families = frozenset()
+                    batch.append((path, fingerprint, families))
+                    if len(batch) >= 10:
+                        GLib.idle_add(self._palettes_ready, generation, batch)
+                        batch = []
+                if batch:
                     GLib.idle_add(self._palettes_ready, generation, batch)
-                    batch = []
-            if batch:
-                GLib.idle_add(self._palettes_ready, generation, batch)
+            except Exception as error:
+                print(f"Wallmat palette worker failed: {error}", file=sys.stderr)
 
         threading.Thread(
             target=work, daemon=True, name=f"wallmat-palette-{generation}"
