@@ -110,8 +110,15 @@ PLACEMENT_BACKGROUND_KEY = "placement-background"
 # or blurred window background. GTK4's CSS parser accepts backdrop-filter;
 # compositors without support simply show the transparent background.
 _SEAMLESS_CSS = b"""
+/* Keep the native GTK4/Libadwaita CSD look (rounded corners and drop
+   shadow), changing only the background so the wallpaper shows through.
+   Do not reset border/box-shadow on the toplevel: that removes the CSD
+   outline and makes the window look like an undecorated GTK3 window. */
 window.wallmat-backdrop-transparent,
-window.wallmat-backdrop-blurred,
+window.wallmat-backdrop-blurred {
+    border-radius: 12px;
+    overflow: hidden;
+}
 window.wallmat-backdrop-transparent > *,
 window.wallmat-backdrop-blurred > *,
 window.wallmat-backdrop-transparent toolbarview,
@@ -124,8 +131,6 @@ window.wallmat-backdrop-transparent headerbar.background,
 window.wallmat-backdrop-blurred headerbar.background {
     background-color: transparent;
     background-image: none;
-    box-shadow: none;
-    border: none;
 }
 window.wallmat-backdrop-blurred {
     backdrop-filter: blur(18px);
