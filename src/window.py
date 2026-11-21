@@ -142,6 +142,29 @@ window.wallmat-backdrop-transparent {
 }
 """
 
+# Some themes (Material-Gnome) force every button in a header-bar popover to
+# the primary color at USER priority, which turns dropdowns into low-contrast
+# pills. Scope a USER-priority override to our own filter popover only.
+_FILTER_CSS = b"""
+popover.wallmat-filter-popover button,
+popover.wallmat-filter-popover dropdown button,
+popover.wallmat-filter-popover dropdown button.toggle {
+    background-color: var(--surface_container_high);
+    color: var(--on_surface);
+    box-shadow: none;
+    border: 1px solid var(--outline_variant);
+}
+popover.wallmat-filter-popover button:hover,
+popover.wallmat-filter-popover dropdown button:hover {
+    background-color: var(--surface_container_highest);
+}
+popover.wallmat-filter-popover button:checked,
+popover.wallmat-filter-popover dropdown button:checked {
+    background-color: var(--primary_container);
+    color: var(--on_primary_container);
+}
+"""
+
 def _icon_button(label: str, icon_name: str) -> Gtk.Button:
     """Build a labelled button with a leading symbolic icon."""
     button = Gtk.Button()
@@ -619,6 +642,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # All sorting/filtering lives in one popover so the window shows only
         # the wallpaper view and the primary action.
         filters_popover = Gtk.Popover()
+        filters_popover.add_css_class("wallmat-filter-popover")
         filters_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         filters_box.set_margin_top(10)
         filters_box.set_margin_bottom(10)
@@ -2017,6 +2041,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # Wallmat's transparent backdrop.
         register_css_once("wallmat-seamless", display, _SEAMLESS_CSS,
                           Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        # USER priority so this wins over global gtk.css rules that force
+        # popover buttons to the primary color. Scoped to our popover only.
+        register_css_once("wallmat-filter-style", display, _FILTER_CSS,
+                          Gtk.STYLE_PROVIDER_PRIORITY_USER)
 
     def _register_focus_colors(self, window):
         display = self.get_display()

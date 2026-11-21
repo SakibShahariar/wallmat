@@ -196,6 +196,8 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn('self.filters_button.add_css_class("flat")', source)
         self.assertIn('widget.add_css_class("flat")', source)
         self.assertIn('self.favorites_filter.add_css_class("flat")', source)
+        self.assertIn('filters_popover.add_css_class("wallmat-filter-popover")', source)
+        self.assertIn('register_css_once("wallmat-filter-style", display, _FILTER_CSS,\n                          Gtk.STYLE_PROVIDER_PRIORITY_USER)', source)
         self.assertIn("for action_button in (self.preview_button, self.set_wallpaper_button):", source)
         self.assertNotIn("self.filters_button.set_halign(Gtk.Align.CENTER)", source)
         for key in ("Sort", "Tag", "Color", "Collection", "Recent"):
