@@ -644,7 +644,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         filters_box.append(filter_chip("Sort", self.sort_selector))
 
         favorites_chip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        favorites_chip.append(Gtk.Image.new_from_icon_name("emblem-favorite-symbolic"))
+        self._favorites_chip_icon = Gtk.Image.new_from_icon_name("non-starred-symbolic")
+        favorites_chip.append(self._favorites_chip_icon)
         favorites_chip.append(Gtk.Label(label="Favorites"))
         self.favorites_filter = Gtk.ToggleButton()
         self.favorites_filter.set_child(favorites_chip)
@@ -847,13 +848,14 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.preview_matugen_button.set_sensitive(False)
         self.preview_matugen_button.connect("clicked", self._on_preview_matugen)
         self.favorite_button = _icon_button(
-            "Add to favorites", "emblem-favorite-symbolic"
+            "Add to favorites", "non-starred-symbolic"
         )
+        self._favorite_button_icon = self.favorite_button.get_child().get_first_child()
         self._favorite_button_label = self.favorite_button.get_child().get_last_child()
         self.favorite_button.set_sensitive(False)
         self.favorite_button.connect("clicked", self._on_toggle_favorite)
         self.surprise_button = _icon_button(
-            "Surprise me", "system-shuffle-symbolic"
+            "Surprise me", "media-playlist-shuffle-symbolic"
         )
         self.surprise_button.set_tooltip_text(
             "Choose and immediately apply a random wallpaper from the current filtered results"
@@ -2142,8 +2144,13 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self._details_toggle.set_active(False)
 
     def _update_favorite_button(self):
-        label = "Remove favorite" if self._selected_path in self._favorites else "Add to favorites"
-        self._favorite_button_label.set_label(label)
+        is_favorite = self._selected_path in self._favorites
+        icon = "starred-symbolic" if is_favorite else "non-starred-symbolic"
+        self._favorite_button_label.set_label(
+            "Remove favorite" if is_favorite else "Add to favorites"
+        )
+        self._favorite_button_icon.set_from_icon_name(icon)
+        self._favorites_chip_icon.set_from_icon_name(icon)
 
     def _update_missing_favorites_action(self):
         missing_count = sum(

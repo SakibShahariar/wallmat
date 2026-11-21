@@ -162,11 +162,12 @@ class RuntimeWiringTests(unittest.TestCase):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn("def _icon_button", source)
         for icon in ("preferences-desktop-wallpaper-symbolic", "view-reveal-symbolic",
-                     "color-select-symbolic", "emblem-favorite-symbolic",
-                     "system-shuffle-symbolic", "edit-copy-symbolic"):
+                     "color-select-symbolic", "starred-symbolic",
+                     "media-playlist-shuffle-symbolic", "edit-copy-symbolic"):
             self.assertIn(icon, source)
         self.assertIn("def _set_window_title(self, title: str, subtitle: str = \"\")", source)
-        self.assertIn("self._favorite_button_label.set_label(label)", source)
+        self.assertIn("self._favorite_button_icon.set_from_icon_name(icon)", source)
+        self.assertIn("self._favorites_chip_icon.set_from_icon_name(icon)", source)
 
     def test_polished_action_layout_wiring(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
@@ -189,7 +190,7 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("self.filters_button.set_halign(Gtk.Align.CENTER)", source)
         for key in ("Sort", "Tag", "Color", "Collection", "Recent"):
             self.assertIn(f'filters_box.append(filter_chip("{key}"', source)
-        self.assertIn('Gtk.Image.new_from_icon_name("emblem-favorite-symbolic")', source)
+        self.assertIn('Gtk.Image.new_from_icon_name("non-starred-symbolic")', source)
         self.assertIn("content.append(self.filters_button)", source)
 
     def test_adwaita_chrome_with_transparent_backdrop(self):
