@@ -648,6 +648,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             lbl.set_hexpand(True)
             chip.append(lbl)
             widget.set_hexpand(True)
+            # Some themes (e.g. Material-Gnome) force every button inside a
+            # header-bar popover to the primary color, which makes dropdowns
+            # unreadable here. 'flat' opts them out of that rule.
+            if isinstance(widget, Gtk.DropDown):
+                widget.add_css_class("flat")
             chip.append(widget)
             return chip
 
@@ -659,6 +664,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         favorites_chip.append(Gtk.Label(label="Favorites"))
         self.favorites_filter = Gtk.ToggleButton()
         self.favorites_filter.set_child(favorites_chip)
+        self.favorites_filter.add_css_class("flat")
         self.favorites_filter.set_active(self._favorites_only)
         self.favorites_filter.set_tooltip_text("Show only favorite wallpapers")
         self.favorites_filter.connect("toggled", self._on_favorites_filter_toggled)
