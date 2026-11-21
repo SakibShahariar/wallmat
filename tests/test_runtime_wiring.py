@@ -323,7 +323,8 @@ class RuntimeWiringTests(unittest.TestCase):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn("self._start_palette_scan(silent=True)", source)
         self.assertIn("def _start_palette_scan(self, silent=False)", source)
-        self.assertIn("if not silent:", source)
+        self.assertIn("self._palette_scan_silent = silent", source)
+        self.assertIn("if not self._palette_scan_silent:", source)
 
     def test_color_filter_stable_loading(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")

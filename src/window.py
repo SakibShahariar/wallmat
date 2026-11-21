@@ -1706,6 +1706,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
     def _start_palette_scan(self, silent=False):
         """Compute palettes for uncached files in a worker thread."""
+        self._palette_scan_silent = silent
         stats = {}
         # Reuse the same cached thumbnails the layouts already generate.
         # Decoding those WebPs is far cheaper than full-size photos.
@@ -1771,7 +1772,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             return GLib.SOURCE_REMOVE
         for path, fingerprint, families in batch:
             self._palette_cache.put(path, fingerprint, families)
-        if not silent:
+        if not self._palette_scan_silent:
             self._scan_progress_label.set_text(
                 f"Analyzing wallpaper colors… {len(self._palette_cache)} images"
             )
@@ -1784,7 +1785,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._palette_scanning = False
         self._scan_spinner.stop()
         self._scan_progress_row.set_visible(False)
-        self._refresh_filtered_paths()
+        if not self._palette_scan_silent:
+            self._refresh_filtered_paths()
         return GLib.SOURCE_REMOVE
 
     def _refresh_tag_filter(self):
