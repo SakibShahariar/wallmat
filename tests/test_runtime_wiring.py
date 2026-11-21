@@ -143,6 +143,12 @@ class RuntimeWiringTests(unittest.TestCase):
             self.assertIn("def get_position", layout, name)
             self.assertIn("def restore_position", layout, name)
 
+    def test_windowless_instance_guard(self):
+        source = (SRC / "main.py").read_text(encoding="utf-8")
+        self.assertIn("def ensure_window", source)
+        self.assertIn("if not app.get_windows()", source)
+        self.assertIn("GLib.timeout_add_seconds(5, ensure_window)", source)
+
     def test_hig_iconography_and_header_subtitle_wiring(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn("def _icon_button", source)

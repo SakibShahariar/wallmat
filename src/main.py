@@ -97,6 +97,15 @@ def main():
         args.wallpaper_dir, args.layout, plain=args.plain,
         matugen_args=shlex.split(args.matugen_args),
     )
+    # A GApplication can own its name without ever receiving activate (for
+    # example a launcher race), leaving a windowless process that swallows
+    # every later launch. Give it a few seconds, then quit if no window came up.
+    def ensure_window():
+        if not app.get_windows():
+            app.quit()
+        return GLib.SOURCE_REMOVE
+
+    GLib.timeout_add_seconds(5, ensure_window)
     run_status = app.run([])
     return app.plain_exit_code if args.plain else run_status
 
