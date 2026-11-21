@@ -152,6 +152,12 @@ class RuntimeWiringTests(unittest.TestCase):
         load_fn = source.split("def _load_selected_metadata")[1].split("def _on_copy_metadata")[0]
         self.assertNotIn("self._metadata_row.set_visible(True)", load_fn)
 
+    def test_no_argument_launch_resolves_folder(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertEqual(source.count("os.path.abspath(wallpaper_dir)"), 0)
+        self.assertIn("self._wallpaper_dir = os.path.abspath(initial_directory)", source)
+        self.assertIn("self._scan_and_load(self._wallpaper_dir)", source)
+
     def test_windowless_instance_guard(self):
         source = (SRC / "main.py").read_text(encoding="utf-8")
         self.assertIn("def ensure_window", source)

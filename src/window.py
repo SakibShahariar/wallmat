@@ -1062,7 +1062,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         self._connect_setting_changes()
 
-        self._wallpaper_dir = os.path.abspath(wallpaper_dir)
+        # self._wallpaper_dir was already resolved from the saved folder or
+        # DEFAULT_WALLPAPER_DIR earlier in __init__. Using the raw parameter
+        # here crashed on a no-argument launch (GNOME launcher / matugen.fish
+        # fallback), leaving a windowless process that owned the app ID.
         self._scan_and_load(self._wallpaper_dir)
         self._refresh_tag_filter()
         self._refresh_collection_selector()
