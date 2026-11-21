@@ -16,6 +16,8 @@ earlier selection landing after a newer one, in case the user selects
 again before the first decode finishes.
 """
 
+import hashlib
+import os
 import threading
 
 import gi
@@ -47,8 +49,25 @@ class DesktopPreview(Gtk.Widget):
         my_generation = self._generation
 
         def decode_worker():
+            # Prefer the cached 480px WebP thumbnail: a full-resolution
+            # decode takes ~600ms, so rapid arrow navigation kept the
+            # preview showing an empty placeholder frame. Thumbnails
+            # decode in ~25ms.
+            source = path
             try:
-                pixbuf = GdkPixbuf.Pixbuf.new_from_file(path)
+                stat = os.stat(path)
+                key = f"{path}:{stat.st_mtime_ns}:{stat.st_size}:480"
+                digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+                thumb = os.path.join(
+                    os.path.expanduser("~/.cache/wallpaper-chooser/thumbs"),
+                    digest + ".webp",
+                )
+                if os.path.isfile(thumb):
+                    source = thumb
+            except OSError:
+                pass
+            try:
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file(source)
             except Exception:
                 pixbuf = None
             GLib.idle_add(self._deliver, my_generation, pixbuf)

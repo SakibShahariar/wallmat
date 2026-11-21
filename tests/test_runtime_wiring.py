@@ -312,6 +312,13 @@ class RuntimeWiringTests(unittest.TestCase):
         installer = (Path(__file__).resolve().parents[1] / "install.sh").read_text()
         self.assertIn("dev.sakib.Wallmat.Schedule.desktop", installer)
 
+    def test_preview_uses_cached_thumbnail(self):
+        source = (SRC / "widgets" / "desktop_preview.py").read_text(encoding="utf-8")
+        self.assertIn("cache/wallpaper-chooser/thumbs", source)
+        self.assertIn(".webp", source)
+        self.assertIn("os.path.isfile(thumb)", source)
+        self.assertIn("source = thumb", source)
+
     def test_color_filter_stable_loading(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn("self._palette_scanning = True", source)
