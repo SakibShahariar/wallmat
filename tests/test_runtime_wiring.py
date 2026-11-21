@@ -312,6 +312,19 @@ class RuntimeWiringTests(unittest.TestCase):
         installer = (Path(__file__).resolve().parents[1] / "install.sh").read_text()
         self.assertIn("dev.sakib.Wallmat.Schedule.desktop", installer)
 
+    def test_color_filter_stable_loading(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn("self._palette_scanning = True", source)
+        self.assertIn("def _palette_scan_done", source)
+        self.assertIn("GLib.idle_add(self._palette_scan_done, generation)", source)
+        self.assertIn(
+            "self._color_filter\n                if not getattr(self, \"_palette_scanning\", False) else None",
+            source,
+        )
+        self.assertIn("cache_path=cache_path", source)
+        palette = (SRC / "color_palette.py").read_text(encoding="utf-8")
+        self.assertIn("def extract_families(path: str, size: int = 16, cache_path", palette)
+
     def test_color_filter_wiring(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn("ensure_pixbuf_loaded()", source)

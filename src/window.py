@@ -19,6 +19,7 @@ persisted across restarts.
 import os
 import sys
 import json
+import hashlib
 from datetime import datetime
 import shlex
 import shutil
@@ -594,6 +595,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._color_filter: str | None = None
         self._palette_cache = PaletteCache()
         self._palette_generation = 0
+        self._palette_scanning = False
         self._random_order: list[str] = []
         self._layouts_populated = False
         self._search_timeout_id = None
@@ -1701,6 +1703,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
     def _start_palette_scan(self):
         """Compute palettes for uncached files in a worker thread."""
         stats = {}
+        # Reuse the same cached thumbnails the layouts already generate.
+        # Decoding those WebPs is far cheaper than full-size photos.
+        thumb_dir = os.path.expanduser("~/.cache/wallpaper-chooser/thumbs")
         for path in self._all_paths:
             try:
                 stat = os.stat(path)
@@ -1708,7 +1713,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 continue
             fingerprint = (stat.st_mtime_ns, stat.st_size)
             if self._palette_cache.get(path, fingerprint) is None:
-                stats[path] = fingerprint
+                key = f"{path}:{fingerprint[0]}:{fingerprint[1]}:480"
+                digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+                stats[path] = (fingerprint, os.path.join(thumb_dir, digest + ".webp"))
         if not stats:
             return
         # Load GdkPixbuf on the main thread so the worker only uses the
@@ -1720,15 +1727,19 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             return
         self._palette_generation += 1
         generation = self._palette_generation
+        self._palette_scanning = True
+        self._scan_progress_label.set_text("Analyzing wallpaper colors…")
+        self._scan_spinner.start()
+        self._scan_progress_row.set_visible(True)
 
         def work():
             batch = []
             try:
-                for path, fingerprint in stats.items():
+                for path, (fingerprint, cache_path) in stats.items():
                     if generation != self._palette_generation:
                         break
                     try:
-                        families = extract_families(path)
+                        families = extract_families(path, cache_path=cache_path)
                     except Exception as error:
                         # A single unreadable or unsupported image must not
                         # abort the whole palette scan.
@@ -1741,8 +1752,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                         batch = []
                 if batch:
                     GLib.idle_add(self._palettes_ready, generation, batch)
+                GLib.idle_add(self._palette_scan_done, generation)
             except Exception as error:
                 print(f"Wallmat palette worker failed: {error}", file=sys.stderr)
+                GLib.idle_add(self._palette_scan_done, generation)
 
         threading.Thread(
             target=work, daemon=True, name=f"wallmat-palette-{generation}"
@@ -1753,6 +1766,18 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             return GLib.SOURCE_REMOVE
         for path, fingerprint, families in batch:
             self._palette_cache.put(path, fingerprint, families)
+        self._scan_progress_label.set_text(
+            f"Analyzing wallpaper colors… {len(self._palette_cache)} images"
+        )
+        # Cache silently; the view is rebuilt once when the scan completes.
+        return GLib.SOURCE_REMOVE
+
+    def _palette_scan_done(self, generation):
+        if generation != self._palette_generation:
+            return GLib.SOURCE_REMOVE
+        self._palette_scanning = False
+        self._scan_spinner.stop()
+        self._scan_progress_row.set_visible(False)
         self._refresh_filtered_paths()
         return GLib.SOURCE_REMOVE
 
@@ -1849,7 +1874,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             favorites=self._favorites if self._favorites_only else (),
             tags=self._tags,
             tag=selected_tag,
-            color_family=self._color_filter,
+            color_family=(
+                self._color_filter
+                if not getattr(self, "_palette_scanning", False) else None
+            ),
             palette_for=palette_for,
             query=query,
             root=self._wallpaper_dir,

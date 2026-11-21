@@ -5,6 +5,7 @@ CI job. Image decoding imports GdkPixbuf lazily inside extract_families().
 """
 
 import colorsys
+import os
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Iterable
@@ -80,14 +81,16 @@ def classify_pixels(pixels: Iterable[tuple[int, int, int]]) -> frozenset[str]:
     )
 
 
-def extract_families(path: str, size: int = 16) -> frozenset[str]:
+def extract_families(path: str, size: int = 16, cache_path: str | None = None) -> frozenset[str]:
     """Decode a tiny copy of an image and classify its colour families.
 
-    GdkPixbuf is imported at module scope so the worker thread never has to
-    import GI modules concurrently with the main loop.
+    ``cache_path`` may point at an already-generated thumbnail; decoding a
+    cached 480px WebP is ~20x faster than decoding a full-resolution photo,
+    which keeps large libraries responsive. Falls back to the source file.
     """
+    source = cache_path if cache_path and os.path.isfile(cache_path) else path
     pixbuf = ensure_pixbuf_loaded().Pixbuf.new_from_file_at_scale(
-        path, size, size, True
+        source, size, size, True
     )
     if pixbuf is None:
         return frozenset()
