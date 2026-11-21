@@ -28,7 +28,7 @@ from window import (
 )
 from backup_storage import encode_backup, decode_backup
 from placement import MODES, MODE_LABELS, supported_modes
-from targets import supported_targets
+from targets import gnome_shell_version, supported_targets
 from favorites_storage import decode_favorites, encode_favorites
 from tags_storage import decode_tags, encode_tags
 from collections_storage import decode_collections, encode_collections
@@ -234,14 +234,13 @@ class WallmatSettingsApp(Adw.Application):
 
         supported = supported_targets(*self._target_capabilities())
         targets = [
-            (key, label if key in supported else label + " (unsupported here)")
+            (key, label if key in supported else label + " (not available)")
             for key, label, _hint in TARGETS
         ]
         target_row, self.target_keys = _combo(
             targets, self.preference.get_string("wallpaper-target", "desktop")
         )
         target_row.set_title("Apply wallpaper to")
-        target_row.connect("notify::selected", self._on_target)
         group.add(target_row)
 
         hint = Adw.ActionRow()
@@ -252,11 +251,20 @@ class WallmatSettingsApp(Adw.Application):
             )
         else:
             hint.set_subtitle(
-                "This desktop does not expose a lock-screen wallpaper setting. "
-                "Selecting that target keeps the desktop background unchanged."
+                "This desktop reuses the desktop wallpaper for the lock screen, "
+                "so a separate lock-screen image is not available."
             )
         hint.add_css_class("dim-label")
         group.add(hint)
+
+        # Ignore attempts to select an advertised-but-unsupported target.
+        self._supported_targets = supported
+        def on_target_selected(row, _pspec):
+            key = self.target_keys[row.get_selected()]
+            if key not in self._supported_targets:
+                return
+            self.preference.set_string("wallpaper-target", key)
+        target_row.connect("notify::selected", on_target_selected)
 
         page.add(group)
 
@@ -460,7 +468,7 @@ class WallmatSettingsApp(Adw.Application):
             ).list_keys()
         except GLib.Error:
             pass
-        return background_keys, screensaver_keys, True
+        return background_keys, screensaver_keys, True, gnome_shell_version()
 
     def _on_target(self, row, _pspec):
         self.preference.set_string("wallpaper-target",

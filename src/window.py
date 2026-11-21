@@ -61,7 +61,8 @@ from schedule import (
     parse_clock, format_clock, MAX_PERIODS, period_candidates,
 )
 from targets import (
-    portal_set_on, resolve_target, screensaver_keys_for_target, supported_targets,
+    gnome_shell_version, portal_set_on, resolve_target,
+    screensaver_keys_for_target, supported_targets,
 )
 from catalog_commons import attribution_text
 from catalog_client import search as catalog_search, download as catalog_download
@@ -3736,10 +3737,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             ).list_keys()
         except GLib.Error:
             pass
-        # The Wallpaper portal defines set-on in version 1, so a reachable
-        # portal backend is enough to offer all targets through that path.
+        # The Wallpaper portal defines set-on in version 1, but on GNOME 40+
+        # the lock screen reuses the desktop wallpaper and the option is
+        # ignored, so gate it on the running shell version.
         return supported_targets(
-            background_keys, screensaver_keys, portal_set_on_support=True
+            background_keys, screensaver_keys, portal_set_on_support=True,
+            gnome_shell_version=gnome_shell_version(),
         )
 
     def _resolve_target(self) -> str:
@@ -3749,6 +3752,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if target is None:
             say(f"Wallpaper target {requested!r} is not supported here; "
                 "falling back to the desktop background.")
+            if not self._plain:
+                self._preference.set_string(WALLPAPER_TARGET_KEY, "desktop")
             return "desktop"
         return target
 

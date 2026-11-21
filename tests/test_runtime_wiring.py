@@ -234,6 +234,19 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("_decode_image(temporary)", client_src)
         self.assertIn("validate_download_url(response.geturl())", client_src)
 
+    def test_gnome_40_lock_capability_wiring(self):
+        targets = (SRC / "targets.py").read_text(encoding="utf-8")
+        self.assertIn("GNOME_NO_SEPARATE_LOCK_MAJOR = 40", targets)
+        self.assertIn("def gnome_has_separate_lock_screen", targets)
+        self.assertIn("def gnome_shell_version", targets)
+        window_src = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn("gnome_shell_version=gnome_shell_version()", window_src)
+        self.assertIn('self._preference.set_string(WALLPAPER_TARGET_KEY, "desktop")', window_src)
+        settings_src = (SRC / "settings.py").read_text(encoding="utf-8")
+        self.assertIn("from targets import gnome_shell_version, supported_targets", settings_src)
+        self.assertIn("not available", settings_src)
+        self.assertIn("reuses the desktop wallpaper for the lock screen", settings_src)
+
     def test_target_routing_wiring(self):
         window_src = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn("def _detect_targets", window_src)
