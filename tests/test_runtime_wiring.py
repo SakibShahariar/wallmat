@@ -173,7 +173,8 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("set_show_end_title_buttons(True)", preview)
         self.assertNotIn("Gtk.StyleContext.add_provider_for_display", preview)
         self.assertNotIn("window.fullscreen()", preview)
-        self.assertIn("def _on_preview_scheme_toggled", source)
+        self.assertNotIn("wallmat-preview-surface", source)
+        self.assertNotIn("_on_preview_scheme_toggled", source)
         self.assertIn("def _on_preview_apply", source)
 
     def test_embedded_settings_dialog(self):

@@ -141,16 +141,6 @@ window.wallmat-backdrop-blurred {
 window.wallmat-backdrop-transparent {
     backdrop-filter: none;
 }
-/* Preview backdrop: only the image surface is tinted, so the surrounding
-   header bar and controls keep their normal Adwaita theme styling. */
-.wallmat-preview-surface {
-    background-color: #242424;
-    color: #f6f5f4;
-}
-.wallmat-preview-surface.wallmat-preview-light {
-    background-color: #f6f5f4;
-    color: #241f31;
-}
 """
 
 # Some themes (Material-Gnome) force every button in a header-bar popover to
@@ -3638,7 +3628,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         outer.set_margin_bottom(12)
         outer.set_margin_start(12)
         outer.set_margin_end(12)
-        outer.add_css_class("wallmat-preview-surface")
         toolbar.set_content(outer)
 
         scroller = Gtk.ScrolledWindow()
@@ -3659,10 +3648,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         controls = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         controls.set_halign(Gtk.Align.CENTER)
-        scheme = Gtk.ToggleButton(label="Light")
-        scheme.set_tooltip_text("Switch the preview backdrop between dark and light")
-        scheme.connect("toggled", self._on_preview_scheme_toggled, outer)
-        controls.append(scheme)
         zoom_label = Gtk.Label(label="Zoom")
         zoom = Gtk.Scale.new_with_range(
             Gtk.Orientation.HORIZONTAL, 0.25, 2.0, 0.25
@@ -3722,14 +3707,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         threading.Thread(target=load_image, daemon=True).start()
         dialog.present(self)
-
-    def _on_preview_scheme_toggled(self, button, outer):
-        outer.remove_css_class("wallmat-preview-light")
-        outer.remove_css_class("wallmat-preview-dark")
-        outer.add_css_class(
-            "wallmat-preview-light" if button.get_active()
-            else "wallmat-preview-dark"
-        )
 
     def _on_preview_apply(self, _button, path, dialog):
         self._on_apply_wallpaper(None)
