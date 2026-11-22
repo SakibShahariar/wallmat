@@ -164,6 +164,18 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("if not app.get_windows()", source)
         self.assertIn("GLib.timeout_add_seconds(5, ensure_window)", source)
 
+    def test_embedded_settings_dialog(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn("def _on_open_settings", source)
+        self.assertIn("Adw.PreferencesDialog()", source)
+        self.assertIn("from settings import WallmatSettingsApp", source)
+        self.assertIn("settings.build_pages()", source)
+        self.assertIn("self._settings_dialog = dialog", source)
+        settings = (SRC / "settings.py").read_text(encoding="utf-8")
+        self.assertIn("def build_pages(self)", settings)
+        self.assertIn("preference=None, window=None", settings)
+        self.assertIn("self._owns_window", settings)
+
     def test_apply_matugen_delegates_to_full_pipeline(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn('os.path.expanduser("~/Scripts/matugen.fish")', source)

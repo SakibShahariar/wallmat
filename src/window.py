@@ -436,6 +436,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._selected_path: str | None = None
         self._rotation_source_id: int | None = None
         self._target_capabilities = self._detect_targets()
+        self._settings_dialog = None
         self._rotation_history: list[str] = []
         self._rotation_history_index = -1
         self._history_navigation = False
@@ -999,6 +1000,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._details_toggle.set_visible(not self._plain)
         self._details_toggle.connect("toggled", self._on_details_toggled)
         more_actions.append(self._details_toggle)
+        settings_action = Gtk.Button(label="Settings…")
+        settings_action.set_tooltip_text("Open Wallmat preferences")
+        settings_action.connect("clicked", self._on_open_settings)
+        more_actions.append(settings_action)
+        more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
         secondary_heading = Gtk.Label(label="More actions")
         secondary_heading.set_xalign(0.0)
         secondary_heading.add_css_class("heading")
@@ -1138,6 +1144,27 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 if active_layout is not None:
                     active_layout.select_path(saved_path)
                 self._on_wallpaper_selected(None, saved_path)
+
+    def _on_open_settings(self, _button):
+        """Open the shared preferences pages inside this app as a dialog."""
+        from settings import WallmatSettingsApp
+
+        if self._settings_dialog is not None:
+            self._settings_dialog.present(self)
+            return
+        dialog = Adw.PreferencesDialog()
+        dialog.set_title("Wallmat Settings")
+        settings = WallmatSettingsApp(
+            preference=self._preference, window=self
+        )
+        for page in settings.build_pages():
+            dialog.add(page)
+        self._settings_dialog = dialog
+        dialog.connect("closed", self._on_settings_closed)
+        dialog.present(self)
+
+    def _on_settings_closed(self, _dialog):
+        self._settings_dialog = None
 
     def _on_choose_folder(self, _button):
         """Open the platform folder picker without blocking the GTK thread."""

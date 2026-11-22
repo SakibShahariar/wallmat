@@ -19,8 +19,6 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gtk, Gio, GLib
 
-GLib.set_prgname("wallmat-settings")
-
 sys.path.insert(0, os.path.dirname(__file__))
 
 from window import (
@@ -87,10 +85,23 @@ def _read_json(path, fallback):
 
 
 class WallmatSettingsApp(Adw.Application):
-    def __init__(self):
+    """Builds the preferences pages and, when run directly, hosts them.
+
+    The main Wallmat window can also instantiate this class with its own
+    preference object and window, then call build_pages() to embed the very
+    same pages in an Adw.PreferencesDialog instead of launching a separate
+    application.
+    """
+
+    def __init__(self, preference=None, window=None):
         super().__init__(application_id="dev.sakib.Wallmat.Settings")
-        self.preference = _LayoutPreference()
-        self.window = None
+        self.preference = preference if preference is not None else _LayoutPreference()
+        self.window = window
+        self._owns_window = window is None
+
+    def build_pages(self):
+        """Return the three preferences pages for embedding in a dialog."""
+        return [self._browsing_page(), self._wallpaper_page(), self._storage_page()]
 
     def do_activate(self):
         if self.window is not None:
@@ -99,9 +110,8 @@ class WallmatSettingsApp(Adw.Application):
         self.window = Adw.PreferencesWindow()
         self.window.set_default_size(640, 640)
         self.window.set_title("Wallmat Settings")
-        self.window.add(self._browsing_page())
-        self.window.add(self._wallpaper_page())
-        self.window.add(self._storage_page())
+        for page in self.build_pages():
+            self.window.add(page)
         # GApplication only tracks ApplicationWindow instances; a plain
         # PreferencesWindow needs an explicit hold or run() exits at once.
         self.hold()
@@ -109,8 +119,9 @@ class WallmatSettingsApp(Adw.Application):
         self.window.present()
 
     def _on_window_close(self, _window):
-        self.release()
-        self.window = None
+        if self._owns_window:
+            self.release()
+            self.window = None
         return False
 
     # -- pages --
@@ -562,6 +573,7 @@ class WallmatSettingsApp(Adw.Application):
 
 
 def main():
+    GLib.set_prgname("wallmat-settings")
     app = WallmatSettingsApp()
     return app.run([])
 
