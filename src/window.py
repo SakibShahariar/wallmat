@@ -147,8 +147,6 @@ window.wallmat-backdrop-transparent {
 # the primary color at USER priority, which turns dropdowns into low-contrast
 # pills. Scope a USER-priority override to our own filter popover only.
 _FILTER_CSS = b"""
-popover.wallmat-menu-popover button,
-popover.wallmat-menu-popover dropdown button,
 popover.wallmat-filter-popover button,
 popover.wallmat-filter-popover dropdown button,
 popover.wallmat-filter-popover dropdown button.toggle {
@@ -157,13 +155,11 @@ popover.wallmat-filter-popover dropdown button.toggle {
     box-shadow: none;
     border: 1px solid var(--outline_variant);
 }
-popover.wallmat-menu-popover button:hover,
 popover.wallmat-filter-popover button:hover,
 popover.wallmat-filter-popover dropdown button:hover {
     background-color: var(--primary);
     color: var(--on_primary);
 }
-popover.wallmat-menu-popover button:checked,
 popover.wallmat-filter-popover button:checked,
 popover.wallmat-filter-popover dropdown button:checked {
     background-color: var(--primary_container);
@@ -1019,72 +1015,86 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             "clicked", self._on_remove_missing_favorites
         )
 
-        # Keep low-frequency actions in one keyboard-reachable popover so
-        # the wallpaper view retains more space at narrow window sizes.
-        more_popover = Gtk.Popover()
-        more_popover.add_css_class("wallmat-menu-popover")
-        more_actions = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL, spacing=6
-        )
-        more_actions.set_margin_top(8)
-        more_actions.set_margin_bottom(8)
-        more_actions.set_margin_start(8)
-        more_actions.set_margin_end(8)
-        self._more_actions = more_actions
+        # Native Adwaita menu: a Gio.Menu model renders proper modelbutton
+        # rows with sections, keyboard navigation and theming. Command items
+        # are SimpleActions on this window; the two live toggles are stateful
+        # actions kept in sync with the existing toggle widgets.
+        def add_command(name, label, handler):
+            action = Gio.SimpleAction.new(name, None)
+            action.connect("activate", handler)
+            self.add_action(action)
+            return (label, f"win.{name}")
+
+        def add_toggle(name, label, widget):
+            action = Gio.SimpleAction.new_stateful(
+                name, None, GLib.Variant("b", widget.get_active())
+            )
+
+            def on_change(_action, value):
+                action.set_state(value)
+                widget.set_active(value.get_boolean())
+
+            action.connect("change-state", on_change)
+            self.add_action(action)
+            widget.connect("toggled", lambda w: action.set_state(
+                GLib.Variant("b", w.get_active())
+            ))
+            return (label, f"win.{name}")
+
+        # Keep the toggle widgets alive: existing handlers still drive them
+        # (hide-details, seamless mode, rotation lifecycle). They are not in
+        # a visible container; the Gio actions proxy their state to the menu.
         self._details_toggle = Gtk.CheckButton(label="Show file details")
-        self._details_toggle.set_visible(not self._plain)
         self._details_toggle.connect("toggled", self._on_details_toggled)
-        more_actions.append(self._details_toggle)
-        settings_action = Gtk.Button(label="Settings…")
-        settings_action.set_tooltip_text("Open Wallmat preferences")
-        settings_action.connect("clicked", self._on_open_settings)
-        more_actions.append(settings_action)
-        more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
-        rotation_heading = Gtk.Label(label="Wallpaper rotation")
-        rotation_heading.set_xalign(0.0)
-        rotation_heading.add_css_class("heading")
-        more_actions.append(rotation_heading)
-        more_actions.append(self.auto_rotate_toggle)
-        more_actions.append(self.rotation_previous_button)
-        more_actions.append(self.rotation_next_button)
-        more_actions.append(self.clear_history_button)
-        more_actions.append(self.manage_schedule_button)
-        more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
-        more_actions.append(self.browse_catalog_button)
-        more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
-        favorites_heading = Gtk.Label(label="Favorites")
-        favorites_heading.set_xalign(0.0)
-        favorites_heading.add_css_class("heading")
-        more_actions.append(favorites_heading)
-        more_actions.append(self.export_favorites_button)
-        more_actions.append(self.remove_missing_favorites_button)
-        more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
-        tags_heading = Gtk.Label(label="Wallpaper tags")
-        tags_heading.set_xalign(0.0)
-        tags_heading.add_css_class("heading")
-        more_actions.append(tags_heading)
-        more_actions.append(self.manage_tags_button)
-        more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
-        collections_heading = Gtk.Label(label="Wallpaper collections")
-        collections_heading.set_xalign(0.0)
-        collections_heading.add_css_class("heading")
-        more_actions.append(collections_heading)
-        more_actions.append(self.manage_collections_button)
-        more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
-        batch_heading = Gtk.Label(label="Batch actions")
-        batch_heading.set_xalign(0.0)
-        batch_heading.add_css_class("heading")
-        more_actions.append(batch_heading)
-        more_actions.append(self.batch_select_button)
-        more_scroller = Gtk.ScrolledWindow()
-        more_scroller.set_policy(
-            Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC
-        )
-        more_scroller.set_max_content_height(420)
-        more_scroller.set_propagate_natural_height(True)
-        more_scroller.set_child(more_actions)
-        more_popover.set_child(more_scroller)
-        self.more_menu_button.set_popover(more_popover)
+
+        menu = Gio.Menu()
+        menu.append(*add_command("open-settings", "Settings…",
+                                 lambda *_a: self._on_open_settings(None)))
+
+        rotation = Gio.Menu()
+        rotation.append_item(Gio.MenuItem.new(*add_toggle(
+            "auto-rotate", "Auto-rotate", self.auto_rotate_toggle)))
+        rotation.append(*add_command("rotation-previous", "Previous",
+                                     lambda *_a: self._on_rotation_previous(None)))
+        rotation.append(*add_command("rotation-next", "Next",
+                                     lambda *_a: self._on_rotation_next(None)))
+        rotation.append(*add_command("clear-history", "Clear history",
+                                     lambda *_a: self._on_clear_history(None)))
+        rotation.append(*add_command("manage-schedule", "Manage schedules…",
+                                     lambda *_a: self._on_manage_schedule(None)))
+        menu.append_section("Wallpaper rotation", rotation)
+
+        menu.append(*add_command("browse-catalog", "Browse online catalog…",
+                                 lambda *_a: self._on_browse_catalog(None)))
+
+        favorites = Gio.Menu()
+        favorites.append(*add_command("export-favorites", "Export favorites",
+                                      lambda *_a: self._on_export_favorites(None)))
+        favorites.append(*add_command("remove-missing-favorites", "Remove missing favorites",
+                                      lambda *_a: self._on_remove_missing_favorites(None)))
+        menu.append_section("Favorites", favorites)
+
+        tags = Gio.Menu()
+        tags.append(*add_command("manage-tags", "Manage tags…",
+                                 lambda *_a: self._on_manage_tags(None)))
+        menu.append_section("Wallpaper tags", tags)
+
+        collections = Gio.Menu()
+        collections.append(*add_command("manage-collections", "Manage collections…",
+                                        lambda *_a: self._on_manage_collections(None)))
+        menu.append_section("Wallpaper collections", collections)
+
+        batch = Gio.Menu()
+        batch.append(*add_command("batch-select", "Select multiple…",
+                                  lambda *_a: self._on_batch_select(None)))
+        menu.append_section("Batch actions", batch)
+
+        details = Gio.Menu()
+        details.append_item(Gio.MenuItem.new(*add_toggle(
+            "show-file-details", "Show file details", self._details_toggle)))
+        menu.append_section("View", details)
+
+        self.more_menu_button.set_menu_model(menu)
         self._update_missing_favorites_action()
         # Remember which chrome was visible so seamless mode can restore it.
         self._wallpaper_overlay = content_overlay

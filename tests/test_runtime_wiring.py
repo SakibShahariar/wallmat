@@ -145,7 +145,7 @@ class RuntimeWiringTests(unittest.TestCase):
 
     def test_file_details_are_opt_in(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
-        self.assertIn('Gtk.CheckButton(label="Show file details")', source)
+        self.assertIn('add_toggle(\n            "show-file-details", "Show file details", self._details_toggle)', source)
         self.assertIn("def _on_details_toggled", source)
         self.assertIn("self._metadata_row.set_visible(False)", source)
         # Selection no longer forces the row visible.
@@ -164,17 +164,20 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("if not app.get_windows()", source)
         self.assertIn("GLib.timeout_add_seconds(5, ensure_window)", source)
 
-    def test_menu_popover_neutral_style(self):
+    def test_menu_uses_native_gio_menu(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
-        self.assertIn('more_popover.add_css_class("wallmat-menu-popover")', source)
+        self.assertIn("menu = Gio.Menu()", source)
+        self.assertIn("self.more_menu_button.set_menu_model(menu)", source)
+        self.assertIn("Gio.SimpleAction.new_stateful", source)
+        self.assertIn('add_toggle(\n            "auto-rotate"', source)
+        self.assertNotIn("more_popover = Gtk.Popover()", source)
         css = source.split("_FILTER_CSS = b")[1].split('"""')[1]
-        self.assertIn("popover.wallmat-menu-popover button", css)
-        self.assertIn("popover.wallmat-menu-popover button:hover", css)
+        self.assertNotIn("wallmat-menu-popover", css)
 
     def test_menu_has_no_split_button_duplicates(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
-        menu = source.split("self._more_actions = more_actions")[1].split(
-            "more_popover.set_child(more_scroller)"
+        menu = source.rsplit("menu = Gio.Menu()", 1)[1].split(
+            "self.more_menu_button.set_menu_model(menu)"
         )[0]
         self.assertIn("Settings…", menu)
         self.assertNotIn("secondary_heading", menu)
