@@ -3351,66 +3351,70 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         rows = []
 
         def add_row(period=None):
-            row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-            row.add_css_class("card")
+            group = Adw.PreferencesGroup()
+            group.set_title(period.name if period else "New period")
 
-            name = Gtk.Entry()
-            name.set_placeholder_text("Period name")
+            name = Adw.EntryRow()
+            name.set_title("Period name")
             name.set_text(period.name if period else "")
-            row.append(name)
+            group.add(name)
 
-            times = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            window_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
             start = Gtk.Entry()
             start.set_width_chars(5)
             start.set_text(format_clock(period.start) if period else "08:00")
             end = Gtk.Entry()
             end.set_width_chars(5)
             end.set_text(format_clock(period.end) if period else "17:00")
-            times.append(Gtk.Label(label="From"))
-            times.append(start)
-            times.append(Gtk.Label(label="to"))
-            times.append(end)
-            row.append(times)
+            window_box.append(Gtk.Label(label="From"))
+            window_box.append(start)
+            window_box.append(Gtk.Label(label="to"))
+            window_box.append(end)
+            window_row = Adw.ActionRow()
+            window_row.set_title("Local time window")
+            window_row.add_suffix(window_box)
+            group.add(window_row)
 
-            source = Gtk.DropDown.new_from_strings(
+            source = Adw.ComboRow()
+            source.set_title("Source")
+            source.set_model(Gtk.StringList.new(
                 ["Current library", "Folder", "Collection"]
+            ))
+            source.set_selected(
+                ("library", "folder", "collection").index(period.source_type)
+                if period else 0
             )
-            value = Gtk.Entry()
-            value.set_placeholder_text("Folder path or collection name")
-            if period:
-                index = ("library", "folder", "collection").index(period.source_type)
-                source.set_selected(index)
-                value.set_text(period.source_value)
-            else:
-                source.set_selected(0)
-            sources = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-            sources.append(source)
-            sources.append(value)
-            sources.set_hexpand(True)
-            value.set_hexpand(True)
-            row.append(sources)
+            group.add(source)
 
-            controls = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-            enabled = Gtk.CheckButton(label="Enabled")
+            value = Adw.EntryRow()
+            value.set_title("Folder path or collection name")
+            value.set_text(period.source_value if period else "")
+            group.add(value)
+
+            enabled = Adw.SwitchRow()
+            enabled.set_title("Enabled")
             enabled.set_active(period.enabled if period else True)
-            controls.append(enabled)
-            remove = Gtk.Button(label="Remove")
-            controls.append(remove)
-            row.append(controls)
+            group.add(enabled)
 
-            rows_box.append(row)
+            rows_box.append(group)
             entry = {
-                "row": row, "name": name, "start": start, "end": end,
+                "row": group, "name": name, "start": start, "end": end,
                 "source": source, "value": value, "enabled": enabled,
             }
             rows.append(entry)
 
-            def on_remove(_button):
-                rows_box.remove(row)
+            def on_remove_row(_button):
+                rows_box.remove(group)
                 if entry in rows:
                     rows.remove(entry)
 
-            remove.connect("clicked", on_remove)
+            remove_row = Adw.ActionRow()
+            remove_row.set_title("Remove period")
+            remove = Gtk.Button(label="Remove")
+            remove.add_css_class("destructive-action")
+            remove.connect("clicked", on_remove_row)
+            remove_row.add_suffix(remove)
+            group.add(remove_row)
 
         for existing in periods:
             add_row(existing)

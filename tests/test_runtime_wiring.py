@@ -258,6 +258,12 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("dialog.close()", source)
         # The only remaining native choosers are the correct GTK4 file dialogs.
         self.assertIn("Gtk.FileDialog()", source)
+        schedule = source.split("def _on_manage_schedule")[1].split("def _load_schedule")[0]
+        self.assertIn("Adw.PreferencesGroup()", schedule)
+        self.assertIn("Adw.EntryRow()", schedule)
+        self.assertIn("Adw.ComboRow()", schedule)
+        self.assertIn("Adw.SwitchRow()", schedule)
+        self.assertNotIn("add_css_class(\"card\")", schedule)
 
     def test_preview_in_header_single_bottom_action(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
