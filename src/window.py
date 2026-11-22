@@ -2434,6 +2434,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         )
         description.set_wrap(True)
         description.set_xalign(0.0)
+        description.add_css_class("dim-label")
         content.append(description)
 
         store = Gio.ListStore.new(Gtk.StringObject)
@@ -2604,6 +2605,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         )
         description.set_wrap(True)
         description.set_xalign(0.0)
+        description.add_css_class("dim-label")
         content.append(description)
 
         name_entry = Adw.EntryRow()
@@ -2783,6 +2785,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         )
         description.set_wrap(True)
         description.set_xalign(0.0)
+        description.add_css_class("dim-label")
         content.append(description)
         entry = Adw.EntryRow()
         entry.set_title("Tags (comma-separated)")
@@ -2867,19 +2870,23 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         ))
         description.set_wrap(True)
         description.set_xalign(0.0)
+        description.add_css_class("dim-label")
         content.append(description)
 
-        search_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        search_group = Adw.PreferencesGroup()
         query = Adw.EntryRow()
         query.set_title("Search Commons images")
         search_button = Gtk.Button(label="Search")
-        search_box.append(query)
-        search_box.append(search_button)
-        content.append(search_box)
+        search_button.add_css_class("suggested-action")
+        search_button.set_valign(Gtk.Align.CENTER)
+        query.add_suffix(search_button)
+        search_group.add(query)
+        content.append(search_group)
 
         status = Gtk.Label(label="Search to see results.")
         status.set_wrap(True)
         status.set_xalign(0.0)
+        status.add_css_class("dim-label")
         content.append(status)
 
         store = Gio.ListStore.new(Gtk.StringObject)
@@ -2887,35 +2894,32 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         factory = Gtk.SignalListItemFactory()
 
         def on_setup(_factory, list_item):
-            label = Gtk.Label(xalign=0.0)
-            label.set_wrap(True)
-            label.set_margin_start(6)
-            label.set_margin_end(6)
-            label.set_margin_top(4)
-            label.set_margin_bottom(4)
-            list_item.set_child(label)
+            row = Adw.ActionRow()
+            list_item.set_child(row)
 
         def on_bind(_factory, list_item):
             item = list_item.get_item()
-            label = list_item.get_child()
-            label.set_text(item.get_string() if item else "")
+            row = list_item.get_child()
+            title, _, subtitle = (item.get_string() if item else "").partition("\n")
+            row.set_title(title)
+            row.set_subtitle(subtitle)
 
         factory.connect("setup", on_setup)
         factory.connect("bind", on_bind)
         list_view = Gtk.ListView(model=selection, factory=factory)
+        list_view.add_css_class("boxed-list")
         scroller = Gtk.ScrolledWindow()
         scroller.set_vexpand(True)
         scroller.set_child(list_view)
         content.append(scroller)
 
-        actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         download_button = Gtk.Button(label="Download selected…")
+        download_button.add_css_class("suggested-action")
         download_button.set_sensitive(False)
         use_folder_button = Gtk.Button(label="Use downloaded folder")
         use_folder_button.set_sensitive(False)
         actions.append(download_button)
         actions.append(use_folder_button)
-        content.append(actions)
 
         items = []
         downloaded_folder = [None]
@@ -3025,6 +3029,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         )
         description.set_wrap(True)
         description.set_xalign(0.0)
+        description.add_css_class("dim-label")
         content.append(description)
         checks = {}
         for section in BACKUP_SECTIONS:
@@ -3296,6 +3301,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         )
         description.set_wrap(True)
         description.set_xalign(0.0)
+        description.add_css_class("dim-label")
         content.append(description)
 
         rows_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
