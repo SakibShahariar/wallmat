@@ -3925,29 +3925,43 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             return GLib.SOURCE_REMOVE
 
         self.preview_matugen_button.set_sensitive(True)
-        dialog = Adw.MessageDialog.new(
-            self, "Matugen color preview",
-            "Generated with your configured Matugen arguments. "
-            "No wallpaper, templates or system theme were changed."
-        )
-        dialog.set_close_response("cancel")
-        dialog.set_default_response("cancel")
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("apply", "Apply wallpaper + Matugen")
-        dialog.set_response_appearance("apply", Adw.ResponseAppearance.SUGGESTED)
+        dialog = Adw.Dialog()
+        dialog.set_title("Matugen color preview")
+        dialog.set_content_width(720)
+        dialog.set_content_height(620)
 
-        # The palette grid is the only custom content; the header, responses
-        # and focus handling come from Adwaita's MessageDialog.
+        toolbar = Adw.ToolbarView()
+        header = Adw.HeaderBar()
+        header.set_show_end_title_buttons(True)
+        toolbar.add_top_bar(header)
+
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        content.set_margin_top(12)
+        content.set_margin_bottom(12)
+        content.set_margin_start(12)
+        content.set_margin_end(12)
+        toolbar.set_content(content)
+
+        note = Gtk.Label(
+            label="Generated with your configured Matugen arguments. "
+                  "No wallpaper, templates or system theme were changed."
+        )
+        note.set_wrap(True)
+        note.set_xalign(0.0)
+        note.add_css_class("dim-label")
+        content.append(note)
+
         palettes = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
-        palettes.set_halign(Gtk.Align.CENTER)
-        palettes.set_margin_top(8)
-        palettes.set_margin_bottom(8)
+        palettes.set_halign(Gtk.Align.FILL)
+        palettes.set_hexpand(True)
+        palettes.set_vexpand(True)
         for mode in ("dark", "light"):
             entries = colors.get(mode)
             if not entries:
                 continue
             group = Adw.PreferencesGroup()
             group.set_title(mode.title())
+            group.set_hexpand(True)
             for name, color in entries:
                 row = Adw.ActionRow()
                 row.set_title(name.replace("_", " ").title())
@@ -3958,19 +3972,33 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 row.add_suffix(swatch)
                 group.add(row)
             palettes.append(group)
-        dialog.set_extra_child(palettes)
+        content.append(palettes)
 
-        def on_response(_dialog, response):
-            if response != "apply":
-                return
-            if self._selected_path == path:
-                self._on_apply_matugen(None)
-            else:
-                say("Wallpaper selection changed. Preview the new selection before applying Matugen.")
+        actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        actions.set_halign(Gtk.Align.END)
+        cancel = Gtk.Button(label="Cancel")
+        cancel.connect("clicked", lambda *_: dialog.close())
+        apply = Gtk.Button(label="Apply wallpaper + Matugen")
+        apply.add_css_class("suggested-action")
+        apply.connect("clicked", self._on_matugen_preview_apply, path, dialog)
+        actions.append(cancel)
+        actions.append(apply)
+        content.append(actions)
 
-        dialog.connect("response", on_response)
-        dialog.present()
+        dialog.set_child(toolbar)
+        dialog.connect("closed", self._on_matugen_preview_closed)
+        dialog.present(self)
         return GLib.SOURCE_REMOVE
+
+    def _on_matugen_preview_closed(self, _dialog):
+        self.preview_matugen_button.set_sensitive(bool(self._selected_path))
+
+    def _on_matugen_preview_apply(self, _button, path, dialog):
+        if self._selected_path == path:
+            self._on_apply_matugen(None)
+        else:
+            say("Wallpaper selection changed. Preview the new selection before applying Matugen.")
+        dialog.close()
 
     def _on_apply_matugen(self, button):
         path = self._selected_path

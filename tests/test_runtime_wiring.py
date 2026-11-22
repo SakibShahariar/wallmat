@@ -167,12 +167,14 @@ class RuntimeWiringTests(unittest.TestCase):
     def test_matugen_preview_uses_adwaita(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         preview = source.split("def _show_matugen_preview")[1].split("def _on_apply_matugen")[0]
-        self.assertIn("Adw.MessageDialog.new(", preview)
-        self.assertIn('dialog.add_response("cancel", "Cancel")', preview)
-        self.assertIn('dialog.add_response("apply", "Apply wallpaper + Matugen")', preview)
-        self.assertIn("Adw.ResponseAppearance.SUGGESTED", preview)
+        self.assertIn("Adw.Dialog()", preview)
+        self.assertIn("Adw.ToolbarView()", preview)
+        self.assertIn("Adw.HeaderBar()", preview)
+        self.assertIn("dialog.set_content_width(720)", preview)
         self.assertIn("Adw.PreferencesGroup()", preview)
         self.assertIn("Adw.ActionRow()", preview)
+        self.assertIn("def _on_matugen_preview_apply", source)
+        self.assertIn("def _on_matugen_preview_closed", source)
         self.assertNotIn("Gtk.Dialog(", preview)
         self.assertNotIn("set_markup", preview)
 
