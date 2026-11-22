@@ -894,6 +894,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         )
         self.apply_matugen_button.set_sensitive(False)
         self.apply_matugen_button.connect("clicked", self._on_apply_matugen)
+        self._apply_actions = []
         self.preview_matugen_button = Gtk.Button(label="Preview Matugen colors…")
         self.preview_matugen_button.set_sensitive(False)
         self.preview_matugen_button.connect("clicked", self._on_preview_matugen)
@@ -911,9 +912,38 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             "Choose and immediately apply a random wallpaper from the current filtered results"
         )
         self.surprise_button.connect("clicked", self._on_surprise_me)
-        # Only the primary Set-as-wallpaper action stays at the bottom; Preview
-        # lives in the header bar and the rest stay in the header menu.
-        action_row.insert(self.set_wallpaper_button, -1)
+        # A split action: the primary Set-as-wallpaper button plus a dropdown
+        # for the related apply variants. Keep the existing button object as
+        # the main half so all sensitivity handling stays unchanged.
+        apply_split = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        apply_split.add_css_class("linked")
+        apply_split.append(self.set_wallpaper_button)
+
+        apply_menu = Gio.Menu()
+        apply_menu.append("Apply wallpaper + Matugen", "win.apply-matugen")
+        apply_menu.append("Preview Matugen colors", "win.preview-matugen")
+        apply_menu.append("Add to favorites", "win.toggle-favorite")
+        apply_menu.append("Surprise me", "win.surprise-me")
+        self._apply_dropdown = Gtk.MenuButton(icon_name="pan-down-symbolic")
+        self._apply_dropdown.set_tooltip_text("More wallpaper actions")
+        self._apply_dropdown.set_menu_model(apply_menu)
+        apply_split.append(self._apply_dropdown)
+
+        for name, handler in (
+            ("apply-matugen", lambda *_a: self._on_apply_matugen(None)),
+            ("preview-matugen", lambda *_a: self._on_preview_matugen(None)),
+            ("toggle-favorite", lambda *_a: self._on_toggle_favorite(None)),
+            ("surprise-me", lambda *_a: self._on_surprise_me(None)),
+        ):
+            action = Gio.SimpleAction.new(name, None)
+            action.connect("activate", handler)
+            self.add_action(action)
+        self._apply_actions = [
+            self.lookup_action(name) for name in
+            ("apply-matugen", "preview-matugen", "toggle-favorite", "surprise-me")
+        ]
+
+        action_row.insert(apply_split, -1)
 
         # Plain mode is a path picker for shell pipelines, not a desktop
         # wallpaper manager; keep unrelated apply/favorites actions hidden.
@@ -2116,6 +2146,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.apply_matugen_button.set_sensitive(True)
         self.preview_matugen_button.set_sensitive(os.path.isfile(path))
         self.favorite_button.set_sensitive(True)
+        for action in self._apply_actions:
+            action.set_enabled(True)
         self.export_favorites_button.set_sensitive(True)
         self._update_favorite_button()
         say(f"Selected: {path}")
@@ -3762,6 +3794,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         ):
             self._portal_request_pending = True
             self.set_wallpaper_button.set_sensitive(False)
+            for action in self._apply_actions:
+                action.set_enabled(False)
             request_wallpaper(
                 path,
                 lambda result, message: self._on_portal_wallpaper_result(
@@ -3775,6 +3809,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
     def _on_portal_wallpaper_result(self, path, result, message, target="desktop"):
         self._portal_request_pending = False
         self.set_wallpaper_button.set_sensitive(bool(self._selected_path))
+        for action in self._apply_actions:
+            action.set_enabled(bool(self._selected_path))
         if result is None:
             say("Wallpaper portal unavailable; using the existing GNOME settings method.")
             self._apply_wallpaper_gsettings(path)

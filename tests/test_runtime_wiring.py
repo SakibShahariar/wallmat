@@ -164,6 +164,16 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("if not app.get_windows()", source)
         self.assertIn("GLib.timeout_add_seconds(5, ensure_window)", source)
 
+    def test_split_apply_button(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn('apply_split.add_css_class("linked")', source)
+        self.assertIn("apply_menu = Gio.Menu()", source)
+        self.assertIn('apply_menu.append("Apply wallpaper + Matugen", "win.apply-matugen")', source)
+        self.assertIn('self._apply_dropdown.set_menu_model(apply_menu)', source)
+        self.assertIn('Gio.SimpleAction.new(name, None)', source)
+        self.assertIn("action.set_enabled(True)", source)
+        self.assertIn("action.set_enabled(False)", source)
+
     def test_preview_uses_libadwaita_dialog(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         preview = source.split("def _on_open_preview")[1].split("def _detect_targets")[0]
@@ -201,7 +211,9 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn('self.preview_button = Gtk.Button(icon_name="view-reveal-symbolic")', source)
         self.assertIn("self._header_bar.pack_end(self.preview_button)", source)
         self.assertIn("action_row.set_halign(Gtk.Align.CENTER)", source)
-        self.assertIn("action_row.insert(self.set_wallpaper_button, -1)", source)
+        self.assertIn("action_row.insert(apply_split, -1)", source)
+        self.assertIn('apply_split.add_css_class("linked")', source)
+        self.assertIn("self._apply_dropdown.set_menu_model(apply_menu)", source)
         self.assertNotIn(
             "for action_button in (self.preview_button, self.set_wallpaper_button)", source
         )
@@ -243,7 +255,7 @@ class RuntimeWiringTests(unittest.TestCase):
         css = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn("background-color: var(--primary);\n    color: var(--on_primary);", css)
         self.assertIn("dropdown button.toggle:hover label", css)
-        self.assertIn("action_row.insert(self.set_wallpaper_button, -1)", source)
+        self.assertIn("action_row.insert(apply_split, -1)", source)
         self.assertNotIn("self.filters_button.set_halign(Gtk.Align.CENTER)", source)
         for key in ("Sort", "Tag", "Color", "Collection", "Recent"):
             self.assertIn(f'filters_box.append(filter_chip("{key}"', source)
