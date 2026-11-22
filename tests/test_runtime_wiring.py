@@ -172,8 +172,7 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn('add_toggle(\n            "auto-rotate"', source)
         self.assertNotIn("more_popover = Gtk.Popover()", source)
         self.assertNotIn("append_section(", source)
-        css = source.split("_FILTER_CSS = b")[1].split('"""')[1]
-        self.assertNotIn("wallmat-menu-popover", css)
+        self.assertNotIn("wallmat-menu-popover", source)
 
     def test_menu_has_no_split_button_duplicates(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
@@ -323,11 +322,9 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn('self.filters_button.add_css_class("flat")', source)
         self.assertIn("self.favorites_filter = Adw.SwitchRow()", source)
         self.assertIn("sort_selector = Adw.ComboRow()", source)
-        self.assertIn('filters_popover.add_css_class("wallmat-filter-popover")', source)
-        self.assertIn('register_css_once("wallmat-filter-style", display, _FILTER_CSS,\n                          Gtk.STYLE_PROVIDER_PRIORITY_USER)', source)
-        css = (SRC / "window.py").read_text(encoding="utf-8")
-        self.assertIn("background-color: var(--primary);\n    color: var(--on_primary);", css)
-        self.assertIn("dropdown button.toggle:hover label", css)
+        # Native Adwaita combo rows need no per-popover CSS override.
+        self.assertNotIn("_FILTER_CSS", source)
+        self.assertNotIn("wallmat-filter-popover", source)
         self.assertIn("action_row.insert(apply_split, -1)", source)
         self.assertNotIn("self.filters_button.set_halign(Gtk.Align.CENTER)", source)
         for key in ("sort_selector", "tag_filter", "color_filter", "collection_selector"):
