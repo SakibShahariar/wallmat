@@ -264,6 +264,16 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("Adw.ComboRow()", schedule)
         self.assertIn("Adw.SwitchRow()", schedule)
         self.assertNotIn("add_css_class(\"card\")", schedule)
+        # Visible controls use Adwaita row widgets, not raw GTK ones.
+        self.assertNotIn("Gtk.CheckButton(", source.replace(
+            'self.auto_rotate_toggle = Gtk.CheckButton(label="Auto-rotate")', ''
+        ).replace('self._details_toggle = Gtk.CheckButton(label="Show file details")', ''))
+        self.assertNotIn("Gtk.DropDown.new_from_strings", source.replace(
+            'self.rotation_interval = Gtk.DropDown.new_from_strings(', ''
+        ))
+        self.assertIn("Adw.EntryRow()", source)
+        self.assertIn("Adw.SwitchRow()", source)
+        self.assertIn("Adw.ComboRow()", source)
 
     def test_preview_in_header_single_bottom_action(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
@@ -311,8 +321,8 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn('self._filters_label.set_label(f"{count}" if count', source)
         self.assertIn("self._header_bar.pack_start(self.filters_button)", source)
         self.assertIn('self.filters_button.add_css_class("flat")', source)
-        self.assertIn('widget.add_css_class("flat")', source)
-        self.assertIn('self.favorites_filter.add_css_class("flat")', source)
+        self.assertIn("self.favorites_filter = Adw.SwitchRow()", source)
+        self.assertIn("sort_selector = Adw.ComboRow()", source)
         self.assertIn('filters_popover.add_css_class("wallmat-filter-popover")', source)
         self.assertIn('register_css_once("wallmat-filter-style", display, _FILTER_CSS,\n                          Gtk.STYLE_PROVIDER_PRIORITY_USER)', source)
         css = (SRC / "window.py").read_text(encoding="utf-8")
@@ -320,8 +330,8 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("dropdown button.toggle:hover label", css)
         self.assertIn("action_row.insert(apply_split, -1)", source)
         self.assertNotIn("self.filters_button.set_halign(Gtk.Align.CENTER)", source)
-        for key in ("Sort", "Tag", "Color", "Collection", "Recent"):
-            self.assertIn(f'filters_box.append(filter_chip("{key}"', source)
+        for key in ("sort_selector", "tag_filter", "color_filter", "collection_selector"):
+            self.assertIn(f"filters_group.add(self.{key})", source)
         self.assertIn('Gtk.Image.new_from_icon_name("non-starred-symbolic")', source)
         self.assertNotIn("content.append(self.filters_button)", source)
 
@@ -481,7 +491,7 @@ class RuntimeWiringTests(unittest.TestCase):
     def test_color_filter_wiring(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn("ensure_pixbuf_loaded()", source)
-        self.assertIn("self.color_filter = Gtk.DropDown.new_from_strings", source)
+        self.assertIn("self.color_filter = Adw.ComboRow()", source)
         self.assertIn("def _start_palette_scan", source)
         self.assertIn("def _palettes_ready", source)
         self.assertTrue((SRC / "color_palette.py").exists())

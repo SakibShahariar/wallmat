@@ -636,30 +636,15 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # thread. Keyed by path; replaced wholesale on each completed scan.
         self._mtime_index: dict[str, tuple[int, int]] = {}
         self._resolution_cache: dict[str, tuple[tuple[int, int], tuple[int, int] | None]] = {}
-        self.sort_selector = Gtk.DropDown.new_from_strings([
-            "Name (A–Z)", "Newest first", "Oldest first",
-            "Resolution (largest first)", "Random order", "Folder groups"
-        ])
-        self.sort_selector.set_selected(
-            ("name", "newest", "oldest", "resolution", "random", "folder").index(
-                self._sort_mode
-            )
-        )
-        self.sort_selector.set_tooltip_text("Sort wallpapers")
-        self.sort_selector.connect("notify::selected", self._on_sort_selected)
-
         # All sorting/filtering lives in one popover so the window shows only
         # the wallpaper view and the primary action.
         filters_popover = Gtk.Popover()
         filters_popover.add_css_class("wallmat-filter-popover")
-        filters_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        filters_box.set_margin_top(10)
-        filters_box.set_margin_bottom(10)
-        filters_box.set_margin_start(10)
-        filters_box.set_margin_end(10)
-        filters_popover.set_child(filters_box)
+        filters_group = Adw.PreferencesGroup()
+        filters_group.set_title("Sort and filter")
+        filters_popover.set_child(filters_group)
         self._filters_popover = filters_popover
-        self._filters_box = filters_box
+        self._filters_box = filters_group
 
         filters_child = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         filters_child.append(Gtk.Image.new_from_icon_name("tune-symbolic"))
@@ -674,58 +659,53 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.filters_button.add_css_class("flat")
         self._header_bar.pack_start(self.filters_button)
 
-        def filter_chip(label, widget):
-            chip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-            lbl = Gtk.Label(label=label)
-            lbl.set_xalign(0.0)
-            lbl.set_hexpand(True)
-            chip.append(lbl)
-            widget.set_hexpand(True)
-            # Some themes (e.g. Material-Gnome) force every button inside a
-            # header-bar popover to the primary color, which makes dropdowns
-            # unreadable here. 'flat' opts them out of that rule.
-            if isinstance(widget, Gtk.DropDown):
-                widget.add_css_class("flat")
-            chip.append(widget)
-            return chip
+        self.sort_selector = Adw.ComboRow()
+        self.sort_selector.set_title("Sort by")
+        self.sort_selector.set_model(Gtk.StringList.new([
+            "Name (A–Z)", "Newest first", "Oldest first",
+            "Resolution (largest first)", "Random order", "Folder groups"
+        ]))
+        self.sort_selector.set_selected(
+            ("name", "newest", "oldest", "resolution", "random", "folder").index(
+                self._sort_mode
+            )
+        )
+        self.sort_selector.connect("notify::selected", self._on_sort_selected)
+        filters_group.add(self.sort_selector)
 
-        filters_box.append(filter_chip("Sort", self.sort_selector))
-
-        favorites_chip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.favorites_filter = Adw.SwitchRow()
+        self.favorites_filter.set_title("Favorites only")
         self._favorites_chip_icon = Gtk.Image.new_from_icon_name("non-starred-symbolic")
-        favorites_chip.append(self._favorites_chip_icon)
-        favorites_chip.append(Gtk.Label(label="Favorites"))
-        self.favorites_filter = Gtk.ToggleButton()
-        self.favorites_filter.set_child(favorites_chip)
-        self.favorites_filter.add_css_class("flat")
+        self.favorites_filter.add_prefix(self._favorites_chip_icon)
         self.favorites_filter.set_active(self._favorites_only)
         self.favorites_filter.set_tooltip_text("Show only favorite wallpapers")
-        self.favorites_filter.connect("toggled", self._on_favorites_filter_toggled)
-        filters_box.append(self.favorites_filter)
+        self.favorites_filter.connect("notify::active", self._on_favorites_filter_toggled)
+        filters_group.add(self.favorites_filter)
 
         self._tag_filter_values = [None]
         self._updating_tag_filter = False
-        self.tag_filter = Gtk.DropDown.new_from_strings(["All tags"])
-        self.tag_filter.set_tooltip_text("Filter wallpapers by tag")
+        self.tag_filter = Adw.ComboRow()
+        self.tag_filter.set_title("Tag")
+        self.tag_filter.set_model(Gtk.StringList.new(["All tags"]))
         self.tag_filter.connect("notify::selected", self._on_tag_filter_changed)
-        filters_box.append(filter_chip("Tag", self.tag_filter))
+        filters_group.add(self.tag_filter)
 
         self._color_families = [None, *FAMILIES]
-        self.color_filter = Gtk.DropDown.new_from_strings(
+        self.color_filter = Adw.ComboRow()
+        self.color_filter.set_title("Color")
+        self.color_filter.set_model(Gtk.StringList.new(
             ["All colors", *[name.title() for name in FAMILIES]]
-        )
-        self.color_filter.set_tooltip_text(
-            "Filter wallpapers by dominant color family"
-        )
+        ))
         self.color_filter.connect("notify::selected", self._on_color_filter_changed)
-        filters_box.append(filter_chip("Color", self.color_filter))
+        filters_group.add(self.color_filter)
 
         self._collection_selector_values = [None]
         self._updating_collection_selector = False
-        self.collection_selector = Gtk.DropDown.new_from_strings(["Current folder"])
-        self.collection_selector.set_tooltip_text("Switch between saved wallpaper collections")
+        self.collection_selector = Adw.ComboRow()
+        self.collection_selector.set_title("Collection")
+        self.collection_selector.set_model(Gtk.StringList.new(["Current folder"]))
         self.collection_selector.connect("notify::selected", self._on_collection_selected)
-        filters_box.append(filter_chip("Collection", self.collection_selector))
+        filters_group.add(self.collection_selector)
 
         # Empty-state message covers both an empty directory and a filter
         # with no matching filenames.
@@ -744,11 +724,13 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         content.append(self.search_entry)
 
         self._recent_paths: list[str] = []
-        self._recent_selector = Gtk.DropDown.new_from_strings(["No recent wallpapers"])
+        self._recent_selector = Adw.ComboRow()
+        self._recent_selector.set_title("Recent")
+        self._recent_selector.set_model(Gtk.StringList.new(["No recent wallpapers"]))
         self._recent_selector.set_sensitive(False)
         self._recent_selector.set_tooltip_text("Reopen a recently selected wallpaper")
         self._recent_selector.connect("notify::selected", self._on_recent_selected)
-        filters_box.append(filter_chip("Recent", self._recent_selector))
+        filters_group.add(self._recent_selector)
 
         self._metadata_row = Gtk.Box(
             orientation=Gtk.Orientation.HORIZONTAL, spacing=8
@@ -1681,7 +1663,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self._refresh_filtered_paths()
         return GLib.SOURCE_REMOVE
 
-    def _on_favorites_filter_toggled(self, button):
+    def _on_favorites_filter_toggled(self, button, _pspec=None):
         self._favorites_only = button.get_active()
         if not self._plain:
             self._preference.set_boolean(
@@ -2521,9 +2503,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         content.append(scroller)
 
         collection_names = sorted(self._collections, key=str.casefold)
-        collection_dropdown = Gtk.DropDown.new_from_strings(
+        collection_dropdown = Adw.ComboRow()
+        collection_dropdown.set_title("Collection")
+        collection_dropdown.set_model(Gtk.StringList.new(
             collection_names or ["No collections"]
-        )
+        ))
         collection_dropdown.set_tooltip_text("Choose a collection for the selected wallpapers")
         content.append(collection_dropdown)
 
@@ -2657,25 +2641,30 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         description.set_xalign(0.0)
         content.append(description)
 
-        name_entry = Gtk.Entry()
-        name_entry.set_placeholder_text("New collection name")
+        name_entry = Adw.EntryRow()
+        name_entry.set_title("New collection name")
         content.append(name_entry)
         create_button = Gtk.Button(label="Create collection")
+        create_button.add_css_class("suggested-action")
+        create_button.set_halign(Gtk.Align.END)
         content.append(create_button)
-        content.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
 
         collection_names = []
-        collection_dropdown = Gtk.DropDown.new_from_strings(["No collections"])
+        collection_dropdown = Adw.ComboRow()
+        collection_dropdown.set_title("Collection to edit")
+        collection_dropdown.set_model(Gtk.StringList.new(["No collections"]))
         collection_dropdown.set_tooltip_text("Choose a collection to edit")
         content.append(collection_dropdown)
+        collection_actions = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         add_selected_button = Gtk.Button(label="Add selected wallpaper")
         add_folder_button = Gtk.Button(label="Add current folder")
         remove_selected_button = Gtk.Button(label="Remove selected wallpaper")
         delete_collection_button = Gtk.Button(label="Delete collection…")
-        content.append(add_selected_button)
-        content.append(add_folder_button)
-        content.append(remove_selected_button)
-        content.append(delete_collection_button)
+        delete_collection_button.add_css_class("destructive-action")
+        for b in (add_selected_button, add_folder_button,
+                  remove_selected_button, delete_collection_button):
+            collection_actions.append(b)
+        content.append(collection_actions)
 
         def refresh_choices(preferred=None):
             collection_names[:] = sorted(self._collections, key=str.casefold)
@@ -2830,8 +2819,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         description.set_wrap(True)
         description.set_xalign(0.0)
         content.append(description)
-        entry = Gtk.Entry()
-        entry.set_placeholder_text("e.g. Nature, Minimal, Dark")
+        entry = Adw.EntryRow()
+        entry.set_title("Tags (comma-separated)")
         entry.set_text(", ".join(sorted(self._tags.get(path, set()), key=str.casefold)))
         content.append(entry)
 
@@ -2916,9 +2905,8 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         content.append(description)
 
         search_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        query = Gtk.Entry()
-        query.set_placeholder_text("Search Commons images")
-        query.set_hexpand(True)
+        query = Adw.EntryRow()
+        query.set_title("Search Commons images")
         search_button = Gtk.Button(label="Search")
         search_box.append(query)
         search_box.append(search_button)
@@ -3075,14 +3063,13 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         content.append(description)
         checks = {}
         for section in BACKUP_SECTIONS:
-            check = Gtk.CheckButton(
-                label={
-                    "favorites": "Favorites",
-                    "tags": "Wallpaper tags",
-                    "collections": "Collections",
-                    "preferences": "Preferences and settings",
-                }[section]
-            )
+            check = Adw.SwitchRow()
+            check.set_title({
+                "favorites": "Favorites",
+                "tags": "Wallpaper tags",
+                "collections": "Collections",
+                "preferences": "Preferences and settings",
+            }[section])
             check.set_active(True)
             content.append(check)
             checks[section] = check
