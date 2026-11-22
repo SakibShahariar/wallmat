@@ -164,6 +164,13 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("if not app.get_windows()", source)
         self.assertIn("GLib.timeout_add_seconds(5, ensure_window)", source)
 
+    def test_apply_matugen_delegates_to_full_pipeline(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn('os.path.expanduser("~/Scripts/matugen.fish")', source)
+        self.assertIn('command = ["fish", script, path]', source)
+        self.assertIn("Theme applied (matugen.fish).", source)
+        self.assertNotIn('command = ["matugen", "image", path, *self._matugen_args]', source)
+
     def test_preview_in_header_single_bottom_action(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn('self.preview_button = Gtk.Button(icon_name="view-reveal-symbolic")', source)

@@ -3967,33 +3967,37 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         if not path:
             return
 
-        # Apply the wallpaper independently: a missing or failing Matugen
-        # executable must not undo or prevent the GNOME background change.
-        self._on_apply_wallpaper(button)
-        command = ["matugen", "image", path, *self._matugen_args]
+        # Delegate to the full theme pipeline so this button produces exactly
+        # the same result as matugen.fish: wallpaper, Matugen colors, app
+        # reloads, folder/cursor icons, GNOME settings and the layout hook.
+        # The script accepts an already-selected wallpaper path, so it skips
+        # its interactive picker.
+        script = os.path.expanduser("~/Scripts/matugen.fish")
+        if not os.path.isfile(script):
+            say("matugen.fish is not installed; applying wallpaper only.")
+            self._on_apply_wallpaper(button)
+            return
+        command = ["fish", script, path]
 
-        def run_matugen():
+        def run_pipeline():
             try:
                 result = subprocess.run(
                     command, capture_output=True, text=True, check=False
                 )
                 if result.returncode == 0:
-                    message = "Matugen completed successfully."
+                    message = "Theme applied (matugen.fish)."
                 else:
                     detail = (result.stderr or result.stdout).strip()
                     if not detail:
                         detail = f"exit status {result.returncode}"
-                    # Keep the notification concise; full logs remain outside
-                    # the UI rather than flooding the announcement channel.
                     detail = detail.splitlines()[-1][:240]
-                    message = f"Matugen failed: {detail}"
+                    message = f"Theme pipeline failed: {detail}"
             except OSError as error:
-                message = f"Could not run Matugen: {error}"
+                message = f"Could not run the theme pipeline: {error}"
             GLib.idle_add(say, message)
 
-        # Capture output off the GTK thread so neither Matugen execution nor
-        # a verbose stderr pipe can freeze the window.
-        threading.Thread(target=run_matugen, daemon=True).start()
+        # Run off the GTK thread so the pipeline's hooks never freeze the UI.
+        threading.Thread(target=run_pipeline, daemon=True).start()
 
     def _show_shortcuts(self, *_args):
         if not hasattr(Adw, "ShortcutsDialog"):
