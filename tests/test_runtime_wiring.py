@@ -164,6 +164,13 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("if not app.get_windows()", source)
         self.assertIn("GLib.timeout_add_seconds(5, ensure_window)", source)
 
+    def test_menu_popover_neutral_style(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn('more_popover.add_css_class("wallmat-menu-popover")', source)
+        css = source.split("_FILTER_CSS = b")[1].split('"""')[0]
+        self.assertIn("popover.wallmat-menu-popover button", css)
+        self.assertIn("popover.wallmat-menu-popover button:hover", css)
+
     def test_menu_has_no_split_button_duplicates(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         menu = source.split("self._more_actions = more_actions")[1].split(

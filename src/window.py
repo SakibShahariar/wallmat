@@ -147,6 +147,8 @@ window.wallmat-backdrop-transparent {
 # the primary color at USER priority, which turns dropdowns into low-contrast
 # pills. Scope a USER-priority override to our own filter popover only.
 _FILTER_CSS = b"""
+popover.wallmat-menu-popover button,
+popover.wallmat-menu-popover dropdown button,
 popover.wallmat-filter-popover button,
 popover.wallmat-filter-popover dropdown button,
 popover.wallmat-filter-popover dropdown button.toggle {
@@ -155,11 +157,13 @@ popover.wallmat-filter-popover dropdown button.toggle {
     box-shadow: none;
     border: 1px solid var(--outline_variant);
 }
+popover.wallmat-menu-popover button:hover,
 popover.wallmat-filter-popover button:hover,
 popover.wallmat-filter-popover dropdown button:hover {
     background-color: var(--primary);
     color: var(--on_primary);
 }
+popover.wallmat-menu-popover button:checked,
 popover.wallmat-filter-popover button:checked,
 popover.wallmat-filter-popover dropdown button:checked {
     background-color: var(--primary_container);
@@ -1018,6 +1022,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         # Keep low-frequency actions in one keyboard-reachable popover so
         # the wallpaper view retains more space at narrow window sizes.
         more_popover = Gtk.Popover()
+        more_popover.add_css_class("wallmat-menu-popover")
         more_actions = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL, spacing=6
         )
