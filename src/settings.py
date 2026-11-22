@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Standalone settings application for Wallmat.
+"""Wallmat preferences pages, shared by the embedded settings dialog.
 
-Run with: python3 src/settings.py
-
-It shares the same GSettings keys (or in-memory fallback) as the main
-window, so changes are picked up by Wallmat. Keys that only affect
-startup require a restart, which is noted in the UI.
+The main window instantiates WallmatSettingsApp with its own preference
+object and calls build_pages() to show these pages in an Adw.PreferencesDialog.
+It shares the same GSettings keys (or in-memory fallback) as the main window.
 """
 
 import json
@@ -572,11 +570,3 @@ class WallmatSettingsApp(Adw.Application):
             self.window.add_toast(Adw.Toast.new(message))
 
 
-def main():
-    GLib.set_prgname("wallmat-settings")
-    app = WallmatSettingsApp()
-    return app.run([])
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

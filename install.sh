@@ -43,16 +43,10 @@ install() {
     mkdir -p "$APPLICATIONS" "$ICONS" "$SCHEMAS" "$BIN_DIR" "$AUTOSTART"
 
     local main_exec="python3 $SOURCE_DIR/src/main.py"
-    local settings_exec="python3 $SOURCE_DIR/src/settings.py"
 
-    sed -e "s|@WALLMAT_EXEC@|$main_exec|g" \
-        -e "s|@SETTINGS_EXEC@|$settings_exec|g" \
+    sed "s|@WALLMAT_EXEC@|$main_exec|g" \
         "$SOURCE_DIR/data/dev.sakib.Wallmat.desktop" \
         > "$APPLICATIONS/dev.sakib.Wallmat.desktop"
-    sed -e "s|@WALLMAT_EXEC@|$main_exec|g" \
-        -e "s|@SETTINGS_EXEC@|$settings_exec|g" \
-        "$SOURCE_DIR/data/dev.sakib.Wallmat.Settings.desktop" \
-        > "$APPLICATIONS/dev.sakib.Wallmat.Settings.desktop"
     sed "s|@SCHEDULE_EXEC@|python3 $SOURCE_DIR/src/schedule_daemon.py|g" \
         "$SOURCE_DIR/data/dev.sakib.Wallmat.Schedule.desktop" \
         > "$AUTOSTART/dev.sakib.Wallmat.Schedule.desktop"
@@ -78,7 +72,6 @@ install() {
     echo "Wallmat installed for $(whoami)."
     echo "  Launcher: $APPLICATIONS/dev.sakib.Wallmat.desktop"
     echo "  Icon:     $ICONS/dev.sakib.Wallmat.svg"
-    echo "  Settings: python3 $SOURCE_DIR/src/settings.py"
     echo "Restart your session (or log out/in) if the launcher does not appear immediately."
 }
 

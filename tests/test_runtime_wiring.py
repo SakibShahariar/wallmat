@@ -422,10 +422,12 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertNotIn("TryExec=@WALLMAT_EXEC@", desktop)
         self.assertIn("Icon=dev.sakib.Wallmat", desktop)
         self.assertIn("StartupWMClass=wallmat", desktop)
-        settings = (root / "data" / "dev.sakib.Wallmat.Settings.desktop").read_text(
-            encoding="utf-8"
+        # Settings is embedded in the main app now: no separate launcher.
+        self.assertFalse(
+            (root / "data" / "dev.sakib.Wallmat.Settings.desktop").exists()
         )
-        self.assertIn("Exec=@SETTINGS_EXEC@", settings)
+        self.assertNotIn("Actions=settings", desktop)
+        self.assertNotIn("@SETTINGS_EXEC@", desktop)
         self.assertTrue((root / "data" / "dev.sakib.Wallmat.svg").exists())
         installer = (root / "install.sh").read_text(encoding="utf-8")
         self.assertIn("--uninstall", installer)

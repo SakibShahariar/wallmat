@@ -12,9 +12,3 @@ Categories=Graphics;Viewer;
 Keywords=wallpaper;background;image;photo;
 MimeType=image/png;image/jpeg;image/webp;inode/directory;
 StartupWMClass=wallmat
-Actions=settings;
-
-[Desktop Action settings]
-Name=Preferences
-Icon=dev.sakib.Wallmat
-Exec=@SETTINGS_EXEC@
