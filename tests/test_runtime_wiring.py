@@ -273,7 +273,11 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("def _set_search_visible", source)
         self.assertIn("self._set_search_visible(True)", source)
         self.assertIn("self._set_search_visible(False)", source)
-        self.assertIn('Gtk.Button(label="Choose wallpaper folder…")', source)
+        # Folder selection and backup live in Settings, not the hamburger menu.
+        self.assertNotIn('Gtk.Button(label="Choose wallpaper folder…")', source)
+        self.assertNotIn("more_actions.append(self.export_backup_button)", source)
+        self.assertNotIn("more_actions.append(self.import_backup_button)", source)
+        self.assertNotIn("more_actions.append(self.rotation_interval)", source)
         self.assertIn("self.set_wallpaper_button.add_css_class(\"suggested-action\")", source)
         self.assertNotIn("self.apply_matugen_button.add_css_class", source)
         self.assertNotIn("layout_row.append(self.folder_menu_button)", source)
