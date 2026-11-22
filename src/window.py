@@ -1050,50 +1050,30 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         menu = Gio.Menu()
         menu.append(*add_command("open-settings", "Settings…",
                                  lambda *_a: self._on_open_settings(None)))
-
-        rotation = Gio.Menu()
-        rotation.append_item(Gio.MenuItem.new(*add_toggle(
+        menu.append_item(Gio.MenuItem.new(*add_toggle(
             "auto-rotate", "Auto-rotate", self.auto_rotate_toggle)))
-        rotation.append(*add_command("rotation-previous", "Previous",
-                                     lambda *_a: self._on_rotation_previous(None)))
-        rotation.append(*add_command("rotation-next", "Next",
-                                     lambda *_a: self._on_rotation_next(None)))
-        rotation.append(*add_command("clear-history", "Clear history",
-                                     lambda *_a: self._on_clear_history(None)))
-        rotation.append(*add_command("manage-schedule", "Manage schedules…",
-                                     lambda *_a: self._on_manage_schedule(None)))
-        menu.append_section("Wallpaper rotation", rotation)
-
+        menu.append(*add_command("rotation-previous", "Previous",
+                                 lambda *_a: self._on_rotation_previous(None)))
+        menu.append(*add_command("rotation-next", "Next",
+                                 lambda *_a: self._on_rotation_next(None)))
+        menu.append(*add_command("clear-history", "Clear history",
+                                 lambda *_a: self._on_clear_history(None)))
+        menu.append(*add_command("manage-schedule", "Manage schedules…",
+                                 lambda *_a: self._on_manage_schedule(None)))
         menu.append(*add_command("browse-catalog", "Browse online catalog…",
                                  lambda *_a: self._on_browse_catalog(None)))
-
-        favorites = Gio.Menu()
-        favorites.append(*add_command("export-favorites", "Export favorites",
-                                      lambda *_a: self._on_export_favorites(None)))
-        favorites.append(*add_command("remove-missing-favorites", "Remove missing favorites",
-                                      lambda *_a: self._on_remove_missing_favorites(None)))
-        menu.append_section("Favorites", favorites)
-
-        tags = Gio.Menu()
-        tags.append(*add_command("manage-tags", "Manage tags…",
+        menu.append(*add_command("export-favorites", "Export favorites",
+                                 lambda *_a: self._on_export_favorites(None)))
+        menu.append(*add_command("remove-missing-favorites", "Remove missing favorites",
+                                 lambda *_a: self._on_remove_missing_favorites(None)))
+        menu.append(*add_command("manage-tags", "Manage tags…",
                                  lambda *_a: self._on_manage_tags(None)))
-        menu.append_section("Wallpaper tags", tags)
-
-        collections = Gio.Menu()
-        collections.append(*add_command("manage-collections", "Manage collections…",
-                                        lambda *_a: self._on_manage_collections(None)))
-        menu.append_section("Wallpaper collections", collections)
-
-        batch = Gio.Menu()
-        batch.append(*add_command("batch-select", "Select multiple…",
-                                  lambda *_a: self._on_batch_select(None)))
-        menu.append_section("Batch actions", batch)
-
-        details = Gio.Menu()
-        details.append_item(Gio.MenuItem.new(*add_toggle(
+        menu.append(*add_command("manage-collections", "Manage collections…",
+                                 lambda *_a: self._on_manage_collections(None)))
+        menu.append(*add_command("batch-select", "Select multiple…",
+                                 lambda *_a: self._on_batch_select(None)))
+        menu.append_item(Gio.MenuItem.new(*add_toggle(
             "show-file-details", "Show file details", self._details_toggle)))
-        menu.append_section("View", details)
-
         self.more_menu_button.set_menu_model(menu)
         self._update_missing_favorites_action()
         # Remember which chrome was visible so seamless mode can restore it.

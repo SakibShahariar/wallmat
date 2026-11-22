@@ -171,6 +171,7 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("Gio.SimpleAction.new_stateful", source)
         self.assertIn('add_toggle(\n            "auto-rotate"', source)
         self.assertNotIn("more_popover = Gtk.Popover()", source)
+        self.assertNotIn("append_section(", source)
         css = source.split("_FILTER_CSS = b")[1].split('"""')[1]
         self.assertNotIn("wallmat-menu-popover", css)
 
