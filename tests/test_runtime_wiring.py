@@ -164,6 +164,16 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("if not app.get_windows()", source)
         self.assertIn("GLib.timeout_add_seconds(5, ensure_window)", source)
 
+    def test_preview_in_header_single_bottom_action(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertIn('self.preview_button = Gtk.Button(icon_name="view-reveal-symbolic")', source)
+        self.assertIn("self._header_bar.pack_end(self.preview_button)", source)
+        self.assertIn("action_row.set_halign(Gtk.Align.CENTER)", source)
+        self.assertIn("action_row.insert(self.set_wallpaper_button, -1)", source)
+        self.assertNotIn(
+            "for action_button in (self.preview_button, self.set_wallpaper_button)", source
+        )
+
     def test_hig_iconography_and_header_subtitle_wiring(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn("def _icon_button", source)
@@ -201,7 +211,7 @@ class RuntimeWiringTests(unittest.TestCase):
         css = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn("background-color: var(--primary);\n    color: var(--on_primary);", css)
         self.assertIn("dropdown button.toggle:hover label", css)
-        self.assertIn("for action_button in (self.preview_button, self.set_wallpaper_button):", source)
+        self.assertIn("action_row.insert(self.set_wallpaper_button, -1)", source)
         self.assertNotIn("self.filters_button.set_halign(Gtk.Align.CENTER)", source)
         for key in ("Sort", "Tag", "Color", "Collection", "Recent"):
             self.assertIn(f'filters_box.append(filter_chip("{key}"', source)

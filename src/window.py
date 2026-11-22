@@ -853,7 +853,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         action_row.set_row_spacing(8)
         action_row.set_column_spacing(8)
         action_row.set_hexpand(True)
-        action_row.set_halign(Gtk.Align.FILL)
+        action_row.set_halign(Gtk.Align.CENTER)
         action_row.set_margin_top(4)
         action_row.set_margin_bottom(8)
 
@@ -880,12 +880,14 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         self.set_wallpaper_button.add_css_class("suggested-action")
         self.set_wallpaper_button.set_sensitive(False)
         self.set_wallpaper_button.connect("clicked", self._on_apply_wallpaper)
-        self.preview_button = _icon_button("Preview", "view-reveal-symbolic")
+        self.preview_button = Gtk.Button(icon_name="view-reveal-symbolic")
+        self.preview_button.add_css_class("flat")
         self.preview_button.set_tooltip_text(
             "Open a large preview; use the zoom control and scroll to inspect details"
         )
         self.preview_button.set_sensitive(False)
         self.preview_button.connect("clicked", self._on_open_preview)
+        self._header_bar.pack_end(self.preview_button)
         self.apply_matugen_button = _icon_button(
             "Apply + Matugen", "color-select-symbolic"
         )
@@ -908,10 +910,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             "Choose and immediately apply a random wallpaper from the current filtered results"
         )
         self.surprise_button.connect("clicked", self._on_surprise_me)
-        # Keep only Preview and the primary Set-as-wallpaper action visible;
-        # the rest stay reachable from the header menu.
-        for action_button in (self.preview_button, self.set_wallpaper_button):
-            action_row.insert(action_button, -1)
+        # Only the primary Set-as-wallpaper action stays at the bottom; Preview
+        # lives in the header bar and the rest stay in the header menu.
+        action_row.insert(self.set_wallpaper_button, -1)
 
         # Plain mode is a path picker for shell pipelines, not a desktop
         # wallpaper manager; keep unrelated apply/favorites actions hidden.
