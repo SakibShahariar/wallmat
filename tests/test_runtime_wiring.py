@@ -164,6 +164,18 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("if not app.get_windows()", source)
         self.assertIn("GLib.timeout_add_seconds(5, ensure_window)", source)
 
+    def test_preview_uses_libadwaita_dialog(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        preview = source.split("def _on_open_preview")[1].split("def _detect_targets")[0]
+        self.assertIn("Adw.Dialog()", preview)
+        self.assertIn("Adw.ToolbarView()", preview)
+        self.assertIn("Adw.HeaderBar()", preview)
+        self.assertIn("set_show_end_title_buttons(True)", preview)
+        self.assertNotIn("Gtk.StyleContext.add_provider_for_display", preview)
+        self.assertNotIn("window.fullscreen()", preview)
+        self.assertIn("def _on_preview_scheme_toggled", source)
+        self.assertIn("def _on_preview_apply", source)
+
     def test_embedded_settings_dialog(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn("def _on_open_settings", source)

@@ -141,6 +141,16 @@ window.wallmat-backdrop-blurred {
 window.wallmat-backdrop-transparent {
     backdrop-filter: none;
 }
+/* Preview backdrop: only the image surface is tinted, so the surrounding
+   header bar and controls keep their normal Adwaita theme styling. */
+.wallmat-preview-surface {
+    background-color: #242424;
+    color: #f6f5f4;
+}
+.wallmat-preview-surface.wallmat-preview-light {
+    background-color: #f6f5f4;
+    color: #241f31;
+}
 """
 
 # Some themes (Material-Gnome) force every button in a header-bar popover to
@@ -3610,42 +3620,26 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self.preview_button.set_sensitive(False)
             return
 
-        window = Gtk.Window(
-            title=os.path.basename(path),
-            transient_for=self,
-            modal=True,
-        )
-        window.set_default_size(1100, 750)
+        dialog = Adw.Dialog()
+        dialog.set_title(os.path.basename(path))
+        dialog.set_content_width(1100)
+        dialog.set_content_height(750)
 
-        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        toolbar = Adw.ToolbarView()
+        header = Adw.HeaderBar()
+        header.set_show_end_title_buttons(True)
+        toolbar.add_top_bar(header)
+        dialog.set_child(toolbar)
+
+        # The image area keeps a neutral backdrop independent of the app's
+        # light/dark setting, but uses Adwaita widgets for all controls.
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         outer.set_margin_top(12)
         outer.set_margin_bottom(12)
         outer.set_margin_start(12)
         outer.set_margin_end(12)
-        outer.add_css_class("wallmat-preview-dark")
-
-        # Scope preview colors to this dialog's uniquely tagged container.
-        # The CSS provider never changes GNOME's global color-scheme setting.
-        preview_css = Gtk.CssProvider()
-        preview_css.load_from_data(
-            b".wallmat-preview-light { background-color: #f6f5f4; color: #241f31; }"
-            b".wallmat-preview-dark { background-color: #242424; color: #f6f5f4; }"
-            b".wallmat-preview-light label { color: #241f31; }"
-            b".wallmat-preview-dark label { color: #f6f5f4; }"
-        )
-        Gtk.StyleContext.add_provider_for_display(
-            self.get_display(),
-            preview_css,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
-        )
-
-        def remove_preview_css(*_args):
-            Gtk.StyleContext.remove_provider_for_display(
-                self.get_display(), preview_css
-            )
-            return False
-
-        window.connect("close-request", remove_preview_css)
+        outer.add_css_class("wallmat-preview-surface")
+        toolbar.set_content(outer)
 
         scroller = Gtk.ScrolledWindow()
         scroller.set_hexpand(True)
@@ -3665,22 +3659,10 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
         controls = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         controls.set_halign(Gtk.Align.CENTER)
-        light_button = Gtk.ToggleButton(label="Light")
-        dark_button = Gtk.ToggleButton(label="Dark")
-        dark_button.set_group(light_button)
-        dark_button.set_active(True)
-
-        def set_preview_scheme(button, scheme):
-            if not button.get_active():
-                return
-            outer.remove_css_class("wallmat-preview-light")
-            outer.remove_css_class("wallmat-preview-dark")
-            outer.add_css_class(f"wallmat-preview-{scheme}")
-
-        light_button.connect("toggled", set_preview_scheme, "light")
-        dark_button.connect("toggled", set_preview_scheme, "dark")
-        controls.append(light_button)
-        controls.append(dark_button)
+        scheme = Gtk.ToggleButton(label="Light")
+        scheme.set_tooltip_text("Switch the preview backdrop between dark and light")
+        scheme.connect("toggled", self._on_preview_scheme_toggled, outer)
+        controls.append(scheme)
         zoom_label = Gtk.Label(label="Zoom")
         zoom = Gtk.Scale.new_with_range(
             Gtk.Orientation.HORIZONTAL, 0.25, 2.0, 0.25
@@ -3692,19 +3674,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         zoom.set_sensitive(False)
         controls.append(zoom_label)
         controls.append(zoom)
-        close_button = Gtk.Button(label="Close")
-        close_button.connect("clicked", lambda *_: window.close())
-        controls.append(close_button)
 
         apply_button = Gtk.Button(label="Set as wallpaper")
         apply_button.add_css_class("suggested-action")
-        apply_button.connect(
-            "clicked",
-            lambda *_: (self._on_apply_wallpaper(None), window.close()),
-        )
+        apply_button.connect("clicked", self._on_preview_apply, path, dialog)
         controls.append(apply_button)
         outer.append(controls)
-        window.set_child(outer)
 
         image_state = {"pixbuf": None}
 
@@ -3746,8 +3721,19 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             GLib.idle_add(show_image)
 
         threading.Thread(target=load_image, daemon=True).start()
-        window.present()
-        window.fullscreen()
+        dialog.present(self)
+
+    def _on_preview_scheme_toggled(self, button, outer):
+        outer.remove_css_class("wallmat-preview-light")
+        outer.remove_css_class("wallmat-preview-dark")
+        outer.add_css_class(
+            "wallmat-preview-light" if button.get_active()
+            else "wallmat-preview-dark"
+        )
+
+    def _on_preview_apply(self, _button, path, dialog):
+        self._on_apply_wallpaper(None)
+        dialog.close()
 
     def _detect_targets(self) -> set[str]:
         """Observe which wallpaper targets this desktop can actually apply."""
