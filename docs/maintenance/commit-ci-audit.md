@@ -24,7 +24,7 @@ Persistent repository-specific record of commit-level CI checks and red-cross in
 
 - Repository: `SakibShahariar/wallmat`
 - Default branch: `main`
-- Checkpoint SHA: `2ccdea8ec8c7`
+- Checkpoint SHA: `44ccd15262f9`
 - Initialized: 2026-11-02
 - Baseline: latest branch tip queried through combined commit-status endpoint; empty status list recorded as **unavailable**, not green/red. Older history was not retroactively audited during setup.
 - Last reviewed: 2026-11-20; range `3d3c989b3e17ebb20ab665091da6fae3c1894387..ad39f10bd0fcd7971df9646a9e13e93bab517fe0` (14 commits). All observed green. Next session: review commits after this checkpoint and carry forward any unresolved red/pending entries.
@@ -53,6 +53,19 @@ No red result was confirmed from the status data retrieved during setup.
 - Final verified outcome: green on `2ccdea8ec8c7`; local 170 tests pass.
 - Remaining follow-up: none.
 
+## Red-cross investigation log (2026-11-22)
+
+- Commit SHA: `9fc4020376a4` (short `9fc4020`)
+- Commit subject: `style: keep hamburger menu buttons neutral under themed popovers`
+- First observed: 2026-11-22
+- Workflow / run: 45043887100
+- Failed job / step: `source-validation` / `Run unit tests`
+- Failure summary: `test_menu_popover_neutral_style` asserted the CSS constant was empty because the test split `_FILTER_CSS = b"""..."""` on the wrong index (used `[0]` instead of `[1]`). Production code was correct.
+- Classification: regression in the test guard introduced by this session.
+- Fix commit(s): `44ccd15262f9` — use the correct split index; rerun 45043960169 completed success.
+- Final verified outcome: green on `44ccd15262f9`; local 187 tests pass.
+- Remaining follow-up: none.
+
 ### Failure record template
 
 - Commit SHA:
@@ -69,6 +82,7 @@ No red result was confirmed from the status data retrieved during setup.
 
 ## Session history
 
+| 2026-11-22 | `2ccdea8`..`44ccd15` (30 commits) | All commits observed: 29 green, 1 red. Red `9fc4020376a4` (`style: keep hamburger menu buttons neutral`) failed `test_menu_popover_neutral_style` because a string split used the wrong index; classified as regression in the test, fixed in `44ccd15262f9` (run 45043960169 green). Local at head: 187 tests, compileall and schema validation pass. Checkpoint advanced to `44ccd15262f9`. |
 | 2026-11-21 | `ad39f10`..`2ccdea8` (22 commits) | All commits observed: 21 green, 1 red. Red `3f1eda23b882` (`fix(#74): harden the palette worker`) failed because moving the GdkPixbuf import to module scope broke the dependency-light CI job (`ModuleNotFoundError: No module named 'gi'`); classified as regression, fixed in `2ccdea8ec8c7` by restoring lazy loading and pre-warming on the GTK thread, rerun 44875707295 green. Local at head: 170 tests, compileall and schema validation pass. Checkpoint advanced to `2ccdea8ec8c7`. |
 
 | Date | Reviewed range / checkpoint | Result summary |
