@@ -2475,17 +2475,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             say("There are no visible wallpapers to select.")
             return
 
-        dialog = Gtk.Dialog(
-            title="Select multiple wallpapers", transient_for=self, modal=True
+        dialog, content, actions = self._new_dialog(
+            "Select multiple wallpapers", 620, 520
         )
-        dialog.set_default_size(620, 520)
-        dialog.add_button("Done", Gtk.ResponseType.CLOSE)
-        content = dialog.get_content_area()
-        content.set_spacing(10)
-        content.set_margin_top(12)
-        content.set_margin_bottom(12)
-        content.set_margin_start(12)
-        content.set_margin_end(12)
 
         description = Gtk.Label(
             label=(
@@ -2647,21 +2639,13 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         unfavorite_button.connect("clicked", lambda _button: update_favorites(False))
         add_collection_button.connect("clicked", on_add_to_collection)
         export_button.connect("clicked", on_export_selected)
-        dialog.connect("response", lambda current, response: current.destroy())
-        dialog.present()
+        actions.append(self._dialog_button("Done", lambda *_: dialog.close()))
+        dialog.present(self)
 
     def _on_manage_collections(self, _button):
-        dialog = Gtk.Dialog(
-            title="Manage wallpaper collections", transient_for=self, modal=True
+        dialog, content, actions = self._new_dialog(
+            "Manage wallpaper collections", 480, 400
         )
-        dialog.set_default_size(440, 360)
-        dialog.add_button("Done", Gtk.ResponseType.CLOSE)
-        content = dialog.get_content_area()
-        content.set_spacing(10)
-        content.set_margin_top(16)
-        content.set_margin_bottom(16)
-        content.set_margin_start(16)
-        content.set_margin_end(16)
 
         description = Gtk.Label(
             label=(
@@ -2830,25 +2814,16 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         add_folder_button.connect("clicked", on_add_folder)
         remove_selected_button.connect("clicked", on_remove_selected)
         refresh_choices(self._active_collection)
-        dialog.connect("response", lambda current, response: current.destroy())
-        dialog.present()
+        actions.append(self._dialog_button("Done", lambda *_: dialog.close()))
+        dialog.present(self)
 
     def _on_manage_tags(self, _button):
         path = self._selected_path
         if not path:
             return
-        dialog = Gtk.Dialog(
-            title="Manage wallpaper tags", transient_for=self, modal=True
+        dialog, content, actions = self._new_dialog(
+            "Manage wallpaper tags", 480, 360
         )
-        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
-        dialog.add_button("Save", Gtk.ResponseType.ACCEPT)
-        dialog.set_default_response(Gtk.ResponseType.ACCEPT)
-        content = dialog.get_content_area()
-        content.set_spacing(8)
-        content.set_margin_top(16)
-        content.set_margin_bottom(16)
-        content.set_margin_start(16)
-        content.set_margin_end(16)
         description = Gtk.Label(
             label="Enter comma-separated tags for this wallpaper. Tags are saved locally."
         )
@@ -2860,10 +2835,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         entry.set_text(", ".join(sorted(self._tags.get(path, set()), key=str.casefold)))
         content.append(entry)
 
-        def on_tag_response(tag_dialog, response):
-            if response != Gtk.ResponseType.ACCEPT:
-                tag_dialog.destroy()
-                return
+        def on_save(_button):
             raw_tags = [part.strip() for part in entry.get_text().split(",") if part.strip()]
             try:
                 new_tags = set(normalize_tags(raw_tags))
@@ -2887,24 +2859,51 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             self._refresh_tag_filter()
             self._refresh_filtered_paths()
             say(f"Saved {len(new_tags)} tag(s) for this wallpaper.")
-            tag_dialog.destroy()
+            dialog.close()
 
-        dialog.connect("response", on_tag_response)
-        dialog.present()
+        actions.append(self._dialog_button("Cancel", lambda *_: dialog.close()))
+        actions.append(self._dialog_button("Save", on_save, suggested=True))
+        dialog.present(self)
+
+    def _new_dialog(self, title, width=560, height=520):
+        """Build a standard Adw.Dialog with a header, content area and actions.
+
+        Returns (dialog, content, actions). Add buttons to ``actions`` and
+        call ``dialog.present(self)``; use ``dialog.close()`` to dismiss.
+        """
+        dialog = Adw.Dialog()
+        dialog.set_title(title)
+        dialog.set_content_width(width)
+        dialog.set_content_height(height)
+        toolbar = Adw.ToolbarView()
+        header = Adw.HeaderBar()
+        header.set_show_end_title_buttons(True)
+        toolbar.add_top_bar(header)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        content.set_margin_top(12)
+        content.set_margin_bottom(12)
+        content.set_margin_start(16)
+        content.set_margin_end(16)
+        toolbar.set_content(content)
+        actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        actions.set_halign(Gtk.Align.END)
+        actions.set_margin_top(6)
+        toolbar.add_bottom_bar(actions)
+        dialog.set_child(toolbar)
+        return dialog, content, actions
+
+    def _dialog_button(self, label, callback, suggested=False):
+        button = Gtk.Button(label=label)
+        if suggested:
+            button.add_css_class("suggested-action")
+        button.connect("clicked", callback)
+        return button
 
     def _on_browse_catalog(self, _button):
         """Opt-in Wikimedia Commons search, preview and explicit import."""
-        dialog = Gtk.Dialog(
-            title="Online wallpaper catalog", transient_for=self, modal=True
+        dialog, content, actions = self._new_dialog(
+            "Online wallpaper catalog", 680, 520
         )
-        dialog.set_default_size(680, 520)
-        dialog.add_button("Close", Gtk.ResponseType.CLOSE)
-        content = dialog.get_content_area()
-        content.set_spacing(8)
-        content.set_margin_top(14)
-        content.set_margin_bottom(14)
-        content.set_margin_start(14)
-        content.set_margin_end(14)
 
         description = Gtk.Label(label=(
             "Optional import from Wikimedia Commons. Search uses the public API "
@@ -3054,28 +3053,19 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         def on_use_folder(_button):
             folder = downloaded_folder[0]
             if folder:
-                dialog.destroy()
+                dialog.close()
                 self._confirm_folder_switch(folder)
 
         search_button.connect("clicked", on_search)
         download_button.connect("clicked", on_download)
         use_folder_button.connect("clicked", on_use_folder)
-        dialog.connect("response", lambda current, _response: current.destroy())
-        dialog.present()
+        actions.append(self._dialog_button("Close", lambda *_: dialog.close()))
+        dialog.present(self)
 
     def _on_export_backup(self, _button):
-        picker = Gtk.Dialog(
-            title="Export backup sections", transient_for=self, modal=True
+        picker, content, picker_actions = self._new_dialog(
+            "Export backup sections", 480, 400
         )
-        picker.add_button("Cancel", Gtk.ResponseType.CANCEL)
-        picker.add_button("Choose file…", Gtk.ResponseType.ACCEPT)
-        picker.set_default_response(Gtk.ResponseType.ACCEPT)
-        content = picker.get_content_area()
-        content.set_spacing(8)
-        content.set_margin_top(16)
-        content.set_margin_bottom(16)
-        content.set_margin_start(16)
-        content.set_margin_end(16)
         description = Gtk.Label(
             label="Choose which data to include. Unselected sections are left "
                   "untouched if this backup is restored later."
@@ -3097,14 +3087,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             content.append(check)
             checks[section] = check
 
-        def on_picker_response(current, response):
+        def on_choose(_button):
             selected = [
                 section for section in BACKUP_SECTIONS
                 if checks[section].get_active()
             ]
-            current.destroy()
-            if response != Gtk.ResponseType.ACCEPT:
-                return
             if not selected:
                 say("Select at least one section to export.")
                 return
@@ -3121,8 +3108,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             )
             chooser.show()
 
-        picker.connect("response", on_picker_response)
-        picker.present()
+        picker_actions.append(self._dialog_button("Cancel", lambda *_: picker.close()))
+        picker_actions.append(self._dialog_button("Choose file…", on_choose, suggested=True))
+        picker.present(self)
 
     def _on_backup_export_response(self, dialog, response, sections=None):
         try:
@@ -3342,20 +3330,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
 
     def _on_manage_schedule(self, _button):
         periods = self._load_schedule()
-        dialog = Gtk.Dialog(
-            title="Wallpaper schedules", transient_for=self, modal=True
+        dialog, content, actions = self._new_dialog(
+            "Wallpaper schedules", 560, 520
         )
-        dialog.set_default_size(560, 520)
-        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
-        dialog.add_button("Save", Gtk.ResponseType.ACCEPT)
-        dialog.set_default_response(Gtk.ResponseType.ACCEPT)
-
-        content = dialog.get_content_area()
-        content.set_spacing(8)
-        content.set_margin_top(12)
-        content.set_margin_bottom(12)
-        content.set_margin_start(12)
-        content.set_margin_end(12)
 
         description = Gtk.Label(
             label=(
@@ -3444,10 +3421,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         add_button.connect("clicked", lambda _b: add_row() if len(rows) < MAX_PERIODS else None)
         content.append(add_button)
 
-        def on_response(current, response):
-            if response != Gtk.ResponseType.ACCEPT:
-                current.destroy()
-                return
+        def on_save(_button):
             built = []
             for entry in rows:
                 try:
@@ -3468,10 +3442,11 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 ROTATION_SCHEDULE_KEY, serialize_schedule(built)
             )
             say(f"Saved {len(built)} schedule period(s).")
-            current.destroy()
+            dialog.close()
 
-        dialog.connect("response", on_response)
-        dialog.present()
+        actions.append(self._dialog_button("Cancel", lambda *_: dialog.close()))
+        actions.append(self._dialog_button("Save", on_save, suggested=True))
+        dialog.present(self)
 
     def _load_schedule(self):
         try:

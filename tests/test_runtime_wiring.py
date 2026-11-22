@@ -248,6 +248,17 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("Theme applied (matugen.fish).", source)
         self.assertNotIn('command = ["matugen", "image", path, *self._matugen_args]', source)
 
+    def test_all_custom_dialogs_use_libadwaita(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        self.assertNotIn("Gtk.Dialog(", source)
+        self.assertIn("def _new_dialog(self, title", source)
+        self.assertIn("Adw.Dialog()", source)
+        self.assertIn("Adw.ToolbarView()", source)
+        self.assertIn("dialog.present(self)", source)
+        self.assertIn("dialog.close()", source)
+        # The only remaining native choosers are the correct GTK4 file dialogs.
+        self.assertIn("Gtk.FileDialog()", source)
+
     def test_preview_in_header_single_bottom_action(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn('self.preview_button = Gtk.Button(icon_name="view-reveal-symbolic")', source)
