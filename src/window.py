@@ -1035,17 +1035,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         settings_action.connect("clicked", self._on_open_settings)
         more_actions.append(settings_action)
         more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
-        secondary_heading = Gtk.Label(label="More actions")
-        secondary_heading.set_xalign(0.0)
-        secondary_heading.add_css_class("heading")
-        more_actions.append(secondary_heading)
-        for action_button in (
-            self.apply_matugen_button,
-            self.favorite_button,
-            self.surprise_button,
-        ):
-            more_actions.append(action_button)
-        more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
         folder_action = Gtk.Button(label="Choose wallpaper folder…")
         folder_action.connect("clicked", self._on_choose_folder)
         more_actions.append(folder_action)
@@ -1094,12 +1083,6 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         more_actions.append(backup_heading)
         more_actions.append(self.export_backup_button)
         more_actions.append(self.import_backup_button)
-        more_actions.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
-        matugen_heading = Gtk.Label(label="Matugen")
-        matugen_heading.set_xalign(0.0)
-        matugen_heading.add_css_class("heading")
-        more_actions.append(matugen_heading)
-        more_actions.append(self.preview_matugen_button)
         more_scroller = Gtk.ScrolledWindow()
         more_scroller.set_policy(
             Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC

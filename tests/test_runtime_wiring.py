@@ -164,6 +164,19 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("if not app.get_windows()", source)
         self.assertIn("GLib.timeout_add_seconds(5, ensure_window)", source)
 
+    def test_menu_has_no_split_button_duplicates(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        menu = source.split("self._more_actions = more_actions")[1].split(
+            "more_popover.set_child(more_scroller)"
+        )[0]
+        self.assertIn("Settings…", menu)
+        self.assertNotIn("secondary_heading", menu)
+        self.assertNotIn("matugen_heading", menu)
+        self.assertNotIn("more_actions.append(self.apply_matugen_button)", menu)
+        self.assertNotIn("more_actions.append(self.favorite_button)", menu)
+        self.assertNotIn("more_actions.append(self.surprise_button)", menu)
+        self.assertNotIn("more_actions.append(self.preview_matugen_button)", menu)
+
     def test_matugen_preview_uses_adwaita(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         preview = source.split("def _show_matugen_preview")[1].split("def _on_apply_matugen")[0]
