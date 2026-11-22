@@ -3925,66 +3925,50 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             return GLib.SOURCE_REMOVE
 
         self.preview_matugen_button.set_sensitive(True)
-        dialog = Gtk.Dialog(
-            title="Matugen color preview", transient_for=self, modal=True
+        dialog = Adw.MessageDialog.new(
+            self, "Matugen color preview",
+            "Generated with your configured Matugen arguments. "
+            "No wallpaper, templates or system theme were changed."
         )
-        dialog.set_default_size(560, 420)
-        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
-        dialog.add_button("Apply wallpaper + Matugen", Gtk.ResponseType.ACCEPT)
-        dialog.set_default_response(Gtk.ResponseType.CANCEL)
+        dialog.set_close_response("cancel")
+        dialog.set_default_response("cancel")
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("apply", "Apply wallpaper + Matugen")
+        dialog.set_response_appearance("apply", Adw.ResponseAppearance.SUGGESTED)
 
-        content = dialog.get_content_area()
-        content.set_spacing(12)
-        content.set_margin_top(16)
-        content.set_margin_bottom(16)
-        content.set_margin_start(16)
-        content.set_margin_end(16)
-        description = Gtk.Label(
-            label="Preview generated with your configured Matugen arguments. "
-                  "No wallpaper, templates, or system theme were changed."
-        )
-        description.set_wrap(True)
-        description.set_xalign(0.0)
-        content.append(description)
-
+        # The palette grid is the only custom content; the header, responses
+        # and focus handling come from Adwaita's MessageDialog.
         palettes = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
-        palettes.set_halign(Gtk.Align.FILL)
+        palettes.set_halign(Gtk.Align.CENTER)
+        palettes.set_margin_top(8)
+        palettes.set_margin_bottom(8)
         for mode in ("dark", "light"):
             entries = colors.get(mode)
             if not entries:
                 continue
-            frame = Gtk.Frame(label=mode.title())
-            grid = Gtk.Grid()
-            grid.set_row_spacing(8)
-            grid.set_column_spacing(12)
-            grid.set_margin_top(10)
-            grid.set_margin_bottom(10)
-            grid.set_margin_start(10)
-            grid.set_margin_end(10)
-            for row, (name, color) in enumerate(entries):
-                color_label = Gtk.Label(label=name.replace("_", " ").title())
-                color_label.set_xalign(0.0)
-                swatch = Gtk.Label()
+            group = Adw.PreferencesGroup()
+            group.set_title(mode.title())
+            for name, color in entries:
+                row = Adw.ActionRow()
+                row.set_title(name.replace("_", " ").title())
                 display_color = color[:7] if len(color) == 9 else color
-                swatch.set_markup(
-                    f'<span background="{display_color}" foreground="#000000">'
-                    f'  {display_color}  </span>'
-                )
-                grid.attach(color_label, 0, row, 1, 1)
-                grid.attach(swatch, 1, row, 1, 1)
-            frame.set_child(grid)
-            palettes.append(frame)
-        content.append(palettes)
+                swatch = Gtk.Label(label=display_color)
+                swatch.add_css_class("monospace")
+                swatch.set_tooltip_text(display_color)
+                row.add_suffix(swatch)
+                group.add(row)
+            palettes.append(group)
+        dialog.set_extra_child(palettes)
 
-        def on_preview_response(preview_dialog, response):
-            preview_dialog.destroy()
-            if response == Gtk.ResponseType.ACCEPT:
-                if self._selected_path == path:
-                    self._on_apply_matugen(self.apply_matugen_button)
-                else:
-                    say("Wallpaper selection changed. Preview the new selection before applying Matugen.")
+        def on_response(_dialog, response):
+            if response != "apply":
+                return
+            if self._selected_path == path:
+                self._on_apply_matugen(None)
+            else:
+                say("Wallpaper selection changed. Preview the new selection before applying Matugen.")
 
-        dialog.connect("response", on_preview_response)
+        dialog.connect("response", on_response)
         dialog.present()
         return GLib.SOURCE_REMOVE
 

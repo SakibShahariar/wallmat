@@ -164,6 +164,18 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("if not app.get_windows()", source)
         self.assertIn("GLib.timeout_add_seconds(5, ensure_window)", source)
 
+    def test_matugen_preview_uses_adwaita(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        preview = source.split("def _show_matugen_preview")[1].split("def _on_apply_matugen")[0]
+        self.assertIn("Adw.MessageDialog.new(", preview)
+        self.assertIn('dialog.add_response("cancel", "Cancel")', preview)
+        self.assertIn('dialog.add_response("apply", "Apply wallpaper + Matugen")', preview)
+        self.assertIn("Adw.ResponseAppearance.SUGGESTED", preview)
+        self.assertIn("Adw.PreferencesGroup()", preview)
+        self.assertIn("Adw.ActionRow()", preview)
+        self.assertNotIn("Gtk.Dialog(", preview)
+        self.assertNotIn("set_markup", preview)
+
     def test_split_apply_button(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         self.assertIn('apply_split.add_css_class("linked")', source)
