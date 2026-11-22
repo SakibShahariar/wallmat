@@ -3951,10 +3951,18 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         note.add_css_class("dim-label")
         content.append(note)
 
+        # Scroll the palettes: a small window must still reach every color.
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_hexpand(True)
+        scroller.set_vexpand(True)
+        scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        content.append(scroller)
+
         palettes = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
         palettes.set_halign(Gtk.Align.FILL)
         palettes.set_hexpand(True)
-        palettes.set_vexpand(True)
+        palettes.set_valign(Gtk.Align.START)
+        scroller.set_child(palettes)
         for mode in ("dark", "light"):
             entries = colors.get(mode)
             if not entries:
@@ -3962,20 +3970,42 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             group = Adw.PreferencesGroup()
             group.set_title(mode.title())
             group.set_hexpand(True)
+            group.set_valign(Gtk.Align.START)
             for name, color in entries:
                 row = Adw.ActionRow()
                 row.set_title(name.replace("_", " ").title())
                 display_color = color[:7] if len(color) == 9 else color
-                swatch = Gtk.Label(label=display_color)
-                swatch.add_css_class("monospace")
-                swatch.set_tooltip_text(display_color)
-                row.add_suffix(swatch)
+                rgba = Gdk.RGBA()
+                if rgba.parse(display_color):
+                    # A real swatch, drawn in the palette color, next to the
+                    # hex value so the two can be compared at a glance.
+                    swatch = Gtk.DrawingArea()
+                    swatch.set_content_width(56)
+                    swatch.set_content_height(24)
+                    swatch.set_tooltip_text(display_color)
+                    swatch.set_draw_func(
+                        lambda _area, cr, w, h,
+                        r=rgba.red, g=rgba.green, b=rgba.blue, a=rgba.alpha:
+                        (cr.set_source_rgba(r, g, b, a),
+                         cr.rectangle(0, 0, w, h), cr.fill())
+                    )
+                    box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+                    box.append(swatch)
+                    value = Gtk.Label(label=display_color)
+                    value.add_css_class("monospace")
+                    box.append(value)
+                    row.add_suffix(box)
+                else:
+                    value = Gtk.Label(label=display_color)
+                    value.add_css_class("monospace")
+                    row.add_suffix(value)
                 group.add(row)
             palettes.append(group)
-        content.append(palettes)
 
+        # Keep the actions visible while the palette area scrolls.
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         actions.set_halign(Gtk.Align.END)
+        actions.set_margin_top(6)
         cancel = Gtk.Button(label="Cancel")
         cancel.connect("clicked", lambda *_: dialog.close())
         apply = Gtk.Button(label="Apply wallpaper + Matugen")
@@ -3983,7 +4013,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         apply.connect("clicked", self._on_matugen_preview_apply, path, dialog)
         actions.append(cancel)
         actions.append(apply)
-        content.append(actions)
+        toolbar.add_bottom_bar(actions)
 
         dialog.set_child(toolbar)
         dialog.connect("closed", self._on_matugen_preview_closed)
