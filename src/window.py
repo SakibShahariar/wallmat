@@ -122,9 +122,9 @@ class _CatalogItem(GObject.Object):
         self.data = data
 
 
-# Catalog result thumbnail size; Commons previews are requested at 400 px.
-CATALOG_THUMB_WIDTH = 192
-CATALOG_THUMB_HEIGHT = 120
+# Catalog result thumbnail size; Commons previews are requested at 800 px.
+CATALOG_THUMB_WIDTH = 360
+CATALOG_THUMB_HEIGHT = 220
 
 
 # Seamless mode: only the wallpaper stack is visible, with a see-through
@@ -2876,7 +2876,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
     def _on_browse_catalog(self, _button):
         """Opt-in Wikimedia Commons search, preview and explicit import."""
         dialog, content, actions = self._new_dialog(
-            "Online wallpaper catalog", 680, 520
+            "Online wallpaper catalog", 760, 560
         )
 
         description = Gtk.Label(label=(
@@ -2933,7 +2933,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             row.set_title(data.get("title", ""))
             row.set_subtitle(f"{data.get('artist', '')} — {data.get('license', '')}")
             thumb = Gtk.Image.new_from_icon_name("image-x-generic-symbolic")
-            thumb.set_pixel_size(64)
+            thumb.set_pixel_size(96)
             thumb.add_css_class("dim-label")
             thumb.set_size_request(CATALOG_THUMB_WIDTH, CATALOG_THUMB_HEIGHT)
             row.add_prefix(thumb)

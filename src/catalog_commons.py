@@ -33,7 +33,7 @@ def build_search_url(query, limit=12):
         "gsrlimit": limit,
         "prop": "imageinfo",
         "iiprop": "url|extmetadata|size",
-        "iiurlwidth": 400,
+        "iiurlwidth": 800,
         "format": "json",
     }
     return f"{API_URL}?{urlencode(params)}"
