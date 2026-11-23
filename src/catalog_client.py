@@ -5,6 +5,7 @@ GTK main loop is never blocked. Requests use the public API with a descriptive
 User-Agent and a conservative one-request-per-second rate.
 """
 
+import hashlib
 import json
 import os
 import tempfile
@@ -21,8 +22,14 @@ from catalog_commons import (
 MAX_DOWNLOAD_BYTES = 40 * 1024 * 1024
 MIN_REQUEST_INTERVAL = 2.0
 CHUNK_SIZE = 64 * 1024
+PREVIEW_MAX_BYTES = 3 * 1024 * 1024
+# Previews are tiny 400 px thumbnails; use a lighter rate than full downloads
+# so a page of results does not take half a minute to populate.
+PREVIEW_MIN_REQUEST_INTERVAL = 0.3
 _rate_lock = threading.Lock()
 _last_request = [0.0]
+_preview_rate_lock = threading.Lock()
+_last_preview_request = [0.0]
 
 
 def _throttle():
@@ -138,3 +145,64 @@ def download(item, target_dir, callback, max_bytes=MAX_DOWNLOAD_BYTES):
                     pass
 
     threading.Thread(target=work, daemon=True, name="wallmat-catalog-download").start()
+
+
+def _preview_cache_path(url):
+    """Return a stable cache path for a preview URL."""
+    cache_dir = os.path.join(tempfile.gettempdir(), "wallmat-catalog-previews")
+    os.makedirs(cache_dir, exist_ok=True)
+    name = hashlib.sha256(url.encode("utf-8")).hexdigest()[:24] + ".img"
+    return os.path.join(cache_dir, name)
+
+
+def fetch_preview(url, callback):
+    """Fetch a small catalog thumbnail; callback(path, error) on the GTK thread.
+
+    Previews are cached on disk, so reopening a search does not re-download
+    them. Only validated Wikimedia image URLs are accepted.
+    """
+    from gi.repository import GLib
+
+    def work():
+        temporary = None
+        try:
+            if not validate_download_url(url):
+                raise ValueError("unsafe catalog preview URL")
+            path = _preview_cache_path(url)
+            if os.path.exists(path) and _decode_image(path):
+                GLib.idle_add(callback, path, None)
+                return
+            with _preview_rate_lock:
+                wait = PREVIEW_MIN_REQUEST_INTERVAL - (
+                    time.monotonic() - _last_preview_request[0]
+                )
+                if wait > 0:
+                    time.sleep(wait)
+                _last_preview_request[0] = time.monotonic()
+            request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+            with urllib.request.urlopen(request, timeout=20) as response:
+                body = response.read(PREVIEW_MAX_BYTES + 1)
+            if len(body) > PREVIEW_MAX_BYTES:
+                raise ValueError("preview exceeds the size limit")
+            if not body:
+                raise ValueError("empty preview")
+            fd, temporary = tempfile.mkstemp(
+                prefix=".wallmat-preview-", dir=os.path.dirname(path)
+            )
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(body)
+            if not _decode_image(temporary):
+                raise ValueError("preview is not a supported image")
+            os.replace(temporary, path)
+            temporary = None
+            GLib.idle_add(callback, path, None)
+        except Exception as error:
+            GLib.idle_add(callback, None, str(error))
+        finally:
+            if temporary is not None:
+                try:
+                    os.unlink(temporary)
+                except OSError:
+                    pass
+
+    threading.Thread(target=work, daemon=True, name="wallmat-catalog-preview").start()

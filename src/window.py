@@ -32,7 +32,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 gi.require_version("GdkPixbuf", "2.0")
-from gi.repository import Gtk, Adw, Gio, GLib, Gdk, GdkPixbuf
+from gi.repository import Gtk, Adw, Gio, GLib, Gdk, GdkPixbuf, GObject
 
 from layouts.split_screen import SplitScreenLayout
 from layouts.stacked_deck import StackedDeckLayout
@@ -65,7 +65,10 @@ from targets import (
     screensaver_keys_for_target, supported_targets,
 )
 from catalog_commons import attribution_text
-from catalog_client import search as catalog_search, download as catalog_download
+from catalog_client import (
+    search as catalog_search, download as catalog_download,
+    fetch_preview as catalog_preview,
+)
 from wallpaper_scan import (
     MAX_SCAN_DEPTH, ScanCancelled, scan_wallpapers, scan_wallpaper_metadata,
 )
@@ -109,6 +112,15 @@ ROTATION_SCHEDULE_KEY = "rotation-schedule"
 LAYOUT_POSITIONS_KEY = "layout-positions"
 PLACEMENT_KEY = "wallpaper-placement"
 PLACEMENT_BACKGROUND_KEY = "placement-background"
+
+
+class _CatalogItem(GObject.Object):
+    """GObject wrapper so Gio.ListStore can hold catalog item dicts."""
+
+    def __init__(self, data):
+        super().__init__()
+        self.data = data
+
 
 # Seamless mode: only the wallpaper stack is visible, with a see-through
 # or blurred window background. GTK4's CSS parser accepts backdrop-filter;
@@ -2889,16 +2901,43 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         status.add_css_class("dim-label")
         content.append(status)
 
-        store = Gio.ListStore.new(Gtk.StringObject)
+        store = Gio.ListStore.new(_CatalogItem)
         results_list = Gtk.ListBox()
         results_list.set_selection_mode(Gtk.SelectionMode.SINGLE)
         results_list.add_css_class("boxed-list")
 
+        def set_preview(row, image, path, error, retried=False):
+            if path is None:
+                return
+            # bind_model may not have attached the row yet for a cached preview.
+            if row.get_parent() is None:
+                if not retried:
+                    GLib.idle_add(set_preview, row, image, path, error, True)
+                return
+            try:
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, 96, 60, True)
+                image.set_from_pixbuf(pixbuf)
+            except Exception:
+                pass
+
         def create_result_row(item, *_args):
+            data = item.data if item else {}
             row = Adw.ActionRow()
-            title, _, subtitle = (item.get_string() if item else "").partition("\n")
-            row.set_title(title)
-            row.set_subtitle(subtitle)
+            row.set_title(data.get("title", ""))
+            row.set_subtitle(f"{data.get('artist', '')} — {data.get('license', '')}")
+            thumb = Gtk.Image.new_from_icon_name("image-x-generic-symbolic")
+            thumb.set_pixel_size(40)
+            thumb.add_css_class("dim-label")
+            thumb.set_size_request(96, 56)
+            row.add_prefix(thumb)
+            url = data.get("preview_url")
+            if url:
+                catalog_preview(
+                    url,
+                    lambda path, error, row=row, thumb=thumb: set_preview(
+                        row, thumb, path, error
+                    ),
+                )
             return row
 
         results_list.bind_model(store, create_result_row)
@@ -2936,9 +2975,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             items[:] = results
             store.remove_all()
             for result in results:
-                store.append(Gtk.StringObject.new(
-                    f"{result['title']}\n{result['artist']} — {result['license']}"
-                ))
+                store.append(_CatalogItem(result))
             status.set_label(
                 f"{len(results)} result(s). Select one, then confirm and choose a folder."
             )
