@@ -376,6 +376,8 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("def fetch_preview(", client_src)
         self.assertIn("validate_download_url(url)", client_src)
         self.assertIn("PREVIEW_MIN_REQUEST_INTERVAL", client_src)
+        self.assertIn("PREVIEW_CACHE_MAX_FILES", client_src)
+        self.assertIn("redirect led to an unsafe preview host", client_src)
         self.assertIn('"iiurlwidth": 800', (SRC / "catalog_commons.py").read_text(encoding="utf-8"))
         self.assertIn("MIN_REQUEST_INTERVAL", client_src)
         self.assertIn("os.replace(temporary, final)", client_src)

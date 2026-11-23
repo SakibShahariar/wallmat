@@ -1,6 +1,8 @@
 """Tests for the Wikimedia Commons catalog adapter (#75)."""
 
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -11,6 +13,7 @@ from catalog_commons import (
     API_URL, attribution_text, build_search_url, clean_download_url,
     description_url, parse_search_response, safe_filename, validate_download_url,
 )
+from catalog_client import PREVIEW_CACHE_MAX_FILES, _trim_preview_cache
 
 
 def page(title, url, size=1024, license_name="CC BY-SA 4.0", **extra):
@@ -82,6 +85,18 @@ class CatalogCommonsTests(unittest.TestCase):
             with self.subTest(bad=bad):
                 with self.assertRaises(ValueError):
                     parse_search_response(bad)
+
+    def test_preview_cache_is_bounded(self):
+        with tempfile.TemporaryDirectory() as cache:
+            for index in range(PREVIEW_CACHE_MAX_FILES + 10):
+                path = Path(cache) / f"{index:04}.img"
+                path.write_bytes(b"x")
+                os.utime(path, (index, index))
+            _trim_preview_cache(cache)
+            remaining = sorted(p.name for p in Path(cache).glob("*.img"))
+            self.assertEqual(len(remaining), PREVIEW_CACHE_MAX_FILES)
+            self.assertNotIn("0000.img", remaining)
+            self.assertIn(f"{PREVIEW_CACHE_MAX_FILES + 9:04}.img", remaining)
 
     def test_safe_filename_and_attribution(self):
         self.assertEqual(safe_filename("File:My/Photo?.jpg"), "My_Photo.jpg")

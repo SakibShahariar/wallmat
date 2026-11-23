@@ -23,13 +23,15 @@ MAX_DOWNLOAD_BYTES = 40 * 1024 * 1024
 MIN_REQUEST_INTERVAL = 2.0
 CHUNK_SIZE = 64 * 1024
 PREVIEW_MAX_BYTES = 3 * 1024 * 1024
-# Previews are tiny 400 px thumbnails; use a lighter rate than full downloads
-# so a page of results does not take half a minute to populate.
+PREVIEW_CACHE_MAX_FILES = 120
+# Previews are small thumbnails; use a lighter rate than full downloads so a
+# page of results does not take half a minute to populate.
 PREVIEW_MIN_REQUEST_INTERVAL = 0.3
 _rate_lock = threading.Lock()
 _last_request = [0.0]
 _preview_rate_lock = threading.Lock()
 _last_preview_request = [0.0]
+_preview_cache_lock = threading.Lock()
 
 
 def _throttle():
@@ -147,10 +149,31 @@ def download(item, target_dir, callback, max_bytes=MAX_DOWNLOAD_BYTES):
     threading.Thread(target=work, daemon=True, name="wallmat-catalog-download").start()
 
 
+def _trim_preview_cache(cache_dir):
+    """Bound the on-disk preview cache by dropping the oldest entries."""
+    entries = []
+    for name in os.listdir(cache_dir):
+        if not name.endswith(".img"):
+            continue
+        path = os.path.join(cache_dir, name)
+        try:
+            entries.append((os.path.getmtime(path), path))
+        except OSError:
+            pass
+    entries.sort()
+    for _mtime, stale in entries[:-PREVIEW_CACHE_MAX_FILES]:
+        try:
+            os.unlink(stale)
+        except OSError:
+            pass
+
+
 def _preview_cache_path(url):
     """Return a stable cache path for a preview URL."""
     cache_dir = os.path.join(tempfile.gettempdir(), "wallmat-catalog-previews")
     os.makedirs(cache_dir, exist_ok=True)
+    with _preview_cache_lock:
+        _trim_preview_cache(cache_dir)
     name = hashlib.sha256(url.encode("utf-8")).hexdigest()[:24] + ".img"
     return os.path.join(cache_dir, name)
 
@@ -181,6 +204,10 @@ def fetch_preview(url, callback):
                 _last_preview_request[0] = time.monotonic()
             request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
             with urllib.request.urlopen(request, timeout=20) as response:
+                # urllib follows redirects; validate where we actually landed
+                # so a Commons preview cannot bounce to an untrusted host.
+                if not validate_download_url(response.geturl()):
+                    raise ValueError("redirect led to an unsafe preview host")
                 body = response.read(PREVIEW_MAX_BYTES + 1)
             if len(body) > PREVIEW_MAX_BYTES:
                 raise ValueError("preview exceeds the size limit")
