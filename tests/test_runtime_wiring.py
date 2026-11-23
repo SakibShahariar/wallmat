@@ -368,6 +368,8 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("fetch_preview as catalog_preview", window_src)
         self.assertIn("row.add_prefix(thumb)", catalog)
         self.assertIn("GdkPixbuf.Pixbuf.new_from_file_at_scale", catalog)
+        self.assertIn("CATALOG_THUMB_WIDTH = 192", window_src)
+        self.assertIn("CATALOG_THUMB_HEIGHT = 120", window_src)
         client_src = (SRC / "catalog_client.py").read_text(encoding="utf-8")
         self.assertIn("def fetch_preview(", client_src)
         self.assertIn("validate_download_url(url)", client_src)

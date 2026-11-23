@@ -122,6 +122,11 @@ class _CatalogItem(GObject.Object):
         self.data = data
 
 
+# Catalog result thumbnail size; Commons previews are requested at 400 px.
+CATALOG_THUMB_WIDTH = 192
+CATALOG_THUMB_HEIGHT = 120
+
+
 # Seamless mode: only the wallpaper stack is visible, with a see-through
 # or blurred window background. GTK4's CSS parser accepts backdrop-filter;
 # compositors without support simply show the transparent background.
@@ -2915,7 +2920,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                     GLib.idle_add(set_preview, row, image, path, error, True)
                 return
             try:
-                pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(path, 96, 60, True)
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
+                    path, CATALOG_THUMB_WIDTH, CATALOG_THUMB_HEIGHT, True
+                )
                 image.set_from_pixbuf(pixbuf)
             except Exception:
                 pass
@@ -2926,9 +2933,9 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             row.set_title(data.get("title", ""))
             row.set_subtitle(f"{data.get('artist', '')} — {data.get('license', '')}")
             thumb = Gtk.Image.new_from_icon_name("image-x-generic-symbolic")
-            thumb.set_pixel_size(40)
+            thumb.set_pixel_size(64)
             thumb.add_css_class("dim-label")
-            thumb.set_size_request(96, 56)
+            thumb.set_size_request(CATALOG_THUMB_WIDTH, CATALOG_THUMB_HEIGHT)
             row.add_prefix(thumb)
             url = data.get("preview_url")
             if url:
