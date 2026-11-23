@@ -15,7 +15,7 @@ import itertools
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk, Gio, GObject, Gdk
+from gi.repository import Gtk, Gio, GObject, Gdk, GLib
 
 from .skewed_card import SkewedCard, natural_width
 from .thumbnail_loader import ThumbnailLoader
@@ -141,6 +141,10 @@ class WallpaperCarousel(Gtk.Box):
         # so async thumbnail delivery can find the right widget even after
         # ListView recycling has moved things around.
         self._live_widgets: dict[str, SkewedCard] = {}
+        # Binding a large folder fires _on_bind for every visible card in one
+        # batch. Recomputing prominence there made it O(N^2) with a redraw per
+        # card, so coalesce all requests in a batch into one idle recompute.
+        self._prominence_update_pending = False
         # item_id currently under keyboard focus (drives the inset focus
         # ring on the live card) — separate from _live_widgets selection.
         self._focused_item: str | None = None
@@ -267,7 +271,7 @@ class WallpaperCarousel(Gtk.Box):
         card.set_selected(selected_item is item)
         card.set_focused(self._focused_item is not None and self._focused_item == item.item_id)
 
-        self._recompute_prominence()
+        self._queue_prominence_recompute()
 
     def _on_unbind(self, factory, list_item):
         item: WallpaperItem = list_item.get_item()
@@ -310,6 +314,18 @@ class WallpaperCarousel(Gtk.Box):
 
     def _on_scroll_changed(self, adjustment):
         self._recompute_prominence()
+
+    def _queue_prominence_recompute(self):
+        """Coalesce a batch of bind/unbind callbacks into one idle update."""
+        if self._prominence_update_pending:
+            return
+        self._prominence_update_pending = True
+        GLib.idle_add(self._flush_prominence)
+
+    def _flush_prominence(self):
+        self._prominence_update_pending = False
+        self._recompute_prominence()
+        return GLib.SOURCE_REMOVE
 
     def _recompute_prominence(self):
         """

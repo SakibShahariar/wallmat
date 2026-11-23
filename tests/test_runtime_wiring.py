@@ -647,6 +647,14 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertNotIn("fg_loader", source)
 
 
+    def test_carousel_bind_debounces_prominence(self):
+        source = (SRC / "widgets/wallpaper_carousel.py").read_text(encoding="utf-8")
+        bind = source.split("def _on_bind")[1].split("def _on_unbind")[0]
+        self.assertIn("self._queue_prominence_recompute()", bind)
+        self.assertNotIn("self._recompute_prominence()", bind)
+        self.assertIn("def _queue_prominence_recompute", source)
+        self.assertIn("GLib.idle_add(self._flush_prominence)", source)
+
     def test_message_dialogs_use_window_parent(self):
         source = (SRC / "window.py").read_text(encoding="utf-8")
         # Adw.MessageDialog.new() requires a Gtk.Window parent. An Adw.Dialog
