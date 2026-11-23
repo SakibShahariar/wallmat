@@ -2574,7 +2574,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 return
             chooser = Gtk.FileChooserNative.new(
                 "Export selected wallpaper paths",
-                dialog,
+                self,
                 Gtk.FileChooserAction.SAVE,
                 "Export",
                 "Cancel",
@@ -2911,19 +2911,16 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         results_list.set_selection_mode(Gtk.SelectionMode.SINGLE)
         results_list.add_css_class("boxed-list")
 
-        def set_preview(row, image, path, error, retried=False):
+        def set_preview(row, picture, path, error, retried=False):
             if path is None:
                 return
             # bind_model may not have attached the row yet for a cached preview.
             if row.get_parent() is None:
                 if not retried:
-                    GLib.idle_add(set_preview, row, image, path, error, True)
+                    GLib.idle_add(set_preview, row, picture, path, error, True)
                 return
             try:
-                pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
-                    path, CATALOG_THUMB_WIDTH, CATALOG_THUMB_HEIGHT, True
-                )
-                image.set_from_pixbuf(pixbuf)
+                picture.set_file(Gio.File.new_for_path(path))
             except Exception:
                 pass
 
@@ -2932,17 +2929,22 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             row = Adw.ActionRow()
             row.set_title(data.get("title", ""))
             row.set_subtitle(f"{data.get('artist', '')} — {data.get('license', '')}")
-            thumb = Gtk.Image.new_from_icon_name("image-x-generic-symbolic")
-            thumb.set_pixel_size(96)
-            thumb.add_css_class("dim-label")
-            thumb.set_size_request(CATALOG_THUMB_WIDTH, CATALOG_THUMB_HEIGHT)
-            row.add_prefix(thumb)
+            frame = Gtk.Overlay()
+            frame.set_size_request(CATALOG_THUMB_WIDTH, CATALOG_THUMB_HEIGHT)
+            placeholder = Gtk.Image.new_from_icon_name("image-x-generic-symbolic")
+            placeholder.set_pixel_size(96)
+            placeholder.add_css_class("dim-label")
+            frame.set_child(placeholder)
+            picture = Gtk.Picture()
+            picture.set_content_fit(Gtk.ContentFit.COVER)
+            frame.add_overlay(picture)
+            row.add_prefix(frame)
             url = data.get("preview_url")
             if url:
                 catalog_preview(
                     url,
-                    lambda path, error, row=row, thumb=thumb: set_preview(
-                        row, thumb, path, error
+                    lambda path, error, row=row, picture=picture: set_preview(
+                        row, picture, path, error
                     ),
                 )
             return row
@@ -3018,7 +3020,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
                 if choice != "download":
                     return
                 chooser = Gtk.FileChooserNative.new(
-                    "Choose download folder", dialog,
+                    "Choose download folder", self,
                     Gtk.FileChooserAction.SELECT_FOLDER, "Select", "Cancel",
                 )
 

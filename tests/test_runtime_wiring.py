@@ -366,8 +366,10 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertNotIn("search_box = Gtk.Box(", catalog)
         self.assertNotIn("label = Gtk.Label(xalign=0.0)", catalog)
         self.assertIn("fetch_preview as catalog_preview", window_src)
-        self.assertIn("row.add_prefix(thumb)", catalog)
-        self.assertIn("GdkPixbuf.Pixbuf.new_from_file_at_scale", catalog)
+        self.assertIn("row.add_prefix(frame)", catalog)
+        self.assertIn("Gtk.Picture()", catalog)
+        self.assertIn("picture.set_content_fit(Gtk.ContentFit.COVER)", catalog)
+        self.assertIn("picture.set_file(", catalog)
         self.assertIn("CATALOG_THUMB_WIDTH = 360", window_src)
         self.assertIn("CATALOG_THUMB_HEIGHT = 220", window_src)
         client_src = (SRC / "catalog_client.py").read_text(encoding="utf-8")
@@ -653,6 +655,11 @@ class RuntimeWiringTests(unittest.TestCase):
         )
         self.assertGreaterEqual(
             len(re.findall(r"Adw\.MessageDialog\.new\(\s*self\s*,", source)), 4
+        )
+        # Gtk.FileChooserNative.new() has the same Gtk.Window parent requirement.
+        self.assertFalse(
+            re.search(r"FileChooserNative\.new\(\s*(?:\"[^\"]*\",\s*)?dialog\s*,", source),
+            "FileChooserNative must not use an Adw.Dialog as parent",
         )
 
 
