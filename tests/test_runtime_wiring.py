@@ -10,6 +10,7 @@ green and the app raised NameError on the first card bind.
 
 import ast
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -351,13 +352,15 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("catalog_download(item, target_dir, on_downloaded)", window_src)
         self.assertIn("Browse online catalog", window_src)
         self.assertIn("attribution_text(item)", window_src)
-        self.assertIn('selection.connect("notify::selected", on_selected_changed)', window_src)
+        self.assertIn('results_list.connect("row-selected", on_selected_changed)', window_src)
         catalog = window_src.split("def _on_browse_catalog")[1].split("def _on_export_backup")[0]
         self.assertIn("Adw.PreferencesGroup()", catalog)
         self.assertIn('query = Adw.EntryRow()', catalog)
         self.assertIn("query.add_suffix(search_button)", catalog)
         self.assertIn("row = Adw.ActionRow()", catalog)
-        self.assertIn('list_view.add_css_class("boxed-list")', catalog)
+        self.assertIn("results_list.bind_model(store, create_result_row)", catalog)
+        self.assertIn('results_list.add_css_class("boxed-list")', catalog)
+        self.assertNotIn("Gtk.ListView(", catalog)
         self.assertIn("actions.append(download_button)", catalog)
         self.assertIn("actions.append(self._dialog_button", catalog)
         self.assertNotIn("search_box = Gtk.Box(", catalog)
@@ -629,6 +632,19 @@ class RuntimeWiringTests(unittest.TestCase):
         self.assertIn("self._ensure_thumbnail(item.path)", fg_bind)
         self.assertNotIn("bg_loader", source)
         self.assertNotIn("fg_loader", source)
+
+
+    def test_message_dialogs_use_window_parent(self):
+        source = (SRC / "window.py").read_text(encoding="utf-8")
+        # Adw.MessageDialog.new() requires a Gtk.Window parent. An Adw.Dialog
+        # is only a Gtk.Widget and raises TypeError when used as the parent.
+        self.assertFalse(
+            re.search(r"Adw\.MessageDialog\.new\(\s*dialog\s*,", source),
+            "MessageDialog must not use an Adw.Dialog as parent",
+        )
+        self.assertGreaterEqual(
+            len(re.findall(r"Adw\.MessageDialog\.new\(\s*self\s*,", source)), 4
+        )
 
 
 if __name__ == "__main__":

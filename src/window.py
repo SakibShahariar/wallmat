@@ -2734,7 +2734,7 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             if not name:
                 return
             confirmation = Adw.MessageDialog.new(
-                dialog,
+                self,
                 "Delete collection?",
                 f"Delete {name!r}? This removes the saved collection only; "
                 "the wallpaper files themselves will not be deleted.",
@@ -2890,27 +2890,21 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         content.append(status)
 
         store = Gio.ListStore.new(Gtk.StringObject)
-        selection = Gtk.SingleSelection(model=store)
-        factory = Gtk.SignalListItemFactory()
+        results_list = Gtk.ListBox()
+        results_list.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        results_list.add_css_class("boxed-list")
 
-        def on_setup(_factory, list_item):
+        def create_result_row(item, *_args):
             row = Adw.ActionRow()
-            list_item.set_child(row)
-
-        def on_bind(_factory, list_item):
-            item = list_item.get_item()
-            row = list_item.get_child()
             title, _, subtitle = (item.get_string() if item else "").partition("\n")
             row.set_title(title)
             row.set_subtitle(subtitle)
+            return row
 
-        factory.connect("setup", on_setup)
-        factory.connect("bind", on_bind)
-        list_view = Gtk.ListView(model=selection, factory=factory)
-        list_view.add_css_class("boxed-list")
+        results_list.bind_model(store, create_result_row)
         scroller = Gtk.ScrolledWindow()
         scroller.set_vexpand(True)
-        scroller.set_child(list_view)
+        scroller.set_child(results_list)
         content.append(scroller)
 
         download_button = Gtk.Button(label="Download selected…")
@@ -2924,11 +2918,15 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
         items = []
         downloaded_folder = [None]
 
-        def on_selected_changed(*_args):
-            download_button.set_sensitive(selection.get_selected() < len(items))
+        def selected_index():
+            row = results_list.get_selected_row()
+            return row.get_index() if row is not None else -1
 
-        selection.connect("selection-changed", on_selected_changed)
-        selection.connect("notify::selected", on_selected_changed)
+        def on_selected_changed(*_args):
+            index = selected_index()
+            download_button.set_sensitive(0 <= index < len(items))
+
+        results_list.connect("row-selected", on_selected_changed)
 
         def on_results(results, error):
             search_button.set_sensitive(True)
@@ -2956,12 +2954,12 @@ class WallpaperChooserWindow(Adw.ApplicationWindow):
             catalog_search(text, on_results)
 
         def on_download(_button):
-            index = selection.get_selected()
-            if index >= len(items):
+            index = selected_index()
+            if index < 0 or index >= len(items):
                 return
             item = items[index]
             confirm = Adw.MessageDialog.new(
-                dialog,
+                self,
                 "Download this image?",
                 f"{item['title']}\n\n{attribution_text(item)}\n\n"
                 "The image is saved to a folder you choose. Nothing is applied "
